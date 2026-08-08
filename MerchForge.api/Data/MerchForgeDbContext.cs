@@ -19,6 +19,8 @@ namespace MerchForge.api.Data
 
         public DbSet<ProductDraft> ProductDrafts => Set<ProductDraft>();
 
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();    
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

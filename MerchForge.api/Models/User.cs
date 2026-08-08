@@ -20,4 +20,7 @@ public class User
     // Navigation properties
     public ICollection<BusinessUser> BusinessMemberships { get; set; }
         = new List<BusinessUser>();
+
+    public ICollection<RefreshToken> RefreshTokens { get; set; }
+    = new List<RefreshToken>();
 }

@@ -4,7 +4,10 @@ namespace MerchForge.api.Exceptions.Auth
 {
     public class InvalidCredentialsException : AppException
     {
-        public InvalidCredentialsException() : base("Invalid email or password")
+        public InvalidCredentialsException() : base(
+            Enums.ErrorType.Authentication,
+            "INVALID_CREDENTIALS",
+            "Invalid email or password")
         {
         }
 

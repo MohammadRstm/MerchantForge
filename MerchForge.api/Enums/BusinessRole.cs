@@ -1,6 +1,9 @@
-﻿namespace MerchForge.api.Enums
+﻿namespace MerchForge.api.Enums;
+
+public enum BusinessRole
 {
-    public class BusinessEnum
-    {
-    }
+    Owner,
+    Admin,
+    Member
 }
+

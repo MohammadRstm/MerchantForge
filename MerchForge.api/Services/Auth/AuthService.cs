@@ -1,5 +1,6 @@
 ﻿using MerchForge.api.Data;
 using MerchForge.api.DTOs.Auth;
+using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.AspNetCore.Identity;
@@ -10,6 +11,7 @@ namespace MerchForge.api.Services.Auth;
 public class AuthService : IAuthService
 {
     private readonly MerchForgeDbContext _db;
+    private readonly IRegistrationFactory _registrationFactory;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IJwtService _jwtService;
     private readonly IRefreshTokenService _refreshTokenService;
@@ -18,11 +20,13 @@ public class AuthService : IAuthService
         MerchForgeDbContext db,
         IPasswordHasher<User> passwordHasher,
         IJwtService jwtService,
+        IRegistrationFactory registrationFactory,
         IRefreshTokenService refreshTokenService)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
+        _registrationFactory = registrationFactory;
         _refreshTokenService = refreshTokenService;
     }
 
@@ -42,54 +46,9 @@ public class AuthService : IAuthService
                 "A user with this email already exists.");
         }
 
+        var (user, business, businessUser) = _registrationFactory.Create(request);
 
-        var user = new User{
-            Id = Guid.NewGuid(),
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            Email = request.Email,
-        };
-
-        user.PasswordHash = _passwordHasher.HashPassword(
-            user,
-            request.Password
-        );
-
-        var business = new Business
-        {
-            Id = Guid.NewGuid(),
-            Name = request.BusinessName,
-            OwnerUserId = user.Id,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-        };
-
-        var businessUser = new BusinessUser
-        {
-            BusinessId = business.Id,
-            UserId = user.Id,
-            Role = Enums.BusinessRole.Owner,
-            CreatedAt = business.CreatedAt,
-        };
-
-        await using var transaction =
-            await _db.Database.BeginTransactionAsync(cancellationToken);
-
-        try
-        {
-            await _db.Users.AddAsync(user, cancellationToken);
-            await _db.Businesses.AddAsync(business, cancellationToken);
-            await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        await CreateRegistrationAsync(user, business, businessUser, cancellationToken);
 
         var (refresh_token, _) =
             await _refreshTokenService.CreateAsync(
@@ -112,13 +71,13 @@ public class AuthService : IAuthService
                 "Invalid email or password.");
         }
 
-        var hashedPassword = _passwordHasher.VerifyHashedPassword(
+        var result = _passwordHasher.VerifyHashedPassword(
             user,
             user.PasswordHash,
             request.Password
         );
 
-        if (! hashedPassword.Equals(user.PasswordHash))
+        if (result == PasswordVerificationResult.Failed)
         {
             throw new InvalidOperationException(
                 "Invalid email or password.");
@@ -167,6 +126,32 @@ public class AuthService : IAuthService
         await _refreshTokenService.RevokeAsync(
             token,
             cancellationToken);
+    }
+
+    private async Task CreateRegistrationAsync(
+        User user,
+        Business business,
+        BusinessUser businessUser,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction =
+            await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await _db.Users.AddAsync(user, cancellationToken);
+            await _db.Businesses.AddAsync(business, cancellationToken);
+            await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     private AuthResponse CreateAuthResponse(

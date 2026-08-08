@@ -67,8 +67,7 @@ public class AuthService : IAuthService
 
         if (user is null)
         {
-            throw new InvalidOperationException(
-                "Invalid email or password.");
+            throw new InvalidCredentialsException();
         }
 
         var result = _passwordHasher.VerifyHashedPassword(
@@ -79,8 +78,7 @@ public class AuthService : IAuthService
 
         if (result == PasswordVerificationResult.Failed)
         {
-            throw new InvalidOperationException(
-                "Invalid email or password.");
+            throw new InvalidCredentialsException();
         }
 
         var (refresh_token, _) =

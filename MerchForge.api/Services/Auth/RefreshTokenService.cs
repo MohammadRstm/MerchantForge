@@ -72,6 +72,47 @@ namespace MerchForge.api.Services.Auth
             return refreshToken;
         }
 
+        public async Task<(string Token ,RefreshToken Entity)> RotateAsync(
+            RefreshToken currentToken,
+            CancellationToken cancellationToken
+            )
+        {
+            await using var transaction =
+                await _db.Database.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                // revoke token
+                currentToken.RevokedAt = DateTime.UtcNow;
+
+                // generate new refresh token
+                var rawToken = GenerateToken();
+
+                var tokenHash = HashToken(rawToken);
+
+                var newToken = new RefreshToken
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = currentToken.UserId,
+                    TokenHash = tokenHash,
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays)
+                };
+
+                await _db.RefreshTokens.AddAsync(newToken, cancellationToken);
+
+                await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                return (rawToken , newToken);
+            }catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+        }
+
         public async Task RevokeAsync(
            RefreshToken refreshToken,
            CancellationToken cancellationToken = default)

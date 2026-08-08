@@ -47,7 +47,7 @@ namespace MerchForge.api.Controllers
             var response = await _authService.RefreshAsync(
                 request.RefreshToken,
                 cancellationToken);
-
+            
             return Ok(response);
         }
 

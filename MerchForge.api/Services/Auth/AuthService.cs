@@ -157,12 +157,10 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Refresh token not found");
         }
 
-        // revoke current refresh token
-        await _refreshTokenService.RevokeAsync(refreshTokenEntity , cancellationToken);
-
-        // generate new refresh token
-        var (newRefreshToken, _) = await _refreshTokenService.CreateAsync(refreshTokenEntity.User, cancellationToken);
-
+        var (newRefreshToken, _) =
+             await _refreshTokenService.RotateAsync(
+                 refreshTokenEntity,
+                 cancellationToken);
 
         var access_token = _jwtService.GenerateAccessToken(
             refreshTokenEntity.User);

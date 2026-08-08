@@ -15,5 +15,9 @@ namespace MerchForge.api.Services.Auth.interfaces
         Task RevokeAsync(
             RefreshToken refreshToken,
             CancellationToken cancellationToken = default);
+
+        Task<(string Token, RefreshToken Entity)> RotateAsync(
+            RefreshToken currentToken,
+            CancellationToken cancellationToken = default);
     }
 }

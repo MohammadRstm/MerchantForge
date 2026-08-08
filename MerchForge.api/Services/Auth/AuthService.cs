@@ -97,7 +97,7 @@ public class AuthService : IAuthService
 
         if(refreshTokenEntity is null)
         {
-            throw new InvalidOperationException("Refresh token not found");
+            throw new InvalidRefreshTokenException();
         }
 
         var (newRefreshToken, _) =
@@ -105,7 +105,7 @@ public class AuthService : IAuthService
                  refreshTokenEntity,
                  cancellationToken);
 
-        return CreateAuthResponse(refreshTokenEntity.User, refreshToken);
+        return CreateAuthResponse(refreshTokenEntity.User, newRefreshToken);
     }
 
     public async Task LogoutAsync(

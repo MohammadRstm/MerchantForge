@@ -1,4 +1,5 @@
 ﻿using MerchForge.api.Configurations;
+using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Models;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.Extensions.Options;
@@ -20,8 +21,7 @@ public class JwtService : IJwtService
 
         if (string.IsNullOrWhiteSpace(_options.SecretKey))
         {
-            throw new InvalidOperationException(
-                "JWT SecretKey is not configured.");
+            throw new JwtConfigurationException();
         }
 
         _signingKey = Encoding.UTF8.GetBytes(_options.SecretKey);

@@ -1,12 +1,13 @@
 using MerchForge.api.Configurations;
 using MerchForge.api.Data;
+using MerchForge.api.Exceptions;
+using MerchForge.api.Factory;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using MerchForge.api.Factory;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -73,7 +74,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
 
-
+// Global Exception handler
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // build app
 var app = builder.Build();
@@ -83,7 +85,7 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
-
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

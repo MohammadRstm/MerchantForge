@@ -1,6 +1,6 @@
-﻿namespace MerchForge.api.DTOs.Auth
+﻿namespace MerchForge.api.DTOs.Auth;
+
+public class RefreshTokenRequest
 {
-    public class RefreshTokenRequest
-    {
-    }
+    public string RefreshToken { get; set; } = string.Empty;
 }

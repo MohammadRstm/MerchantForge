@@ -1,5 +1,6 @@
 ﻿using MerchForge.api.Data;
 using MerchForge.api.DTOs.Auth;
+using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Services.Auth.interfaces;
@@ -42,8 +43,7 @@ public class AuthService : IAuthService
 
         if (existingUser is not null)
         {
-            throw new InvalidOperationException(
-                "A user with this email already exists.");
+            throw new EmailAlreadyExistsException();
         }
 
         var (user, business, businessUser) = _registrationFactory.Create(request);

@@ -91,19 +91,12 @@ public class AuthService : IAuthService
             throw;
         }
 
-        var access_token = _jwtService.GenerateAccessToken(user);
-
         var (refresh_token, _) =
             await _refreshTokenService.CreateAsync(
                 user,
                 cancellationToken);
 
-        return new AuthResponse
-        {
-            AccessToken = access_token,
-            RefreshToken = refresh_token,
-            AccessTokenExpiresAt = _jwtService.GetExpirationTime()
-        };
+        return CreateAuthResponse(user, refresh_token);
     }
 
     public async Task<AuthResponse> LoginAsync(
@@ -131,19 +124,12 @@ public class AuthService : IAuthService
                 "Invalid email or password.");
         }
 
-        var access_token = _jwtService.GenerateAccessToken(user);
-
         var (refresh_token, _) =
             await _refreshTokenService.CreateAsync(
                 user,
                 cancellationToken);
 
-        return new AuthResponse
-        {
-            AccessToken = access_token,
-            RefreshToken = refresh_token,
-            AccessTokenExpiresAt = _jwtService.GetExpirationTime()
-        };
+        return CreateAuthResponse(user, refresh_token);
     }
 
     public async Task<AuthResponse> RefreshAsync(
@@ -162,15 +148,7 @@ public class AuthService : IAuthService
                  refreshTokenEntity,
                  cancellationToken);
 
-        var access_token = _jwtService.GenerateAccessToken(
-            refreshTokenEntity.User);
-
-        return new AuthResponse
-        {
-            RefreshToken = newRefreshToken,
-            AccessToken = access_token,
-            AccessTokenExpiresAt = _jwtService.GetExpirationTime()
-        };
+        return CreateAuthResponse(refreshTokenEntity.User, refreshToken);
     }
 
     public async Task LogoutAsync(
@@ -189,5 +167,17 @@ public class AuthService : IAuthService
         await _refreshTokenService.RevokeAsync(
             token,
             cancellationToken);
+    }
+
+    private AuthResponse CreateAuthResponse(
+    User user,
+    string refreshToken)
+    {
+        return new AuthResponse
+        {
+            AccessToken = _jwtService.GenerateAccessToken(user),
+            RefreshToken = refreshToken,
+            AccessTokenExpiresAt = _jwtService.GetExpirationTime()
+        };
     }
 }

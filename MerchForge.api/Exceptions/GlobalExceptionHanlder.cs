@@ -3,7 +3,7 @@ using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Exceptions.Base;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
+using FluentValidation;
 
 
 namespace MerchForge.api.Exceptions
@@ -27,6 +27,18 @@ namespace MerchForge.api.Exceptions
                 exception,
                 "An unhandled exception occurred.");
 
+            // vaidation layer exceptions
+            if (exception is ValidationException validationException)
+            {
+                await HandleValidationException(
+                    httpContext,
+                    validationException,
+                    cancellationToken);
+
+                return true;
+            }
+
+            // business layer exceptions
             if (exception is AppException appException)
             {
                 await HandleApplicationException(
@@ -79,6 +91,36 @@ namespace MerchForge.api.Exceptions
 
             httpContext.Response.StatusCode =
                 StatusCodes.Status500InternalServerError;
+
+            await httpContext.Response.WriteAsJsonAsync(
+                response,
+                cancellationToken);
+        }
+
+        private static async Task HandleValidationException(
+            HttpContext httpContext,
+            ValidationException exception,
+            CancellationToken cancellationToken)
+        {
+            var errors = exception.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(error => error.ErrorMessage)
+                        .ToArray());
+
+            var response = new ApiErrorResponse
+            {
+                Type = ErrorType.Validation,
+                Code = "VALIDATION_ERROR",
+                Message = "One or more validation errors occurred.",
+                TraceId = httpContext.TraceIdentifier,
+                Errors = errors
+            };
+
+            httpContext.Response.StatusCode =
+                StatusCodes.Status400BadRequest;
 
             await httpContext.Response.WriteAsJsonAsync(
                 response,

@@ -1,4 +1,7 @@
-﻿using MerchForge.api.Exceptions.Auth;
+﻿using MerchForge.api.DTOs.Error;
+using MerchForge.api.Enums;
+using MerchForge.api.Exceptions.Auth;
+using MerchForge.api.Exceptions.Base;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,35 +27,91 @@ namespace MerchForge.api.Exceptions
                 exception,
                 "An unhandled exception occurred.");
 
-            var statusCode = exception switch
+            if (exception is AppException appException)
             {
-                EmailAlreadyExistsException => StatusCodes.Status409Conflict,
+                await HandleApplicationException(
+                    httpContext,
+                    appException,
+                    cancellationToken);
 
-                InvalidCredentialsException =>
-                    StatusCodes.Status401Unauthorized,
+                return true;
+            }
 
-                InvalidRefreshTokenException =>
-                    StatusCodes.Status401Unauthorized,
 
-                _ => StatusCodes.Status500InternalServerError
+            await HandleUnexpectedException(
+             httpContext,
+             cancellationToken);
+
+            return true;
+        }
+        private static async Task HandleApplicationException(
+            HttpContext httpContext,
+            AppException exception,
+            CancellationToken cancellationToken)
+        {
+            var response = new ApiErrorResponse
+            {
+                Type = exception.Type,
+                Code = exception.Code,
+                Message = exception.Message,
+                TraceId = httpContext.TraceIdentifier
             };
 
-            var response = new ProblemDetails
-            {
-                Status = statusCode,
-                Title = GetTitle(statusCode),
-                Detail = GetDetail(exception, statusCode),
-                Instance = httpContext.Request.Path
-            };
-
-            httpContext.Response.StatusCode = statusCode;
+            httpContext.Response.StatusCode =
+                GetStatusCode(exception.Type);
 
             await httpContext.Response.WriteAsJsonAsync(
                 response,
                 cancellationToken);
-
-            return true;
         }
+
+        private static async Task HandleUnexpectedException(
+           HttpContext httpContext,
+           CancellationToken cancellationToken)
+        {
+            var response = new ApiErrorResponse
+            {
+                Type = ErrorType.Unexpected,
+                Code = "INTERNAL_SERVER_ERROR",
+                Message = "An unexpected error occurred.",
+                TraceId = httpContext.TraceIdentifier
+            };
+
+            httpContext.Response.StatusCode =
+                StatusCodes.Status500InternalServerError;
+
+            await httpContext.Response.WriteAsJsonAsync(
+                response,
+                cancellationToken);
+        }
+
+        private static int GetStatusCode(ErrorType type)
+        {
+            return type switch
+            {
+                ErrorType.Validation =>
+                    StatusCodes.Status400BadRequest,
+
+                ErrorType.Authentication =>
+                    StatusCodes.Status401Unauthorized,
+
+                ErrorType.Authorization =>
+                    StatusCodes.Status403Forbidden,
+
+                ErrorType.NotFound =>
+                    StatusCodes.Status404NotFound,
+
+                ErrorType.Conflict =>
+                    StatusCodes.Status409Conflict,
+
+                ErrorType.Unexpected =>
+                    StatusCodes.Status500InternalServerError,
+
+                _ => StatusCodes.Status500InternalServerError
+            };
+        }
+
+
 
         private static string GetTitle(int statusCode)
         {

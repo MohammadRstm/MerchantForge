@@ -1,12 +1,19 @@
 using FluentValidation;
+using MerchForge.api.Authorization;
+using MerchForge.api.Authorization.Handlers;
+using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Configurations;
 using MerchForge.api.Data;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Factory;
+using MerchForge.api.Models;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -64,13 +71,12 @@ builder.Services
         };
     });
 
-
 builder.Services
     .AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
     .ValidateOnStart();
 
-builder.Services.AddScoped<IPassowrdHasher, PasswordHasherService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
@@ -78,6 +84,52 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 
 builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
+
+// Authorization Service
+builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        AuthorizationPolicies.SystemAdmin,
+        policy =>
+        {
+            policy.RequireRole(
+                SystemRole.Admin.ToString());
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.BusinessMember,
+        policy =>
+        {
+            policy.AddRequirements(
+                new BusinessRoleRequirements(
+                    BusinessRole.Member,
+                    BusinessRole.Admin,
+                    BusinessRole.Owner
+                ));
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.BusinessAdmin,
+        policy =>
+        {
+            policy.AddRequirements(
+                new BusinessRoleRequirements(
+                    BusinessRole.Admin,
+                    BusinessRole.Owner
+                ));
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.BusinessOwner,
+        policy =>
+        {
+            policy.AddRequirements(
+                new BusinessRoleRequirements(
+                    BusinessRole.Owner
+                ));
+        });
+});
 
 // Global Exception handler
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

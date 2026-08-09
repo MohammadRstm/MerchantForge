@@ -1,6 +1,8 @@
 ﻿using MerchForge.api.DTOs.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.AspNetCore.Mvc;
+using FluentValidation;
+using MerchForge.api.Validators.Auth;
 
 namespace MerchForge.api.Controllers
 {
@@ -9,10 +11,15 @@ namespace MerchForge.api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IValidator<RegisterRequest> _registerationValidator;
+        private readonly IValidator<LoginRequest> _loginValidator;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, IValidator<LoginRequest> loginValidator,
+            IValidator<RegisterRequest> registerValidator)
         {
             _authService = authService;
+            _loginValidator = loginValidator;
+            _registerationValidator = registerValidator;
         }
 
         [HttpPost("register")]
@@ -20,6 +27,8 @@ namespace MerchForge.api.Controllers
             [FromBody] RegisterRequest request,
             CancellationToken cancellationToken)
         {
+            await _registerationValidator.ValidateAndThrowAsync(request);
+            
             var response = await _authService.RegisterAsync(
                 request,
                 cancellationToken);
@@ -32,6 +41,8 @@ namespace MerchForge.api.Controllers
             [FromBody] LoginRequest request,
             CancellationToken cancellationToken)
         {
+            await _loginValidator.ValidateAndThrowAsync(request);
+
             var response = await _authService.LoginAsync(
                 request,
                 cancellationToken);

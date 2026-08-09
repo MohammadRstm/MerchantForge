@@ -1,3 +1,4 @@
+using FluentValidation;
 using MerchForge.api.Configurations;
 using MerchForge.api.Data;
 using MerchForge.api.Exceptions;
@@ -11,9 +12,13 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// validation layer
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+
 // Add services to the container.
 builder.Services.AddControllers();
 
+// DB context - Mysql
 builder.Services.AddDbContext<MerchForgeDbContext>(options =>
 {
     var connectionString =

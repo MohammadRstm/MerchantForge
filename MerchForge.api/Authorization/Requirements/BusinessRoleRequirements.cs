@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace MerchForge.api.Authorization.Requirements
 {
-    public class BusinessRoleRequirements
+    public class BusinessRoleRequirements : IAuthorizationRequirement
     {
         public IReadOnlyCollection<BusinessRole> AllowedRoles { get; }
 

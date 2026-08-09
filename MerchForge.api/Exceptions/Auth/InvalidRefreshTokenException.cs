@@ -5,7 +5,10 @@ namespace MerchForge.api.Exceptions.Auth
     public class InvalidRefreshTokenException : AppException
     {
         public InvalidRefreshTokenException()
-     : base("The refresh token is invalid or expired.")
+     : base(
+           Enums.ErrorType.Authentication,
+           "INVALID_REFRESH_TOKEN",
+           "The refresh token is invalid or expired.")
         {
         }
     }

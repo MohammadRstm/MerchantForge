@@ -42,14 +42,18 @@ namespace MerchForge.api.Authorization.Handlers
                 return;
             }
 
-            var userRole = await _db.BusinessUsers
-                .Where(bu =>
-                    bu.UserId == parsedUserId &&
-                    bu.BusinessId == businessId)
-                .Select(bu => bu.Role)
-                .FirstOrDefaultAsync();
+            var businessUser = await _db.BusinessUsers
+                .FirstOrDefaultAsync(
+                    bu =>
+                        bu.UserId == parsedUserId &&
+                        bu.BusinessId == businessId);
 
-            if (requirement.AllowedRoles.Contains(userRole))
+            if (businessUser is null)
+            {
+                return;
+            }
+
+            if (requirement.AllowedRoles.Contains(businessUser.Role))
             {
                 context.Succeed(requirement);
             }

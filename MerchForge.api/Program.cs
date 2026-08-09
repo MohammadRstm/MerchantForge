@@ -1,4 +1,5 @@
 using FluentValidation;
+using MerchForge.api.Authorization.Handlers;
 using MerchForge.api.Configurations;
 using MerchForge.api.Data;
 using MerchForge.api.Exceptions;
@@ -6,6 +7,7 @@ using MerchForge.api.Factory;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -64,7 +66,6 @@ builder.Services
         };
     });
 
-
 builder.Services
     .AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
@@ -78,6 +79,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 
 builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
+
+// Authorization Service
+builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
 
 // Global Exception handler
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

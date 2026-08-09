@@ -1,7 +1,10 @@
 using FluentValidation;
+using MerchForge.api.Authorization;
 using MerchForge.api.Authorization.Handlers;
+using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Configurations;
 using MerchForge.api.Data;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Factory;
 using MerchForge.api.Services.Auth;
@@ -82,6 +85,49 @@ builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
 
 // Authorization Service
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        AuthorizationPolicies.SystemAdmin,
+        policy =>
+        {
+            policy.RequireRole(
+                SystemRole.Admin.ToString());
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.BusinessMember,
+        policy =>
+        {
+            policy.AddRequirements(
+                new BusinessRoleRequirements(
+                    BusinessRole.Member,
+                    BusinessRole.Admin,
+                    BusinessRole.Owner
+                ));
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.BusinessAdmin,
+        policy =>
+        {
+            policy.AddRequirements(
+                new BusinessRoleRequirements(
+                    BusinessRole.Admin,
+                    BusinessRole.Owner
+                ));
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.BusinessOwner,
+        policy =>
+        {
+            policy.AddRequirements(
+                new BusinessRoleRequirements(
+                    BusinessRole.Owner
+                ));
+        });
+});
 
 // Global Exception handler
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

@@ -39,6 +39,7 @@ builder.Services.AddDbContext<MerchForgeDbContext>(options =>
 });
 
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddOpenApi();
 
 // business Services
@@ -141,6 +142,8 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    app.UseSwagger();
+    app.UseSwaggerUI();
     app.MapOpenApi();
 }
 app.UseExceptionHandler();

@@ -4,6 +4,7 @@ using MerchForge.api.Authorization.Handlers;
 using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Configurations;
 using MerchForge.api.Data;
+using MerchForge.api.Exceptions;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Factory;
@@ -16,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using MerchForge.api.Exceptions.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,8 +51,7 @@ builder.Services
         var jwtOptions = builder.Configuration
             .GetSection(JwtOptions.SectionName)
             .Get<JwtOptions>()
-            ?? throw new InvalidOperationException(
-                "JWT configuration is missing.");
+            ?? throw new JwtConfigurationException();
 
         options.TokenValidationParameters = new TokenValidationParameters
         {

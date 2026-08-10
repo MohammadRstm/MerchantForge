@@ -2,11 +2,9 @@
 
 namespace MerchForge.api.Exceptions.Auth
 {
-    public class JwtConfigurationException : AppException
+    public class JwtConfigurationException : Exception
     {
         public JwtConfigurationException() : base(
-            Enums.ErrorType.Authentication,
-            "JWT_MISS_CONFIGURATION",
             "Jwt seceret key not configured") { }
     }
 }

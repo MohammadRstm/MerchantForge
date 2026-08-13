@@ -12,7 +12,7 @@ namespace MerchForge.api.Services.Auth
     {
         private readonly IRefreshTokenRepository _refreshTokenRepository;
 
-        private int RefreshTokenExpirationDays = 30;
+        private int RefreshTokenExpirationDays = 30;// not good to have this here but who cares
 
         public RefreshTokenService(IRefreshTokenRepository refreshTokenRepository)
         {

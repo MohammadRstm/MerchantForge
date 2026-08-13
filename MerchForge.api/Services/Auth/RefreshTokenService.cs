@@ -1,5 +1,6 @@
 ﻿using MerchForge.api.Data;
 using MerchForge.api.Models;
+using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
@@ -9,13 +10,13 @@ namespace MerchForge.api.Services.Auth
 {
     public class RefreshTokenService : IRefreshTokenService
     {
-        private readonly MerchForgeDbContext _db;
+        private readonly IRefreshTokenRepository _refreshTokenRepository;
 
         private int RefreshTokenExpirationDays = 30;
 
-        public RefreshTokenService(MerchForgeDbContext db)
+        public RefreshTokenService(IRefreshTokenRepository refreshTokenRepository)
         {
-            _db = db;
+            _refreshTokenRepository = refreshTokenRepository;
         }
 
         public async Task<(string Token, RefreshToken Entity)> CreateAsync(
@@ -35,9 +36,7 @@ namespace MerchForge.api.Services.Auth
                 ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays)
             };
 
-            _db.RefreshTokens.Add(refreshToken);
-
-            await _db.SaveChangesAsync(cancellationToken);
+            await _refreshTokenRepository.AddAsync(refreshToken, cancellationToken);
 
             return (rawToken, refreshToken);
         }
@@ -48,11 +47,7 @@ namespace MerchForge.api.Services.Auth
         {
             var tokenHash = HashToken(token);
 
-            var refreshToken = await _db.RefreshTokens
-                .Include(x => x.User)
-                .FirstOrDefaultAsync(
-                    x => x.TokenHash == tokenHash,
-                    cancellationToken);
+            var refreshToken = await _refreshTokenRepository.GetAsync(tokenHash , cancellationToken);
 
             if (refreshToken is null)
             {
@@ -77,40 +72,26 @@ namespace MerchForge.api.Services.Auth
             CancellationToken cancellationToken
             )
         {
-            await using var transaction =
-                await _db.Database.BeginTransactionAsync(cancellationToken);
+            // revoke token
+            currentToken.RevokedAt = DateTime.UtcNow;
 
-            try
+            // generate new refresh token
+            var rawToken = GenerateToken();
+
+            var tokenHash = HashToken(rawToken);
+
+            var newToken = new RefreshToken
             {
-                // revoke token
-                currentToken.RevokedAt = DateTime.UtcNow;
+                Id = Guid.NewGuid(),
+                UserId = currentToken.UserId,
+                TokenHash = tokenHash,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays)
+            };
 
-                // generate new refresh token
-                var rawToken = GenerateToken();
+            await _refreshTokenRepository.AddAsync(newToken, cancellationToken);// the _db.save on add_token will also save the revoke_token
 
-                var tokenHash = HashToken(rawToken);
-
-                var newToken = new RefreshToken
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = currentToken.UserId,
-                    TokenHash = tokenHash,
-                    CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays)
-                };
-
-                await _db.RefreshTokens.AddAsync(newToken, cancellationToken);
-
-                await _db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-
-                return (rawToken , newToken);
-            }catch
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                throw;
-            }
-
+            return (rawToken , newToken);
         }
 
         public async Task RevokeAsync(
@@ -124,7 +105,9 @@ namespace MerchForge.api.Services.Auth
 
             refreshToken.RevokedAt = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync(cancellationToken);
+            await _refreshTokenRepository.UpdateAsync(
+              refreshToken,
+              cancellationToken);
         }
 
         private static string GenerateToken()

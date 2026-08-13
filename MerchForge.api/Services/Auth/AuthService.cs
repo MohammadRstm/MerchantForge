@@ -47,7 +47,7 @@ public class AuthService : IAuthService
 
         var (user, business, businessUser) = _registrationFactory.Create(request);
 
-        await CreateRegistrationAsync(user, business, businessUser, cancellationToken);
+        await _userRepository.RegisterUser(user, business, businessUser, cancellationToken);
 
         var (refresh_token, _) =
             await _refreshTokenService.CreateAsync(
@@ -122,32 +122,6 @@ public class AuthService : IAuthService
         await _refreshTokenService.RevokeAsync(
             token,
             cancellationToken);
-    }
-
-    private async Task CreateRegistrationAsync(
-        User user,
-        Business business,
-        BusinessUser businessUser,
-        CancellationToken cancellationToken)
-    {
-        await using var transaction =
-            await _db.Database.BeginTransactionAsync(cancellationToken);
-
-        try
-        {
-            await _db.Users.AddAsync(user, cancellationToken);
-            await _db.Businesses.AddAsync(business, cancellationToken);
-            await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
     }
 
     private AuthResponse CreateAuthResponse(

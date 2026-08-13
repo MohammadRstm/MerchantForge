@@ -8,8 +8,10 @@ namespace MerchForge.api.Repositories.Interfaces
           string email,
           CancellationToken cancellationToken = default);
 
-        Task AddAsync(
-          User user,
-          CancellationToken cancellationToken = default);
+        Task<User> RegisterUser(
+            User user,
+            Business business,
+            BusinessUser businessUser,
+            CancellationToken token = default);
     }
 }

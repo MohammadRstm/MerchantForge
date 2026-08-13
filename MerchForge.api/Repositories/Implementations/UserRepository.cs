@@ -24,11 +24,28 @@ namespace MerchForge.api.Repositories.Implementations
                     cancellationToken);
         }
 
-        public async Task AddAsync(
-            User user,
-            CancellationToken cancellationToken = default)
+        public async Task<User> RegisterUser(User user,Business business ,BusinessUser businessUser , CancellationToken cancellationToken = default)
         {
-            await _db.Users.AddAsync(user, cancellationToken);
+            await using var transaction =
+                await _db.Database.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                await _db.Users.AddAsync(user, cancellationToken);
+                await _db.Businesses.AddAsync(business, cancellationToken);
+                await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+            return user;
         }
     }
 }

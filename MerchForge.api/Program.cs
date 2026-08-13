@@ -97,7 +97,8 @@ builder.Services.AddAuthorization(options =>
         {
             policy.RequireRole(
                 SystemRole.Admin.ToString());
-        });
+        }
+    );
 
     options.AddPolicy(
         AuthorizationPolicies.BusinessMember,

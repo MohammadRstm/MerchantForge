@@ -152,39 +152,5 @@ namespace MerchForge.api.Exceptions
                 _ => StatusCodes.Status500InternalServerError
             };
         }
-
-
-
-        private static string GetTitle(int statusCode)
-        {
-            return statusCode switch
-            {
-                StatusCodes.Status400BadRequest =>
-                    "Bad Request",
-
-                StatusCodes.Status401Unauthorized =>
-                    "Unauthorized",
-
-                StatusCodes.Status403Forbidden =>
-                    "Forbidden",
-
-                StatusCodes.Status404NotFound =>
-                    "Not Found",
-
-                StatusCodes.Status409Conflict =>
-                    "Conflict",
-
-                _ => "Internal Server Error"
-            };
-        }
-
-        private static string GetDetail(
-            Exception exception,
-            int statusCode)
-        {
-            return statusCode == StatusCodes.Status500InternalServerError
-                ? "An unexpected error occurred."
-                : exception.Message;
-        }
     }
 }

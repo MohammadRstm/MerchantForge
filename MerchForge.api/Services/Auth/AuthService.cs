@@ -3,6 +3,7 @@ using MerchForge.api.DTOs.Auth;
 using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Factory;
 using MerchForge.api.Models;
+using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,20 +12,20 @@ namespace MerchForge.api.Services.Auth;
 
 public class AuthService : IAuthService
 {
-    private readonly MerchForgeDbContext _db;
+    private readonly IUserRepository _userRepository;
     private readonly IRegistrationFactory _registrationFactory;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IJwtService _jwtService;
     private readonly IRefreshTokenService _refreshTokenService;
 
     public AuthService(
-        MerchForgeDbContext db,
+        IUserRepository userRepository,
         IPasswordHasher<User> passwordHasher,
         IJwtService jwtService,
         IRegistrationFactory registrationFactory,
         IRefreshTokenService refreshTokenService)
     {
-        _db = db;
+        _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
         _registrationFactory = registrationFactory;
@@ -36,10 +37,8 @@ public class AuthService : IAuthService
         CancellationToken cancellationToken = default)
     {
 
-        var existingUser = await _db.Users
-          .FirstOrDefaultAsync(
-          u => u.Email == request.Email,
-          cancellationToken);
+        var existingUser = await _userRepository.GetByEmailAsync(request.Email,
+        cancellationToken);
 
         if (existingUser is not null)
         {
@@ -62,8 +61,7 @@ public class AuthService : IAuthService
         LoginRequest request,
         CancellationToken cancellationToken = default)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(
-            u => u.Email == request.Email);
+        var user = await _userRepository.GetByEmailAsync(request.Email, cancellationToken);
 
         if (user is null)
         {

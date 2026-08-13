@@ -14,7 +14,7 @@ using System.Text;
 
 namespace MerchForge.UnitTests.Services
 {
-    internal public class AuthServiceTests
+    public class AuthServiceTests
     {
         private readonly Mock<IUserRepository> _userRepository;
         private readonly Mock<IRegistrationFactory> _registrationFactory;
@@ -182,6 +182,7 @@ namespace MerchForge.UnitTests.Services
             await act.Should()
                 .ThrowAsync<InvalidRefreshTokenException>();
         }
+
 
 
     }

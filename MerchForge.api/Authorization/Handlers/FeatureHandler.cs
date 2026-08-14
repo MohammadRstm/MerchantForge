@@ -1,29 +1,55 @@
 ﻿using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Data;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using MerchForge.api.Models;
 
 namespace MerchForge.api.Authorization.Handlers
 {
-    public class FeatureHandler
+    public class FeatureHandler : AuthorizationHandler<FeatureRequirement>
     {
-        private readonly MerchForgeDbContext _db;
+        private readonly ISubscriptionService _subscriptionService;
 
-        public FeatureHandler(MerchForgeDbContext db)
+        public FeatureHandler(
+            ISubscriptionService subscriptionService)
         {
-            _db = db;
+            _subscriptionService = subscriptionService;
         }
 
         protected override async Task HandleRequirementAsync(
             AuthorizationHandlerContext context,
             FeatureRequirement requirement)
         {
-            // Determine the business being accessed
-            // Determine its active subscription
-            // Determine its plan
-            // Determine whether the plan contains the feature
+            var userId = context.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
 
-            // If it does:
-            context.Succeed(requirement);
+            if (!Guid.TryParse(userId, out var parsedUserId))
+            {
+                return;
+            }
+
+            if (context.Resource is not HttpContext httpContext)
+            {
+                return;
+            }
+
+            var businessIdValue =
+                httpContext.Request.RouteValues["businessId"]?.ToString();
+
+            if (!Guid.TryParse(businessIdValue, out var businessId))
+            {
+                return;
+            }
+
+            var hasAccess = await _subscriptionService.HasFeatureAsync(
+                businessId,
+                parsedUserId,
+                requirement.FeatureKey);
+
+            if (hasAccess)
+            {
+                context.Succeed(requirement);
+            }
         }
     }
 }

@@ -147,10 +147,21 @@ builder.Services.AddAuthorization(options =>
         {
             policy.AddRequirements(
                 new FeatureRequirement(
+                      FeatureKeys.Products
+                ));
+        });
 
-                    )
-        }
-        )
+    options.AddPolicy(
+        FeaturePolicies.AiProductGeneration,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                     FeatureKeys.AiProductGeneration
+                ));
+        });
+
+    // add more policies as more services are added
 });
 
 // Global Exception handler

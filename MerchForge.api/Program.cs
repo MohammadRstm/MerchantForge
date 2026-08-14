@@ -6,7 +6,6 @@ using MerchForge.api.Configurations;
 using MerchForge.api.Data;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Enums;
-using MerchForge.api.Exceptions;
 using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Services.Auth;
@@ -20,7 +19,6 @@ using System.Text;
 using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Services.Subscription.interfaces;
 using MerchForge.api.Services.Subscription;
-using MerchForge.api.Authorization.Policies;
 
 var builder = WebApplication.CreateBuilder(args);
 

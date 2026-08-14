@@ -20,6 +20,7 @@ using System.Text;
 using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Services.Subscription.interfaces;
 using MerchForge.api.Services.Subscription;
+using MerchForge.api.Authorization.Policies;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -139,6 +140,17 @@ builder.Services.AddAuthorization(options =>
                     BusinessRole.Owner
                 ));
         });
+
+    options.AddPolicy(
+        FeaturePolicies.Products,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+
+                    )
+        }
+        )
 });
 
 // Global Exception handler

@@ -1,6 +1,8 @@
-﻿namespace MerchForge.api.Authorization.Requirements
+﻿using Microsoft.AspNetCore.Authorization;
+
+namespace MerchForge.api.Authorization.Requirements
 {
-    public class FeatureRequirement
+    public class FeatureRequirement : IAuthorizationRequirement
     {
         public string FeatureKey { get; }
 

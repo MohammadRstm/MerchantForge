@@ -1,6 +1,6 @@
 ﻿namespace MerchForge.api.Authorization.Policies
 {
-    public class FeaturePolicies
+    public static class FeaturePolicies
     {
         public const string Products = "products";
 

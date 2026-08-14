@@ -3,6 +3,7 @@ using MerchForge.api.Data;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using MerchForge.api.Models;
+using MerchForge.api.Services.Subscription.interfaces;
 
 namespace MerchForge.api.Authorization.Handlers
 {
@@ -43,7 +44,6 @@ namespace MerchForge.api.Authorization.Handlers
 
             var hasAccess = await _subscriptionService.HasFeatureAsync(
                 businessId,
-                parsedUserId,
                 requirement.FeatureKey);
 
             if (hasAccess)

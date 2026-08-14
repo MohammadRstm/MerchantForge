@@ -3,7 +3,8 @@
     using MerchForge.api.Models;
     public interface ISubscriptionService
     {
-        Task<Subscription> HasFeatureAsync(Guid businessId);
-
+        Task<bool> HasFeatureAsync(
+            Guid businessId,
+            string featureKey);
     }
 }

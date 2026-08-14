@@ -99,6 +99,8 @@ builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
 
 builder.Services.AddAuthorization(options =>
 {
+    // System Authorizations
+
     options.AddPolicy(
         AuthorizationPolicies.SystemAdmin,
         policy =>
@@ -107,6 +109,8 @@ builder.Services.AddAuthorization(options =>
                 SystemRole.Admin.ToString());
         }
     );
+
+    // Bussiness Authorizations
 
     options.AddPolicy(
         AuthorizationPolicies.BusinessMember,
@@ -140,6 +144,8 @@ builder.Services.AddAuthorization(options =>
                     BusinessRole.Owner
                 ));
         });
+
+    // Feature Authorizations
 
     options.AddPolicy(
         AuthorizationPolicies.Products,

@@ -18,6 +18,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using MerchForge.api.Exceptions.Auth;
+using MerchForge.api.Services.Subscription.interfaces;
+using MerchForge.api.Services.Subscription;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -86,6 +88,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 
 builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
+
+// Subscription Services
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 
 // Authorization Service
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();

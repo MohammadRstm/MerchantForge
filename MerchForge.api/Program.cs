@@ -142,7 +142,7 @@ builder.Services.AddAuthorization(options =>
         });
 
     options.AddPolicy(
-        FeaturePolicies.Products,
+        AuthorizationPolicies.Products,
         policy =>
         {
             policy.AddRequirements(
@@ -152,7 +152,7 @@ builder.Services.AddAuthorization(options =>
         });
 
     options.AddPolicy(
-        FeaturePolicies.AiProductGeneration,
+        AuthorizationPolicies.AiProductGeneration,
         policy =>
         {
             policy.AddRequirements(

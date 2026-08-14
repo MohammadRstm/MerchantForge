@@ -1,5 +1,6 @@
 ﻿namespace MerchForge.api.Models;
 
+using MerchForge.api.Enums;
 public class Subscription
 {
     public Guid Id { get; set; }

@@ -17,7 +17,4 @@ public class Feature
 
     public ICollection<PlanFeature> PlanFeatures { get; set; }
         = new List<PlanFeature>();
-
-    public ICollection<BusinessFeatureOverride> BusinessOverrides { get; set; }
-        = new List<BusinessFeatureOverride>();
 }

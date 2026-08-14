@@ -1,5 +1,8 @@
 ﻿namespace MerchForge.api.Models;
 
+using MerchForge.api.Enums;
+
+
 public class SubscriptionPlan
 {
     public Guid Id { get; set; }
@@ -15,6 +18,8 @@ public class SubscriptionPlan
     public BillingInterval BillingInterval { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    public bool IsCustom { get; set; } = false;
 
     public DateTime CreatedAt { get; set; }
 

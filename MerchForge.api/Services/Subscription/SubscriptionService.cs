@@ -4,26 +4,22 @@ namespace MerchForge.api.Services.Subscription
     using MerchForge.api.Data;
     using MerchForge.api.Enums;
     using MerchForge.api.Models;
+    using MerchForge.api.Repositories.Implementations;
     using MerchForge.api.Services.Subscription.interfaces;
     using Microsoft.EntityFrameworkCore;
 
     public class SubscriptionService : ISubscriptionService
     {
-        private readonly MerchForgeDbContext _db;
-        public SubscriptionService(MerchForgeDbContext db)
+        private readonly SubscriptionRepository _subscriptionRepository;
+        public SubscriptionService(SubscriptionRepository subscriptionRepository)
         {
-            _db = db;
+            _subscriptionRepository = subscriptionRepository;
         }
 
         public async Task<bool> HasFeatureAsync(Guid businessId,string featureKey)
         {
-            var subscription = await _db.Subscriptions
-                .Include(s => s.SubscriptionPlan)
-                    .ThenInclude(p => p.PlanFeatures)
-                        .ThenInclude(pf => pf.Feature)
-                .FirstOrDefaultAsync(s =>
-                    s.BusinessId == businessId &&
-                    s.Status == SubscriptionStatus.Active);
+            var subscription = await _subscriptionRepository
+                .GetSubscriptionWithPlanFeaturesAsync(businessId);
 
             if (subscription == null)
             {

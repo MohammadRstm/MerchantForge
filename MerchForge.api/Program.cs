@@ -89,6 +89,8 @@ builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
 
 // Authorization Service
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(

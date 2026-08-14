@@ -6,7 +6,6 @@ using MerchForge.api.Configurations;
 using MerchForge.api.Data;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Enums;
-using MerchForge.api.Exceptions;
 using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Services.Auth;
@@ -18,6 +17,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using MerchForge.api.Exceptions.Auth;
+using MerchForge.api.Services.Subscription.interfaces;
+using MerchForge.api.Services.Subscription;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,10 +88,17 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
 
+// Subscription Services
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+
 // Authorization Service
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
+
 builder.Services.AddAuthorization(options =>
 {
+    // System Authorizations
+
     options.AddPolicy(
         AuthorizationPolicies.SystemAdmin,
         policy =>
@@ -99,6 +107,8 @@ builder.Services.AddAuthorization(options =>
                 SystemRole.Admin.ToString());
         }
     );
+
+    // Bussiness Authorizations
 
     options.AddPolicy(
         AuthorizationPolicies.BusinessMember,
@@ -132,6 +142,30 @@ builder.Services.AddAuthorization(options =>
                     BusinessRole.Owner
                 ));
         });
+
+    // Feature Authorizations
+
+    options.AddPolicy(
+        AuthorizationPolicies.Products,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                      FeatureKeys.Products
+                ));
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.AiProductGeneration,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                     FeatureKeys.AiProductGeneration
+                ));
+        });
+
+    // add more policies as more services are added
 });
 
 // Global Exception handler

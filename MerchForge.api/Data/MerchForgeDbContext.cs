@@ -19,7 +19,12 @@ namespace MerchForge.api.Data
 
         public DbSet<ProductDraft> ProductDrafts => Set<ProductDraft>();
 
-        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();    
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+        public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
+        public DbSet<Feature> Features => Set<Feature>();
+        public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
+        public DbSet<Subscription> Subscriptions => Set<Subscription>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

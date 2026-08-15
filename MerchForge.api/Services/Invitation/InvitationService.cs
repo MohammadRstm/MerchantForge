@@ -2,9 +2,11 @@
 using MerchForge.api.DTOs.Invitations;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
+using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 
 namespace MerchForge.api.Services.Invitation
 {
@@ -12,12 +14,14 @@ namespace MerchForge.api.Services.Invitation
     {
         private readonly MerchForgeDbContext _db;
         private readonly IConfiguration _configuration;
+        private readonly IEmailService _emailService;
 
 
-        public InvitationService(MerchForgeDbContext db , IConfiguration configuration)
+        public InvitationService(MerchForgeDbContext db , IConfiguration configuration, IEmailService emailService)
         {
             _db = db;
             _configuration = configuration;
+            _emailService = emailService;
         }
 
         public async Task<InvitationResponse> CreateBusinessOwnerInvitationAsync(
@@ -90,7 +94,9 @@ namespace MerchForge.api.Services.Invitation
             await _emailService.SendBusinessOwnerInvitationAsync(
                 email,
                 invitationLink,
-                cancellationToken);
+                expiresAt,
+                cancellationToken
+            );
 
             return new InvitationResponse
             {

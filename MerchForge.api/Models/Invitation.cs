@@ -28,6 +28,12 @@ public class Invitation
 
     public DateTime? RevokedAt { get; set; }
 
+    public DateTime? EmailSentAt { get; set; }
+
+    public DateTime? EmailDeliveryFailedAt { get; set; }
+
+    public string? EmailDeliveryError { get; set; }
+
     // Navigation properties
 
     public Business? Business { get; set; }

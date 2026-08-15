@@ -1,6 +1,7 @@
 ﻿using MailKit.Net.Smtp;
 using MailKit.Security;
 using MerchForge.api.Configurations;
+using MerchForge.api.Exceptions.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -22,47 +23,58 @@ public class EmailService : IEmailService
         DateTime expiresAt,
         CancellationToken cancellationToken = default)
     {
-        var message = new MimeMessage();
-
-        message.From.Add(
-            new MailboxAddress(
-                _options.FromName,
-                _options.FromEmail));
-
-        message.To.Add(
-            MailboxAddress.Parse(email));
-
-        message.Subject = "You're invited to MerchForge";
-
-        var body = BuildBusinessOwnerInvitationEmail(
-            invitationLink,
-            expiresAt);
-
-        message.Body = new BodyBuilder
+        try
         {
-            HtmlBody = body
-        }.ToMessageBody();
+            var message = new MimeMessage();
 
-        using var smtpClient = new SmtpClient();
+            message.From.Add(
+                new MailboxAddress(
+                    _options.FromName,
+                    _options.FromEmail));
 
-        await smtpClient.ConnectAsync(
-            _options.Host,
-            _options.Port,
-            SecureSocketOptions.StartTls,
-            cancellationToken);
+            message.To.Add(
+                MailboxAddress.Parse(email));
 
-        await smtpClient.AuthenticateAsync(
-            _options.Username,
-            _options.Password,
-            cancellationToken);
+            message.Subject = "You're invited to MerchForge";
 
-        await smtpClient.SendAsync(
-            message,
-            cancellationToken);
+            var body = BuildBusinessOwnerInvitationEmail(
+                invitationLink,
+                expiresAt);
 
-        await smtpClient.DisconnectAsync(
-            true,
-            cancellationToken);
+            message.Body = new BodyBuilder
+            {
+                HtmlBody = body
+            }.ToMessageBody();
+
+            using var smtpClient = new SmtpClient();
+
+            await smtpClient.ConnectAsync(
+                _options.Host,
+                _options.Port,
+                SecureSocketOptions.StartTls,
+                cancellationToken);
+
+            await smtpClient.AuthenticateAsync(
+                _options.Username,
+                _options.Password,
+                cancellationToken);
+
+            await smtpClient.SendAsync(
+                message,
+                cancellationToken);
+
+            await smtpClient.DisconnectAsync(
+                true,
+                cancellationToken);
+        }
+        catch(OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new EmailDeliveryException();
+        }
     }
 
     private static string BuildBusinessOwnerInvitationEmail(

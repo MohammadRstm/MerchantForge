@@ -4,23 +4,31 @@ using MerchForge.api.Authorization.Handlers;
 using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Configurations;
 using MerchForge.api.Data;
-using MerchForge.api.Exceptions;
 using MerchForge.api.Enums;
+using MerchForge.api.Exceptions;
+using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
+using MerchForge.api.Services.Email;
+using MerchForge.api.Services.Email.Interfaces;
+using MerchForge.api.Services.Subscription;
+using MerchForge.api.Services.Subscription.interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using MerchForge.api.Exceptions.Auth;
-using MerchForge.api.Services.Subscription.interfaces;
-using MerchForge.api.Services.Subscription;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// register options
+builder.Services
+    .AddOptions<EmailOptions>()
+    .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
+    .ValidateOnStart();
 
 // validation layer
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
@@ -178,6 +186,9 @@ builder.Services.AddAuthorization(options =>
 
 // Global Exception handler
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// email service
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // build app
 var app = builder.Build();

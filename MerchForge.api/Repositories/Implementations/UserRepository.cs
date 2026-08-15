@@ -1,4 +1,6 @@
 ﻿using MerchForge.api.Data;
+using MerchForge.api.DTOs.Auth;
+using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +48,27 @@ namespace MerchForge.api.Repositories.Implementations
             }
 
             return user;
+        }
+
+        public async Task<User> CreateSuperAdmin(User superAdmin , CancellationToken cancellationToken = default)
+        {
+            await _db.Users.AddAsync(superAdmin , cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+            return superAdmin;
+        }
+
+        public async Task<Guid> GetSystemRoleId(SystemRole role, CancellationToken cancellationToken = default) 
+        {
+            var systemRole = await _db.SystemRoles.FirstAsync(s => s.Role == role);
+            return systemRole.Id;
+        }
+
+        public async Task<SystemRole> GetSystemRoleById(Guid Id, CancellationToken cancellationToken = default)
+        {
+            var systemRole = await _db.SystemRoles.FindAsync(Id);
+            if (systemRole == null) throw new Exception("System Role not found");
+
+            return systemRole.Role;
         }
     }
 }

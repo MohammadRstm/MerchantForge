@@ -36,6 +36,18 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        public async Task<ActionResult<AuthResponse>> RegsiterSuperAdmin(
+            [FromBody] RegisterSuperAdminRequest request,
+            CancellationToken cancellationToken)
+        {
+            // validate
+            var response = await _authService.RegisterSuperAdmin(
+                request,
+                cancellationToken);
+
+            return Ok(response);
+        }
+
         [HttpPost("refresh")]
         public async Task<ActionResult<AuthResponse>> Refresh(
             [FromBody] RefreshTokenRequest request,

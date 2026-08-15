@@ -1,6 +1,5 @@
 ﻿using FluentAssertions;
 using MerchForge.api.Exceptions.Auth;
-using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth;
@@ -17,7 +16,6 @@ namespace MerchForge.UnitTests.Services
     public class AuthServiceTests
     {
         private readonly Mock<IUserRepository> _userRepository;
-        private readonly Mock<IRegistrationFactory> _registrationFactory;
         private readonly Mock<IPasswordHasher<User>> _passwordHasher;
         private readonly Mock<IJwtService> _jwtService;
         private readonly Mock<IRefreshTokenService> _refreshTokenService;
@@ -27,7 +25,6 @@ namespace MerchForge.UnitTests.Services
         public AuthServiceTests()
         {
             _userRepository = new Mock<IUserRepository>();
-            _registrationFactory = new Mock<IRegistrationFactory>();
             _passwordHasher = new Mock<IPasswordHasher<User>>();
             _jwtService = new Mock<IJwtService>();
             _refreshTokenService = new Mock<IRefreshTokenService>();
@@ -36,7 +33,6 @@ namespace MerchForge.UnitTests.Services
                 _userRepository.Object,
                 _passwordHasher.Object,
                 _jwtService.Object,
-                _registrationFactory.Object,
                 _refreshTokenService.Object);
         }
 
@@ -148,7 +144,7 @@ namespace MerchForge.UnitTests.Services
 
             _jwtService
                 .Setup(x => x.GenerateAccessToken(user))
-                .Returns("access-token");
+                .ReturnsAsync("access-token");
 
             _jwtService
                 .Setup(x => x.GetExpirationTime())

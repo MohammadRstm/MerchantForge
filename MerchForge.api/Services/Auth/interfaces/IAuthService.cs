@@ -1,4 +1,5 @@
 ﻿using MerchForge.api.DTOs.Auth;
+using MerchForge.api.Models;
 
 namespace MerchForge.api.Services.Auth.interfaces
 {
@@ -15,5 +16,9 @@ namespace MerchForge.api.Services.Auth.interfaces
         Task LogoutAsync(
             string refreshToken,
             CancellationToken cancellationToken = default);
+
+        Task<User> RegisterSuperAdmin(
+            RegisterSuperAdminRequest request,
+            CancellationToken cancellationToken);
     }
 }

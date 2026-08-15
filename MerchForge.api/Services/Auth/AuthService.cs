@@ -1,7 +1,7 @@
 ﻿using MerchForge.api.Data;
 using MerchForge.api.DTOs.Auth;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Auth;
-using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
@@ -13,7 +13,6 @@ namespace MerchForge.api.Services.Auth;
 public class AuthService : IAuthService
 {
     private readonly IUserRepository _userRepository;
-    private readonly IRegistrationFactory _registrationFactory;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IJwtService _jwtService;
     private readonly IRefreshTokenService _refreshTokenService;
@@ -22,13 +21,11 @@ public class AuthService : IAuthService
         IUserRepository userRepository,
         IPasswordHasher<User> passwordHasher,
         IJwtService jwtService,
-        IRegistrationFactory registrationFactory,
         IRefreshTokenService refreshTokenService)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
-        _registrationFactory = registrationFactory;
         _refreshTokenService = refreshTokenService;
     }
     public async Task<AuthResponse> LoginAsync(
@@ -58,7 +55,7 @@ public class AuthService : IAuthService
                 user,
                 cancellationToken);
 
-        return CreateAuthResponse(user, refresh_token);
+        return await CreateAuthResponse(user, refresh_token);
     }
 
     public async Task<AuthResponse> RefreshAsync(
@@ -77,7 +74,30 @@ public class AuthService : IAuthService
                  refreshTokenEntity,
                  cancellationToken);
 
-        return CreateAuthResponse(refreshTokenEntity.User, newRefreshToken);
+        return await CreateAuthResponse(refreshTokenEntity.User, newRefreshToken);
+    }
+
+    public async Task<User> RegisterSuperAdmin(
+        RegisterSuperAdminRequest request,
+        CancellationToken cancellationToken)
+    {
+        // get super admin role id
+        var superAdminRoleId = await _userRepository.GetSystemRoleId(SystemRole.SuperAdmin, cancellationToken);
+
+        var superAdmin = new User
+        {
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            Email = request.Email,
+            SystemRoleId = superAdminRoleId,
+        };
+
+        superAdmin.PasswordHash = _passwordHasher.HashPassword(
+               superAdmin,
+               request.Password
+        );
+
+        return await _userRepository.CreateSuperAdmin(superAdmin, cancellationToken);
     }
 
     public async Task LogoutAsync(
@@ -98,13 +118,13 @@ public class AuthService : IAuthService
             cancellationToken);
     }
 
-    private AuthResponse CreateAuthResponse(
+    private async Task<AuthResponse> CreateAuthResponse(
     User user,
     string refreshToken)
     {
         return new AuthResponse
         {
-            AccessToken = _jwtService.GenerateAccessToken(user),
+            AccessToken = await _jwtService.GenerateAccessToken(user),
             RefreshToken = refreshToken,
             AccessTokenExpiresAt = _jwtService.GetExpirationTime()
         };

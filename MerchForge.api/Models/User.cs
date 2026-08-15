@@ -8,7 +8,7 @@ public class User
 
     public string Email { get; set; } = string.Empty;
 
-    public SystemRole SystemRole { get; set; } = SystemRole.User;
+    public Guid SystemRoleId { get; set; }
 
     public string PasswordHash { get; set; } = string.Empty;
 

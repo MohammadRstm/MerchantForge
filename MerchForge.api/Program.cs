@@ -9,7 +9,6 @@ using MerchForge.api.Data;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Exceptions.Auth;
-using MerchForge.api.Factory;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
@@ -108,9 +107,6 @@ builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
-
-
-builder.Services.AddScoped<IRegistrationFactory , RegistrationFactory>();
 
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();

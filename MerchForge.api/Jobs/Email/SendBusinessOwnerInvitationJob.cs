@@ -24,13 +24,13 @@ public class SendBusinessOwnerInvitationJob
     [AutomaticRetry(Attempts = 3)]
     public async Task ExecuteAsync(
         Guid invitationId,
-        string invitationLink,
-        CancellationToken cancellationToken = default)
+        string invitationLink
+    )
     {
         var invitation = await _db.Invitations
             .FirstOrDefaultAsync(
-                i => i.Id == invitationId,
-                cancellationToken);
+                i => i.Id == invitationId
+            );
 
         if (invitation is null)
         {
@@ -73,14 +73,14 @@ public class SendBusinessOwnerInvitationJob
             await _emailService.SendBusinessOwnerInvitationAsync(
                 invitation.Email,
                 invitationLink,
-                invitation.ExpiresAt,
-                cancellationToken);
+                invitation.ExpiresAt
+                );
 
             invitation.EmailSentAt = DateTime.UtcNow;
             invitation.EmailDeliveryFailedAt = null;
             invitation.EmailDeliveryError = null;
 
-            await _db.SaveChangesAsync(cancellationToken);
+            await _db.SaveChangesAsync();
 
             _logger.LogInformation(
                 "Invitation email successfully sent for invitation {InvitationId}.",
@@ -91,7 +91,7 @@ public class SendBusinessOwnerInvitationJob
             invitation.EmailDeliveryFailedAt = DateTime.UtcNow;
             invitation.EmailDeliveryError = ex.Message;
 
-            await _db.SaveChangesAsync(cancellationToken);
+            await _db.SaveChangesAsync();
 
             _logger.LogError(
                 ex,

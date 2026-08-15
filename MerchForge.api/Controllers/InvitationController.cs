@@ -1,4 +1,5 @@
-﻿using MerchForge.api.Authorization;
+﻿using FluentValidation;
+using MerchForge.api.Authorization;
 using MerchForge.api.DTOs.Invitations;
 using MerchForge.api.Services.Invitation.interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -13,11 +14,13 @@ namespace MerchForge.api.Controllers
     public class InvitationController : ControllerBase
     {
         private readonly IInvitationService _invitationService;
+        private readonly IValidator<CreateBusinessOwnerInvitationRequest> _createBusinessOwnerValidator;
 
         public InvitationController(
-            IInvitationService invitationService)
+            IInvitationService invitationService, IValidator<CreateBusinessOwnerInvitationRequest> createBusinessOwnerValidator)
         {
             _invitationService = invitationService;
+            _createBusinessOwnerValidator = createBusinessOwnerValidator;
         }
 
         [HttpPost("business-owner")]
@@ -28,12 +31,14 @@ namespace MerchForge.api.Controllers
         {
             var userId = User.FindFirstValue(
                 ClaimTypes.NameIdentifier);
-
+             
             if (!Guid.TryParse(userId, out var parsedUserId))
             {
                 return Unauthorized();
             }
 
+            await _createBusinessOwnerValidator.ValidateAndThrowAsync(request);
+            
             var response =
                 await _invitationService
                     .CreateBusinessOwnerInvitationAsync(

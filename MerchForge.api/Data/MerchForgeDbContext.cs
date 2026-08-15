@@ -28,6 +28,8 @@ namespace MerchForge.api.Data
 
         public DbSet<Invitation> Invitations => Set<Invitation>();
 
+        public DbSet<UserRole> SystemRoles => Set<UserRole>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

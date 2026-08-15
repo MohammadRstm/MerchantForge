@@ -78,7 +78,13 @@ namespace MerchForge.api.Services.Invitation
 
                 AcceptedAt = null,
 
-                RevokedAt = null
+                RevokedAt = null,
+
+                EmailSentAt = null,
+
+                EmailDeliveryError = null,
+
+                EmailDeliveryFailedAt = null,
             };
 
             await _db.Invitations.AddAsync(
@@ -91,12 +97,13 @@ namespace MerchForge.api.Services.Invitation
             var invitationLink =
                 $"{_configuration["Frontend:BaseUrl"]}/accept-invitation?token={Uri.EscapeDataString(rawToken)}";
 
-            await _emailService.SendBusinessOwnerInvitationAsync(
-                email,
-                invitationLink,
-                expiresAt,
-                cancellationToken
-            );
+            await _jobQueue.EnqueueAsync(
+                new SendBusinessOwnerInvitationJobData
+                {
+                    InvitationId = invitation.Id,
+                    InvitationLink = invitationLink
+                },
+                cancellationToken);
 
             return new InvitationResponse
             {

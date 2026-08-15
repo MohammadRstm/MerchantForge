@@ -1,4 +1,6 @@
 using FluentValidation;
+using Hangfire;
+using Hangfire.MySql;
 using MerchForge.api.Authorization;
 using MerchForge.api.Authorization.Handlers;
 using MerchForge.api.Authorization.Requirements;
@@ -37,15 +39,29 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddControllers();
 
 // DB context - Mysql
+var connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException(
+        "Database connection string is missing.");
+
 builder.Services.AddDbContext<MerchForgeDbContext>(options =>
 {
-    var connectionString =
-        builder.Configuration.GetConnectionString("DefaultConnection");
-
     options.UseMySql(
         connectionString,
         ServerVersion.AutoDetect(connectionString));
 });
+
+builder.Services.AddHangfire(configuration =>
+{
+    configuration.UseStorage(
+        new MySqlStorage(
+            connectionString,
+            new MySqlStorageOptions()));
+});
+
+builder.Services.AddHangfireServer();
+
+builder.Services.AddHangfireServer();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -196,6 +212,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    app.UseHangfireDashboard();
     app.UseSwagger();
     app.UseSwaggerUI();
     app.MapOpenApi();

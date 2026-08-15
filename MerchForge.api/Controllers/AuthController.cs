@@ -22,20 +22,6 @@ namespace MerchForge.api.Controllers
             _registerationValidator = registerValidator;
         }
 
-        [HttpPost("register")]
-        public async Task<ActionResult<AuthResponse>> Register(
-            [FromBody] RegisterRequest request,
-            CancellationToken cancellationToken)
-        {
-            await _registerationValidator.ValidateAndThrowAsync(request);
-            
-            var response = await _authService.RegisterAsync(
-                request,
-                cancellationToken);
-
-            return Ok(response);
-        }
-
         [HttpPost("login")]
         public async Task<ActionResult<AuthResponse>> Login(
             [FromBody] LoginRequest request,

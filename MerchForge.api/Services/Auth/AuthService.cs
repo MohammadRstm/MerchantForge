@@ -31,32 +31,6 @@ public class AuthService : IAuthService
         _registrationFactory = registrationFactory;
         _refreshTokenService = refreshTokenService;
     }
-
-    public async Task<AuthResponse> RegisterAsync(
-        RegisterRequest request,
-        CancellationToken cancellationToken = default)
-    {
-
-        var existingUser = await _userRepository.GetByEmailAsync(request.Email,
-        cancellationToken);
-
-        if (existingUser is not null)
-        {
-            throw new EmailAlreadyExistsException();
-        }
-
-        var (user, business, businessUser) = _registrationFactory.Create(request);
-
-        await _userRepository.RegisterUser(user, business, businessUser, cancellationToken);
-
-        var (refresh_token, _) =
-            await _refreshTokenService.CreateAsync(
-                user,
-                cancellationToken);
-
-        return CreateAuthResponse(user, refresh_token);
-    }
-
     public async Task<AuthResponse> LoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default)

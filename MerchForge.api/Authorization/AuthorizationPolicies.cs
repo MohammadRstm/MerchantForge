@@ -2,6 +2,7 @@
 {
     public static class AuthorizationPolicies
     {
+        public const string SystemSuperAdmin = "SystemSuperAdmin"; 
         public const string SystemAdmin = "SystemAdmin";
 
         /* Business Roles */

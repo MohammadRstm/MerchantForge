@@ -98,12 +98,20 @@ builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
 builder.Services.AddAuthorization(options =>
 {
     // System Authorizations
+    options.AddPolicy(
+        AuthorizationPolicies.SystemSuperAdmin,
+        policy =>
+        {
+            policy.RequireRole(
+                SystemRole.SuperAdmin.ToString());
+        });
 
     options.AddPolicy(
         AuthorizationPolicies.SystemAdmin,
         policy =>
         {
             policy.RequireRole(
+                SystemRole.SuperAdmin.ToString(),
                 SystemRole.Admin.ToString());
         }
     );

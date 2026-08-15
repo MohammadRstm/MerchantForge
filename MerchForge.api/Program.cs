@@ -11,6 +11,8 @@ using MerchForge.api.Exceptions;
 using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Factory;
 using MerchForge.api.Models;
+using MerchForge.api.Repositories.Implementations;
+using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Email;
@@ -58,8 +60,6 @@ builder.Services.AddHangfire(configuration =>
             connectionString,
             new MySqlStorageOptions()));
 });
-
-builder.Services.AddHangfireServer();
 
 builder.Services.AddHangfireServer();
 
@@ -202,9 +202,15 @@ builder.Services.AddAuthorization(options =>
 
 // Global Exception handler
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 // email service
 builder.Services.AddScoped<IEmailService, EmailService>();
+
+// repositories
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 
 // build app
 var app = builder.Build();

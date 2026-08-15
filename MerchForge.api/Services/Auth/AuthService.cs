@@ -97,13 +97,14 @@ public class AuthService : IAuthService
                request.Password
         );
 
+        // do this in a transaction later please
+        await _userRepository.CreateSuperAdmin(superAdmin, cancellationToken);
 
         var (refresh_token, _) =
             await _refreshTokenService.CreateAsync(
                 superAdmin,
                 cancellationToken);
 
-        await _userRepository.CreateSuperAdmin(superAdmin, cancellationToken);
 
         return await CreateAuthResponse(superAdmin , refresh_token);
     }

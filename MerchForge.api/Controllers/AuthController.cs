@@ -11,15 +11,12 @@ namespace MerchForge.api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
-        private readonly IValidator<RegisterRequest> _registerationValidator;
         private readonly IValidator<LoginRequest> _loginValidator;
 
-        public AuthController(IAuthService authService, IValidator<LoginRequest> loginValidator,
-            IValidator<RegisterRequest> registerValidator)
+        public AuthController(IAuthService authService, IValidator<LoginRequest> loginValidator)
         {
             _authService = authService;
             _loginValidator = loginValidator;
-            _registerationValidator = registerValidator;
         }
 
         [HttpPost("login")]
@@ -36,11 +33,11 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpPost("register/superAdmin")]
         public async Task<ActionResult<AuthResponse>> RegsiterSuperAdmin(
             [FromBody] RegisterSuperAdminRequest request,
             CancellationToken cancellationToken)
         {
-            // validate
             var response = await _authService.RegisterSuperAdmin(
                 request,
                 cancellationToken);

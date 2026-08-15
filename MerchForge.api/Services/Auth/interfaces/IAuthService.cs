@@ -17,7 +17,7 @@ namespace MerchForge.api.Services.Auth.interfaces
             string refreshToken,
             CancellationToken cancellationToken = default);
 
-        Task<User> RegisterSuperAdmin(
+        Task<AuthResponse> RegisterSuperAdmin(
             RegisterSuperAdminRequest request,
             CancellationToken cancellationToken);
     }

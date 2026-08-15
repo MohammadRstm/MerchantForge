@@ -77,7 +77,7 @@ public class AuthService : IAuthService
         return await CreateAuthResponse(refreshTokenEntity.User, newRefreshToken);
     }
 
-    public async Task<User> RegisterSuperAdmin(
+    public async Task<AuthResponse> RegisterSuperAdmin(
         RegisterSuperAdminRequest request,
         CancellationToken cancellationToken)
     {
@@ -97,7 +97,15 @@ public class AuthService : IAuthService
                request.Password
         );
 
-        return await _userRepository.CreateSuperAdmin(superAdmin, cancellationToken);
+
+        var (refresh_token, _) =
+            await _refreshTokenService.CreateAsync(
+                superAdmin,
+                cancellationToken);
+
+        await _userRepository.CreateSuperAdmin(superAdmin, cancellationToken);
+
+        return await CreateAuthResponse(superAdmin , refresh_token);
     }
 
     public async Task LogoutAsync(

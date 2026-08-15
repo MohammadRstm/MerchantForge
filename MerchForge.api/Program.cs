@@ -63,8 +63,8 @@ builder.Services.AddHangfire(configuration =>
 builder.Services.AddHangfireServer();
 
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen();
-builder.Services.AddOpenApi();
 
 // business Services
 // -> Auth
@@ -217,7 +217,6 @@ if (app.Environment.IsDevelopment())
     app.UseHangfireDashboard();
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.MapOpenApi();
 }
 app.UseExceptionHandler();
 app.UseHttpsRedirection();

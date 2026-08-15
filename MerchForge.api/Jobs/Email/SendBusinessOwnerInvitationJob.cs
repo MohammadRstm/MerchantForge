@@ -1,4 +1,5 @@
-﻿using MerchForge.api.Data;
+﻿using Hangfire;
+using MerchForge.api.Data;
 using MerchForge.api.Services.Email.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,6 +21,7 @@ public class SendBusinessOwnerInvitationJob
         _logger = logger;
     }
 
+    [AutomaticRetry(Attempts = 3)]
     public async Task ExecuteAsync(
         Guid invitationId,
         string invitationLink,

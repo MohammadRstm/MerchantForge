@@ -1,12 +1,13 @@
 ﻿using MerchForge.api.Data;
 using MerchForge.api.DTOs.Invitations;
 using MerchForge.api.Enums;
-using MerchForge.api.Models;
+using MerchForge.api.Jobs.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using Hangfire;
+using System.Text;
 
 namespace MerchForge.api.Services.Invitation
 {
@@ -15,13 +16,19 @@ namespace MerchForge.api.Services.Invitation
         private readonly MerchForgeDbContext _db;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
+        private readonly IBackgroundJobClient _backgroundJobClient;
 
 
-        public InvitationService(MerchForgeDbContext db , IConfiguration configuration, IEmailService emailService)
+        public InvitationService(
+            MerchForgeDbContext db,
+            IConfiguration configuration,
+            IEmailService emailService,
+            IBackgroundJobClient backgroundJobClient)
         {
             _db = db;
             _configuration = configuration;
             _emailService = emailService;
+            _backgroundJobClient = backgroundJobClient;
         }
 
         public async Task<InvitationResponse> CreateBusinessOwnerInvitationAsync(
@@ -97,13 +104,10 @@ namespace MerchForge.api.Services.Invitation
             var invitationLink =
                 $"{_configuration["Frontend:BaseUrl"]}/accept-invitation?token={Uri.EscapeDataString(rawToken)}";
 
-            await _jobQueue.EnqueueAsync(
-                new SendBusinessOwnerInvitationJobData
-                {
-                    InvitationId = invitation.Id,
-                    InvitationLink = invitationLink
-                },
-                cancellationToken);
+            _backgroundJobClient.Enqueue<SendBusinessOwnerInvitationJob>(
+                job => job.ExecuteAsync(
+                    invitation.Id,
+                    invitationLink));
 
             return new InvitationResponse
             {

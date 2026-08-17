@@ -18,6 +18,11 @@ namespace MerchForge.api.Validators.Auth
             RuleFor(x => x.BusinessName)
                 .NotEmpty()
                 .MaximumLength(255);
+
+            RuleFor(x => x.Email)
+                .NotEmpty()
+                .EmailAddress()
+                .MaximumLength(255);
         }
     }
 }

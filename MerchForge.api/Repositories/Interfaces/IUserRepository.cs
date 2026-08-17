@@ -17,8 +17,12 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<User> CreateSuperAdmin(User superAdmin, CancellationToken cancellationToken);
 
-        Task<Guid> GetSystemRoleId(SystemRole role, CancellationToken cancellationToken);
+        Task FinishBusinessOwnerRegistration(User user, Business business, BusinessUser businessUser, CancellationToken cancellationToken = default);
 
+        Task<Guid> GetSystemRoleId(SystemRole role, CancellationToken cancellationToken);
         Task<SystemRole> GetSystemRoleById(Guid Id, CancellationToken cancellationToken = default);
+        Task<Guid> GetBusinessRoleId(BusinessRole role, CancellationToken cancellationToken = default);
+        Task<BusinessRole> GetBusinessRoleById(Guid Id, CancellationToken cancellationToken = default);
+
     }
 }

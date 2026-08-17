@@ -4,6 +4,7 @@ using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 
 namespace MerchForge.api.Repositories.Implementations
 {
@@ -57,6 +58,27 @@ namespace MerchForge.api.Repositories.Implementations
             return superAdmin;
         }
 
+        public async Task FinishBusinessOwnerRegistration(User user , Business business, BusinessUser businessUser, CancellationToken cancellationToken = default)
+        {
+            await using var transaction =
+               await _db.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                await _db.Users.AddAsync(user, cancellationToken);
+                await _db.Businesses.AddAsync(business, cancellationToken);
+                await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        }
+
         public async Task<Guid> GetSystemRoleId(SystemRole role, CancellationToken cancellationToken = default) 
         {
             var systemRole = await _db.SystemRoles.FirstAsync(s => s.Role == role);
@@ -69,6 +91,20 @@ namespace MerchForge.api.Repositories.Implementations
             if (systemRole == null) throw new Exception("System Role not found");
 
             return systemRole.Role;
+        }
+
+        public async Task<Guid> GetBusinessRoleId(BusinessRole role, CancellationToken cancellationToken = default)
+        {
+            var businessRole = await _db.BusinessUserRoles.FirstOrDefaultAsync(bur => bur.Role == role);
+            if (businessRole == null) throw new Exception("Business Role not found");
+            return businessRole.Id;
+        }
+
+        public async Task<BusinessRole> GetBusinessRoleById(Guid Id, CancellationToken cancellationToken = default)
+        {
+            var businessRole = await _db.BusinessUserRoles.FindAsync(Id);
+            if (businessRole == null) throw new Exception("Invalid Business role id");
+            return businessRole.Role;
         }
     }
 }

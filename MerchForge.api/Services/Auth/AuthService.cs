@@ -153,17 +153,17 @@ public class AuthService : IAuthService
             UserId = owner.Id,
             BusinessId = business.Id,
 
-            Role = businessRoleId,
+            RoleId = businessRoleId,
             CreatedAt = DateTime.UtcNow,
         };
 
         var (refreshToken, _) =
             await _refreshTokenService.CreateAsync(owner, cancellationToken);
 
-        // save to db
+        await _userRepository.FinishBusinessOwnerRegistration(owner, business,  businessUser, cancellationToken);
         // revoke or invalidate the registration link session
 
-        return CreateRegistrationResponse(owner, refreshToken, password);
+        return await CreateRegistrationResponse(owner, refreshToken, password);
     }
 
     public async Task LogoutAsync(

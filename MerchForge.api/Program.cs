@@ -12,10 +12,12 @@ using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
+using MerchForge.api.Services.Invitation.interfaces;
 using MerchForge.api.Services.Subscription;
 using MerchForge.api.Services.Subscription.interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -111,7 +113,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 
-// Authorization Service
+// Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
 
@@ -200,7 +202,10 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
-// email service
+// Registration Invitation Services
+builder.Services.AddScoped<IInvitationService, InvitationService>();
+
+// email services
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 // repositories

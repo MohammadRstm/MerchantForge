@@ -122,9 +122,9 @@ public class AuthService : IAuthService
         // validate invitation token:
         var tokenHash = _invitationService.HashInvitationToken(request.InvitationToken);
 
-        var invitation = _invitationService.GetInvitationByHashToken(tokenHash);
+        var invitation = await _invitationService.GetInvitationByHashToken(tokenHash);
 
-        _invitationService.ValidateToken(invitation);
+        _invitationService.ValidateBusinessOwnerInvitation(invitation);
 
         var systemRoleId = await _userRepository.GetSystemRoleId(Enums.SystemRole.User, cancellationToken);
         var businessRoleId = await _userRepository.GetBusinessRoleId(BusinessRole.Owner, cancellationToken);
@@ -151,6 +151,7 @@ public class AuthService : IAuthService
         // create business
         var business = new Business
         {
+            Id = Guid.NewGuid(),
             Name = request.BusinessName,
             OwnerUserId = owner.Id,
             
@@ -168,12 +169,12 @@ public class AuthService : IAuthService
             CreatedAt = DateTime.UtcNow,
         };
 
-        var (refreshToken, _) =
-            await _refreshTokenService.CreateAsync(owner, cancellationToken);
+        invitation.AcceptedAt = DateTime.UtcNow;
 
         await _userRepository.FinishBusinessOwnerRegistration(owner, business,  businessUser, cancellationToken);
 
-        // revoke or invalidate the registration link session
+        var (refreshToken, _) =
+            await _refreshTokenService.CreateAsync(owner, cancellationToken);
 
         return await CreateRegistrationResponse(owner, refreshToken, password);
     }

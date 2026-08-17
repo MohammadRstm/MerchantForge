@@ -62,7 +62,7 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
-        public async Task<ActionResult<AuthResponse>> CompleteBusinessOwnerRegistration(
+        public async Task<ActionResult<RegistrationResponse>> CompleteBusinessOwnerRegistration(
             [FromBody] CompleteBusinessOwnerRegistrationRequest request,
             CancellationToken cancellationToken)
         {

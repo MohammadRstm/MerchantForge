@@ -110,7 +110,7 @@ public class AuthService : IAuthService
         return await CreateAuthResponse(superAdmin , refresh_token);
     }
 
-    public async Task<AuthResponse> CompleteBusinessOwnerRegistration(
+    public async Task<RegistrationResponse> CompleteBusinessOwnerRegistration(
         CompleteBusinessOwnerRegistrationRequest request,
         CancellationToken cancellationToken = default)
     {

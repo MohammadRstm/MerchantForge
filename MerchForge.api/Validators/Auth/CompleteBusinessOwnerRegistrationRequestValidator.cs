@@ -23,6 +23,11 @@ namespace MerchForge.api.Validators.Auth
                 .NotEmpty()
                 .EmailAddress()
                 .MaximumLength(255);
+
+            RuleFor(x => x.InvitationToken)
+                .NotEmpty()
+                .ToString();
+                
         }
     }
 }

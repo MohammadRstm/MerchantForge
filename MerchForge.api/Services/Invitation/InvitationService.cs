@@ -115,18 +115,57 @@ namespace MerchForge.api.Services.Invitation
                 ExpiresAt = expiresAt
             };
         }
-        private static string GenerateInvitationToken()
-        {
-            return Convert.ToBase64String(
-                RandomNumberGenerator.GetBytes(32));
-        }
-
-        private static string HashInvitationToken(string token)
+        public string HashInvitationToken(string token)
         {
             var bytes = SHA256.HashData(
                 Encoding.UTF8.GetBytes(token));
 
             return Convert.ToHexString(bytes);
         }
+
+        public async Task<Models.Invitation> GetInvitationByHashToken(string hashToken, CancellationToken cancellationToken = default)
+        {
+            var invitation = await _db.Invitations
+            .SingleOrDefaultAsync(
+                i => i.TokenHash == hashToken,
+                cancellationToken);
+            if (invitation == null) { throw new Exception("Invitation wasn't found"); } 
+            return invitation;
+        }
+
+        public void ValidateToken(Models.Invitation invitation)
+        {
+            if (invitation == null)
+            {
+                throw new InvalidInvitationException();
+            }
+
+            if (invitation.AcceptedAt != null)
+            {
+                throw new InvitationAlreadyUsedException();
+            }
+
+            if (invitation.RevokedAt != null)
+            {
+                throw new InvitationRevokedException();
+            }
+
+            if (invitation.ExpiresAt <= DateTime.UtcNow)
+            {
+                throw new InvitationExpiredException();
+            }
+
+            if (invitation.Type != InvitationType.BusinessOwner)
+            {
+                throw new InvalidInvitationException();
+            }
+        }
+
+        private static string GenerateInvitationToken()
+        {
+            return Convert.ToBase64String(
+                RandomNumberGenerator.GetBytes(32));
+        }
+
     }
 }

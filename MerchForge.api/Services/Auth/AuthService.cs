@@ -5,6 +5,7 @@ using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
+using MerchForge.api.Services.Invitation.interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
@@ -18,16 +19,20 @@ public class AuthService : IAuthService
     private readonly IJwtService _jwtService;
     private readonly IRefreshTokenService _refreshTokenService;
 
+    private readonly IInvitationService _invitationService;
+
     public AuthService(
         IUserRepository userRepository,
         IPasswordHasher<User> passwordHasher,
         IJwtService jwtService,
-        IRefreshTokenService refreshTokenService)
+        IRefreshTokenService refreshTokenService,
+        IInvitationService invitationService)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
         _refreshTokenService = refreshTokenService;
+        _invitationService = invitationService;
     }
     public async Task<AuthResponse> LoginAsync(
         LoginRequest request,
@@ -114,6 +119,12 @@ public class AuthService : IAuthService
         CompleteBusinessOwnerRegistrationRequest request,
         CancellationToken cancellationToken = default)
     {
+        // validate invitation token:
+        var tokenHash = _invitationService.HashInvitationToken(request.InvitationToken);
+
+        var invitation = _invitationService.GetInvitationByHashToken(tokenHash);
+
+        _invitationService.ValidateToken(invitation);
 
         var systemRoleId = await _userRepository.GetSystemRoleId(Enums.SystemRole.User, cancellationToken);
         var businessRoleId = await _userRepository.GetBusinessRoleId(BusinessRole.Owner, cancellationToken);
@@ -161,6 +172,7 @@ public class AuthService : IAuthService
             await _refreshTokenService.CreateAsync(owner, cancellationToken);
 
         await _userRepository.FinishBusinessOwnerRegistration(owner, business,  businessUser, cancellationToken);
+
         // revoke or invalidate the registration link session
 
         return await CreateRegistrationResponse(owner, refreshToken, password);

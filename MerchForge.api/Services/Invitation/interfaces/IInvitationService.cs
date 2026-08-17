@@ -8,5 +8,9 @@ namespace MerchForge.api.Services.Invitation.interfaces
             CreateBusinessOwnerInvitationRequest request,
             Guid createdByUserId,
             CancellationToken cancellationToken = default);
+
+        string HashInvitationToken(string token);
+
+        Task<Models.Invitation> GetInvitationByHashToken(string hashToken, CancellationToken cancellationToken = default)
     }
 }

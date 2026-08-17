@@ -13,6 +13,10 @@ namespace MerchForge.api.Services.Auth.interfaces
             string refreshToken,
             CancellationToken cancellationToken = default);
 
+        Task<AuthResponse> CompleteBusinessOwnerRegistration(
+            CompleteBusinessOwnerRegistrationRequest request,
+            CancellationToken cancellationToken = default);
+
         Task LogoutAsync(
             string refreshToken,
             CancellationToken cancellationToken = default);

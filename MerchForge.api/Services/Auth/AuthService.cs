@@ -109,6 +109,20 @@ public class AuthService : IAuthService
         return await CreateAuthResponse(superAdmin , refresh_token);
     }
 
+    public async Task<AuthResponse> CompleteBusinessOwnerRegistration(
+        CompleteBusinessOwnerRegistrationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // first name, lastname, email, business name
+        // create user record with owner role by default,
+        // create business record with business name
+        // create business user record
+        // all in a transaction
+
+        // create access token & refresh token to return
+        // generate auth response
+    }
+         
     public async Task LogoutAsync(
         string refreshToken,
         CancellationToken cancellationToken = default)

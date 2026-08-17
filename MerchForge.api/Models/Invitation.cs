@@ -20,7 +20,9 @@ public class Invitation
 
     public Guid CreatedByUserId { get; set; }
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime UpdatedAt {  get; set; } = DateTime.UtcNow;
 
     public DateTime ExpiresAt { get; set; }
 

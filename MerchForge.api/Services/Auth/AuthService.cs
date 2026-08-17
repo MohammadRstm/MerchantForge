@@ -167,6 +167,7 @@ public class AuthService : IAuthService
 
             RoleId = businessRoleId,
             CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
         };
 
         invitation.AcceptedAt = DateTime.UtcNow;

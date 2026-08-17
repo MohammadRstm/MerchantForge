@@ -12,11 +12,16 @@ namespace MerchForge.api.Controllers
     {
         private readonly IAuthService _authService;
         private readonly IValidator<LoginRequest> _loginValidator;
+        private readonly IValidator<CompleteBusinessOwnerRegistrationRequest> _completeBusinessOwnerRegistrationRequestValidator;
 
-        public AuthController(IAuthService authService, IValidator<LoginRequest> loginValidator)
+        public AuthController(
+            IAuthService authService,
+            IValidator<LoginRequest> loginValidator,
+            IValidator<CompleteBusinessOwnerRegistrationRequest> completeBusinessOwnerRegistrationRequestValidator)
         {
             _authService = authService;
             _loginValidator = loginValidator;
+            _completeBusinessOwnerRegistrationRequestValidator = completeBusinessOwnerRegistrationRequestValidator;
         }
 
         [HttpPost("login")]
@@ -57,11 +62,15 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
-        public async Task<ActionResult> CompleteBusinessOwnerRegistration(
+        public async Task<ActionResult<AuthResponse>> CompleteBusinessOwnerRegistration(
             [FromBody] CompleteBusinessOwnerRegistrationRequest request,
             CancellationToken cancellationToken)
         {
+            await _completeBusinessOwnerRegistrationRequestValidator.ValidateAndThrowAsync(request);
 
+            var response = await _authService.CompleteBusinessOwnerRegistration(request);
+
+            return Ok(response);
         }
 
         [HttpPost("logout")]

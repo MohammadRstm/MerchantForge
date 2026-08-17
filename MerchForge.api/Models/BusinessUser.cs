@@ -8,7 +8,7 @@ public class BusinessUser
 
     public Guid UserId { get; set; }
 
-    public BusinessRole Role { get; set; }
+    public Guid RoleId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

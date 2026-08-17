@@ -2,6 +2,7 @@
 using MailKit.Security;
 using MerchForge.api.Configurations;
 using MerchForge.api.Exceptions.Email;
+using MerchForge.api.Jobs.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -11,10 +12,12 @@ namespace MerchForge.api.Services.Email;
 public class EmailService : IEmailService
 {
     private readonly EmailOptions _options;
+    private readonly ILogger<EmailService> _logger;
 
-    public EmailService(IOptions<EmailOptions> options)
+    public EmailService(IOptions<EmailOptions> options, ILogger<EmailService> logger)
     {
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task SendBusinessOwnerInvitationAsync(
@@ -71,8 +74,14 @@ public class EmailService : IEmailService
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(
+                ex,
+                "Failed to send email to {Email}. SMTP Host: {Host}, Port: {Port}",
+                email,
+                _options.Host,
+                _options.Port);
             throw new EmailDeliveryException();
         }
     }

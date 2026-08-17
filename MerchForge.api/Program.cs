@@ -12,11 +12,11 @@ using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
-using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
+using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Invitation.interfaces;
 using MerchForge.api.Services.Subscription;
 using MerchForge.api.Services.Subscription.interfaces;
@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,7 +67,24 @@ builder.Services.AddHangfireServer();
 
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter your JWT access token."
+    });
+
+    options.AddSecurityRequirement(document =>
+       new OpenApiSecurityRequirement
+       {
+           [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+       });
+});
 
 // business Services
 // -> Auth

@@ -6,6 +6,7 @@ using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using MerchForge.api.Exceptions.Invitation;
 using Hangfire;
 using System.Text;
 
@@ -133,19 +134,24 @@ namespace MerchForge.api.Services.Invitation
             return invitation;
         }
 
-        public void ValidateToken(Models.Invitation invitation)
+        public void ValidateBusinessOwnerInvitation(Models.Invitation? invitation)
         {
             if (invitation == null)
             {
                 throw new InvalidInvitationException();
             }
 
-            if (invitation.AcceptedAt != null)
+            if (invitation.Type != InvitationType.BusinessOwner)
+            {
+                throw new InvalidInvitationException();
+            }
+
+            if (invitation.AcceptedAt.HasValue)
             {
                 throw new InvitationAlreadyUsedException();
             }
 
-            if (invitation.RevokedAt != null)
+            if (invitation.RevokedAt.HasValue)
             {
                 throw new InvitationRevokedException();
             }
@@ -155,12 +161,16 @@ namespace MerchForge.api.Services.Invitation
                 throw new InvitationExpiredException();
             }
 
-            if (invitation.Type != InvitationType.BusinessOwner)
+            if (invitation.BusinessRole != BusinessRole.Owner)
+            {
+                throw new InvalidInvitationException();
+            }
+
+            if (invitation.SystemRole != SystemRole.User)
             {
                 throw new InvalidInvitationException();
             }
         }
-
         private static string GenerateInvitationToken()
         {
             return Convert.ToBase64String(

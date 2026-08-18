@@ -2,6 +2,6 @@
 {
     public interface IBusinessRepository
     {
-        Task<BusinessUserResponse> GetUserBusinessAsync(Guid userId, CancellationToken cancellationToken);
+        Task<BusinessContextResponse?> GetUserBusinessAsync(Guid userId, CancellationToken cancellationToken);
     }
 }

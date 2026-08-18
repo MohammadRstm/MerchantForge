@@ -5,7 +5,7 @@ namespace MerchForge.api.Services.Auth.interfaces
 {
     public interface IAuthService
     {
-        Task<AuthResponse> LoginAsync(
+        Task<LoginResponse> LoginAsync(
             LoginRequest request,
             CancellationToken cancellationToken = default);
 

@@ -1,6 +1,7 @@
 ﻿using MerchForge.api.Data;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace MerchForge.api.Repositories.Implementations
 {
@@ -15,20 +16,36 @@ namespace MerchForge.api.Repositories.Implementations
             _userRepository = userRepository;
         }
 
-        public async Task<BusinessUserResponse> GetUserBusinessAsync(Guid userId, CancellationToken cancellationToken)
+        public async Task<BusinessContextResponse?> GetUserBusinessAsync(
+            Guid userId,
+            CancellationToken cancellationToken)
         {
-            var businessUser = await _db.BusinessUsers.FindAsync(userId, cancellationToken);
+            var businessUser = await _db.BusinessUsers
+                .FirstOrDefaultAsync(
+                    bu => bu.UserId == userId,
+                    cancellationToken);
 
-            if (businessUser == null) throw new Exception("Business user not found");
+            if (businessUser == null)
+                return null;
 
-            var businessRole = await _userRepository.GetBusinessRoleById(businessUser.RoleId, cancellationToken);
+            var businessRole = await _userRepository
+                .GetBusinessRoleById(
+                    businessUser.RoleId,
+                    cancellationToken);
 
-            var business = await _db.Businesses.FindAsync(businessUser.BusinessId, cancellationToken);
+            var business = await _db.Businesses
+                .FindAsync(
+                    [businessUser.BusinessId],
+                    cancellationToken);
 
-            return new BusinessUserResponse
+            if (business == null)
+                throw new Exception("Business not found");
+
+            return new BusinessContextResponse
             {
-                Business = business!,
-                BusinessRole = businessRole!
+                Id = business.Id,
+                Name = business.Name,
+                Role = businessRole.ToString()
             };
         }
     }

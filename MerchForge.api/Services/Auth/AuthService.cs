@@ -59,17 +59,36 @@ public class AuthService : IAuthService
             throw new InvalidCredentialsException();
         }
 
-        var (refresh_token, _) =
-            await _refreshTokenService.CreateAsync(
-                user,
-                cancellationToken);
+        var (refreshToken, _) =
+              await _refreshTokenService.CreateAsync(
+                  user,
+                  cancellationToken);
 
-        var businessInfo = await _businessRepository.GetUserBusinessAsync(user.Id, cancellationToken);
+        var business =
+            await _businessRepository
+                .GetUserBusinessAsync(
+                    user.Id,
+                    cancellationToken);
+
+        var systemRole = await _userRepository.GetSystemRoleById(user.SystemRoleId, cancellationToken);
+
 
         return new LoginResponse
         {
-            AuthResponse = await CreateAuthResponse(user, refresh_token),
-            business = businessInfo,
+            AuthResponse =
+                await CreateAuthResponse(
+                    user,
+                    refreshToken),
+
+            UserId = user.Id,
+
+            FirstName = user.FirstName,
+
+            LastName = user.LastName,
+
+            SystemRole = systemRole.ToString(),
+
+            Business = business
         };
     }
 

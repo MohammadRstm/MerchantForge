@@ -3,6 +3,5 @@ using MerchForge.api.Models;
 
 public class BusinessUserResponse
 {
-    public Business Business { get; set; } = null!;
-    public BusinessRole BusinessRole { get; set; };
+    public BusinessContextResponse? Business { get; set; }
 }

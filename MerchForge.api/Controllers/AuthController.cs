@@ -25,7 +25,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<AuthResponse>> Login(
+        public async Task<ActionResult<LoginResponse>> Login(
             [FromBody] LoginRequest request,
             CancellationToken cancellationToken)
         {

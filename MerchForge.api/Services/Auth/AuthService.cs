@@ -37,7 +37,7 @@ public class AuthService : IAuthService
         _invitationService = invitationService;
         _businessRepository = businessRepository;
     }
-    public async Task<AuthResponse> LoginAsync(
+    public async Task<LoginResponse> LoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -66,7 +66,11 @@ public class AuthService : IAuthService
 
         var businessInfo = await _businessRepository.GetUserBusinessAsync(user.Id, cancellationToken);
 
-        return await CreateAuthResponse(user, refresh_token);
+        return new LoginResponse
+        {
+            AuthResponse = await CreateAuthResponse(user, refresh_token),
+            business = businessInfo,
+        };
     }
 
     public async Task<AuthResponse> RefreshAsync(

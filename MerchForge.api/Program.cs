@@ -55,6 +55,7 @@ builder.Services.AddDbContext<MerchForgeDbContext>(options =>
         ServerVersion.AutoDetect(connectionString));
 });
 
+// Add job queue
 builder.Services.AddHangfire(configuration =>
 {
     configuration.UseStorage(
@@ -64,6 +65,18 @@ builder.Services.AddHangfire(configuration =>
 });
 
 builder.Services.AddHangfireServer();
+
+// Add cors policy
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -243,6 +256,8 @@ if (app.Environment.IsDevelopment())
 }
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+
+app.UseCors("Frontend");
 
 app.UseAuthentication();
 app.UseAuthorization();

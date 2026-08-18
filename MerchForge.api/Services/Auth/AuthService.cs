@@ -20,19 +20,22 @@ public class AuthService : IAuthService
     private readonly IRefreshTokenService _refreshTokenService;
 
     private readonly IInvitationService _invitationService;
+    private readonly IBusinessRepository _businessRepository;
 
     public AuthService(
         IUserRepository userRepository,
         IPasswordHasher<User> passwordHasher,
         IJwtService jwtService,
         IRefreshTokenService refreshTokenService,
-        IInvitationService invitationService)
+        IInvitationService invitationService,
+        IBusinessRepository businessRepository)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
         _refreshTokenService = refreshTokenService;
         _invitationService = invitationService;
+        _businessRepository = businessRepository;
     }
     public async Task<AuthResponse> LoginAsync(
         LoginRequest request,
@@ -60,6 +63,8 @@ public class AuthService : IAuthService
             await _refreshTokenService.CreateAsync(
                 user,
                 cancellationToken);
+
+        var businessInfo = await _businessRepository.GetUserBusinessAsync(user.Id, cancellationToken);
 
         return await CreateAuthResponse(user, refresh_token);
     }
@@ -110,8 +115,7 @@ public class AuthService : IAuthService
             await _refreshTokenService.CreateAsync(
                 superAdmin,
                 cancellationToken);
-
-
+       
         return await CreateAuthResponse(superAdmin , refresh_token);
     }
 

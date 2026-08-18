@@ -103,7 +103,7 @@ namespace MerchForge.api.Services.Invitation
 
           
             var invitationLink =
-                $"{_configuration["Frontend:BaseUrl"]}/accept-invitation?token={Uri.EscapeDataString(rawToken)}";
+                $"{_configuration["Frontend:BaseUrl"]}/accept-invitation?token={Uri.EscapeDataString(rawToken)}&email={email}";
 
             _backgroundJobClient.Enqueue<SendBusinessOwnerInvitationJob>(
                 job => job.ExecuteAsync(

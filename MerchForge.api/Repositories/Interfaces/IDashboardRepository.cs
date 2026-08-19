@@ -1,3 +1,4 @@
+using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 
 namespace MerchForge.api.Repositories.Interfaces
@@ -14,9 +15,9 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<int> CountPendingInvitationsAsync(CancellationToken cancellationToken = default);
 
-        Task<List<RoleCountResponse>> GetUserCountsBySystemRoleAsync(CancellationToken cancellationToken = default);
+        Task<List<KeyCountResponse>> GetUserCountsBySystemRoleAsync(CancellationToken cancellationToken = default);
 
-        Task<List<RoleCountResponse>> GetBusinessUserCountsByRoleAsync(CancellationToken cancellationToken = default);
+        Task<List<KeyCountResponse>> GetBusinessUserCountsByRoleAsync(CancellationToken cancellationToken = default);
 
         Task<List<DateTime>> GetBusinessCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
 

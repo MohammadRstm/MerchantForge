@@ -14,9 +14,9 @@ public class DashboardStatsResponse
 
     public int PendingInvitations { get; set; }
 
-    public List<RoleCountResponse> UsersBySystemRole { get; set; } = new();
+    public List<KeyCountResponse> UsersBySystemRole { get; set; } = new();
 
-    public List<RoleCountResponse> BusinessUsersByRole { get; set; } = new();
+    public List<KeyCountResponse> BusinessUsersByRole { get; set; } = new();
 
     public List<TimeSeriesPointResponse> BusinessesOverTime { get; set; } = new();
 

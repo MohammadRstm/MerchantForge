@@ -1,4 +1,5 @@
 using MerchForge.api.Data;
+using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using MerchForge.api.Repositories.Interfaces;
@@ -44,7 +45,7 @@ namespace MerchForge.api.Repositories.Implementations
                 cancellationToken);
         }
 
-        public async Task<List<RoleCountResponse>> GetUserCountsBySystemRoleAsync(CancellationToken cancellationToken = default)
+        public async Task<List<KeyCountResponse>> GetUserCountsBySystemRoleAsync(CancellationToken cancellationToken = default)
         {
             var grouped = await (
                 from u in _db.Users
@@ -54,11 +55,11 @@ namespace MerchForge.api.Repositories.Implementations
             ).ToListAsync(cancellationToken);
 
             return grouped
-                .Select(x => new RoleCountResponse { Role = x.Role.ToString(), Count = x.Count })
+                .Select(x => new KeyCountResponse { Key = x.Role.ToString(), Count = x.Count })
                 .ToList();
         }
 
-        public async Task<List<RoleCountResponse>> GetBusinessUserCountsByRoleAsync(CancellationToken cancellationToken = default)
+        public async Task<List<KeyCountResponse>> GetBusinessUserCountsByRoleAsync(CancellationToken cancellationToken = default)
         {
             var grouped = await (
                 from bu in _db.BusinessUsers
@@ -68,7 +69,7 @@ namespace MerchForge.api.Repositories.Implementations
             ).ToListAsync(cancellationToken);
 
             return grouped
-                .Select(x => new RoleCountResponse { Role = x.Role.ToString(), Count = x.Count })
+                .Select(x => new KeyCountResponse { Key = x.Role.ToString(), Count = x.Count })
                 .ToList();
         }
 

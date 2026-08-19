@@ -34,3 +34,6 @@ wwwroot/lib/
 # OS files
 .DS_Store
 Thumbs.db
+# Uploaded product images are user data, not source. The folder is created at
+# startup, so nothing here needs to be tracked.
+MerchForge.api/wwwroot/uploads/

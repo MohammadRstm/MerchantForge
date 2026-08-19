@@ -21,5 +21,32 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
         Task<BusinessSubscriptionResponse?> GetSubscriptionAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);
+
+        // ---- product CRUD ----
+
+        Task<ProductFormResponse> GetProductFormAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessProductDetailResponse> GetProductAsync(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessProductDetailResponse> CreateProductAsync(
+            Guid businessId,
+            SaveProductRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessProductDetailResponse> UpdateProductAsync(
+            Guid businessId,
+            Guid productId,
+            SaveProductRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task DeleteProductAsync(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken = default);
     }
 }

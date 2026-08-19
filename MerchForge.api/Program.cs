@@ -213,6 +213,11 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
+builder.Services.AddScoped<IProductImageService, ProductImageService>();
+
+builder.Services
+    .AddOptions<ProductImageOptions>()
+    .Bind(builder.Configuration.GetSection(ProductImageOptions.SectionName));
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();
@@ -339,6 +344,25 @@ app.UseExceptionHandler();
 app.UseHttpsRedirection();
 
 app.UseCors("Frontend");
+
+// Serves uploaded product images from wwwroot. Created up front because
+// UseStaticFiles throws if the web root is missing on a fresh checkout, and because
+// nothing else in the app creates it.
+Directory.CreateDirectory(app.Environment.WebRootPath
+    ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"));
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        // These files are served from the API's own origin, so a stored file that
+        // somehow slipped past upload validation must never be rendered as active
+        // content. nosniff stops content-type guessing and the CSP neutralises
+        // scripts/embedded content regardless of what the file actually contains.
+        context.Context.Response.Headers.XContentTypeOptions = "nosniff";
+        context.Context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; img-src 'self'";
+    }
+});
 
 app.UseAuthentication();
 app.UseAuthorization();

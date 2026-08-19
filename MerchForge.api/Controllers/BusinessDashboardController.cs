@@ -14,14 +14,20 @@ namespace MerchForge.api.Controllers
     public class BusinessDashboardController : ControllerBase
     {
         private readonly IBusinessDashboardService _businessDashboardService;
+        private readonly IProductImageService _productImageService;
         private readonly IValidator<ProductsQueryRequest> _productsQueryValidator;
+        private readonly IValidator<SaveProductRequest> _saveProductValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
-            IValidator<ProductsQueryRequest> productsQueryValidator)
+            IProductImageService productImageService,
+            IValidator<ProductsQueryRequest> productsQueryValidator,
+            IValidator<SaveProductRequest> saveProductValidator)
         {
             _businessDashboardService = businessDashboardService;
+            _productImageService = productImageService;
             _productsQueryValidator = productsQueryValidator;
+            _saveProductValidator = saveProductValidator;
         }
 
         [HttpGet("stats")]
@@ -65,6 +71,95 @@ namespace MerchForge.api.Controllers
             var response = await _businessDashboardService.GetSubscriptionAsync(businessId, cancellationToken);
 
             return Ok(response);
+        }
+
+        // ---- product CRUD ----
+
+        /// <summary>
+        /// What the product form needs to render: usable categories and the optional
+        /// fields this business opted into at onboarding.
+        /// </summary>
+        [HttpGet("product-form")]
+        public async Task<ActionResult<ProductFormResponse>> GetProductForm(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetProductFormAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("products/{productId:guid}")]
+        public async Task<ActionResult<BusinessProductDetailResponse>> GetProduct(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetProductAsync(businessId, productId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("products")]
+        public async Task<ActionResult<BusinessProductDetailResponse>> CreateProduct(
+            Guid businessId,
+            [FromBody] SaveProductRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _saveProductValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessDashboardService.CreateProductAsync(businessId, request, cancellationToken);
+
+            return CreatedAtAction(
+                nameof(GetProduct),
+                new { businessId, productId = response.Id },
+                response);
+        }
+
+        [HttpPut("products/{productId:guid}")]
+        public async Task<ActionResult<BusinessProductDetailResponse>> UpdateProduct(
+            Guid businessId,
+            Guid productId,
+            [FromBody] SaveProductRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _saveProductValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessDashboardService.UpdateProductAsync(
+                businessId,
+                productId,
+                request,
+                cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpDelete("products/{productId:guid}")]
+        public async Task<IActionResult> DeleteProduct(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken)
+        {
+            await _businessDashboardService.DeleteProductAsync(businessId, productId, cancellationToken);
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Stores a product image and returns its URL. Separate from saving the
+        /// product so the form can show a preview before anything is committed, and
+        /// so an image can be replaced without re-sending the rest of the product.
+        /// </summary>
+        [HttpPost("products/image")]
+        [RequestSizeLimit(6 * 1024 * 1024)]
+        public async Task<ActionResult<ProductImageUploadResponse>> UploadProductImage(
+            Guid businessId,
+            IFormFile file,
+            CancellationToken cancellationToken)
+        {
+            var imageUrl = await _productImageService.SaveAsync(businessId, file, cancellationToken);
+
+            return Ok(new ProductImageUploadResponse { ImageUrl = imageUrl });
         }
     }
 }

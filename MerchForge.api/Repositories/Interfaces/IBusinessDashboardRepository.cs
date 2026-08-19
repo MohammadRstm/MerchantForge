@@ -1,5 +1,7 @@
+using System.Text.Json;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
+using MerchForge.api.Models;
 
 namespace MerchForge.api.Repositories.Interfaces
 {
@@ -36,5 +38,47 @@ namespace MerchForge.api.Repositories.Interfaces
             CancellationToken cancellationToken = default);
 
         Task<List<BusinessMemberResponse>> GetMembersAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+        // ---- product CRUD ----
+
+        Task<BusinessProductDetailResponse?> GetProductAsync(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The business's metadata shape, plus the categories it may assign products
+        /// to (its domain's platform categories and its own custom ones). Null when
+        /// the business doesn't exist.
+        /// </summary>
+        Task<(JsonDocument? MetadataShape, List<ProductFormCategoryResponse> Categories)?> GetProductFormDataAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Whether this business may assign products to the given category — i.e. it
+        /// belongs to the business's domain and is either a platform category or this
+        /// business's own.
+        /// </summary>
+        Task<bool> CanUseCategoryAsync(
+            Guid businessId,
+            Guid categoryId,
+            CancellationToken cancellationToken = default);
+
+        Task<Product> CreateProductAsync(
+            Product product,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Loads a tracked product scoped to the business, for update/delete.</summary>
+        Task<Product?> GetTrackedProductAsync(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken = default);
+
+        Task SaveChangesAsync(CancellationToken cancellationToken = default);
+
+        Task DeleteProductAsync(
+            Product product,
+            CancellationToken cancellationToken = default);
     }
 }

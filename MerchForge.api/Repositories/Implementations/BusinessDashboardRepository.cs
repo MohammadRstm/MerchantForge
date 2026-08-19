@@ -1,7 +1,9 @@
+using System.Text.Json;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.Enums;
+using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -194,6 +196,121 @@ namespace MerchForge.api.Repositories.Implementations
                     JoinedAt = m.CreatedAt,
                 })
                 .ToList();
+        }
+
+        // ---- product CRUD ----
+
+        public async Task<BusinessProductDetailResponse?> GetProductAsync(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken = default)
+        {
+            // Both predicates: matching on productId alone would let one business read
+            // another's product.
+            return await _db.Products
+                .AsNoTracking()
+                .Where(p => p.Id == productId && p.BusinessId == businessId)
+                .Select(p => new BusinessProductDetailResponse
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Description = p.Description,
+                    Price = p.Price,
+                    CategoryId = p.CategoryId,
+                    CategoryName = p.Category.Name,
+                    ImageUrl = p.ImageUrl,
+                    Metadata = p.Metadata,
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<(JsonDocument? MetadataShape, List<ProductFormCategoryResponse> Categories)?> GetProductFormDataAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var business = await _db.Businesses
+                .AsNoTracking()
+                .Where(b => b.Id == businessId)
+                .Select(b => new { b.BusinessDomainId, b.MetadataShape })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (business is null)
+            {
+                return null;
+            }
+
+            // A business with no domain has no categories, so it cannot have products
+            // yet — an empty list is the honest answer rather than an error.
+            var categories = business.BusinessDomainId is null
+                ? []
+                : await _db.Categories
+                    .AsNoTracking()
+                    .Where(c =>
+                        c.IsActive &&
+                        c.BusinessDomainId == business.BusinessDomainId &&
+                        (c.BusinessId == null || c.BusinessId == businessId))
+                    .OrderBy(c => c.DisplayOrder)
+                    .ThenBy(c => c.Name)
+                    .Select(c => new ProductFormCategoryResponse { Id = c.Id, Name = c.Name })
+                    .ToListAsync(cancellationToken);
+
+            return (business.MetadataShape, categories);
+        }
+
+        public async Task<bool> CanUseCategoryAsync(
+            Guid businessId,
+            Guid categoryId,
+            CancellationToken cancellationToken = default)
+        {
+            // Enforces in one query what the schema cannot: the category must be in
+            // this business's domain, and must be either shared platform data or this
+            // business's own private category.
+            return await _db.Categories
+                .AsNoTracking()
+                .AnyAsync(
+                    c => c.Id == categoryId
+                        && c.IsActive
+                        && (c.BusinessId == null || c.BusinessId == businessId)
+                        && _db.Businesses.Any(b =>
+                            b.Id == businessId &&
+                            b.BusinessDomainId == c.BusinessDomainId),
+                    cancellationToken);
+        }
+
+        public async Task<Product> CreateProductAsync(
+            Product product,
+            CancellationToken cancellationToken = default)
+        {
+            await _db.Products.AddAsync(product, cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return product;
+        }
+
+        public async Task<Product?> GetTrackedProductAsync(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.Products
+                .FirstOrDefaultAsync(
+                    p => p.Id == productId && p.BusinessId == businessId,
+                    cancellationToken);
+        }
+
+        public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task DeleteProductAsync(
+            Product product,
+            CancellationToken cancellationToken = default)
+        {
+            _db.Products.Remove(product);
+            await _db.SaveChangesAsync(cancellationToken);
         }
     }
 }

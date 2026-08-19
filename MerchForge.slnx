@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="MerchForge.api/MerchForge.api.csproj" />
   <Project Path="MerchForge.UnitTests/MerchForge.UnitTests.csproj" />
+  <Project Path="MerchForge.IntegrationTests/MerchForge.IntegrationTests.csproj" />
 </Solution>

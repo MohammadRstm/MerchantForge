@@ -27,7 +27,29 @@ namespace MerchForge.api.Validators.Auth
             RuleFor(x => x.InvitationToken)
                 .NotEmpty()
                 .ToString();
-                
+
+            RuleFor(x => x.BusinessDomainId)
+                .NotEmpty()
+                .WithMessage("Select a business domain.");
+
+            // Existence/active-state of the domain itself is checked in the service
+            // layer (consistent with how a nonexistent businessId/productId is
+            // handled elsewhere) — this validator only checks shape, matching every
+            // other validator in the codebase staying synchronous and DB-free.
+            RuleForEach(x => x.NewCategoryNames)
+                .NotEmpty()
+                .WithMessage("Category names can't be blank.")
+                .MaximumLength(100);
+
+            RuleFor(x => x.NewCategoryNames)
+                .Must(names => names.Count <= 20)
+                .WithMessage("Add at most 20 custom categories.");
+
+            // Whether each key actually exists in the chosen domain is checked in the
+            // service layer, which is where the domain catalogue is read.
+            RuleForEach(x => x.SelectedProductAttributeKeys)
+                .NotEmpty()
+                .MaximumLength(100);
         }
     }
 }

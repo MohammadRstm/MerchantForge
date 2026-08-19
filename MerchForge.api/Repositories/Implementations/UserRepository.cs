@@ -58,7 +58,13 @@ namespace MerchForge.api.Repositories.Implementations
             return superAdmin;
         }
 
-        public async Task FinishBusinessOwnerRegistration(User user , Business business, BusinessUser businessUser, Guid invitationId, CancellationToken cancellationToken = default)
+        public async Task FinishBusinessOwnerRegistration(
+            User user,
+            Business business,
+            BusinessUser businessUser,
+            IReadOnlyList<Category> customCategories,
+            Guid invitationId,
+            CancellationToken cancellationToken = default)
         {
             await using var transaction =
                await _db.Database.BeginTransactionAsync(cancellationToken);
@@ -86,6 +92,11 @@ namespace MerchForge.api.Repositories.Implementations
                 await _db.Users.AddAsync(user, cancellationToken);
                 await _db.Businesses.AddAsync(business, cancellationToken);
                 await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
+
+                if (customCategories.Count > 0)
+                {
+                    await _db.Categories.AddRangeAsync(customCategories, cancellationToken);
+                }
 
                 await _db.SaveChangesAsync(cancellationToken);
 

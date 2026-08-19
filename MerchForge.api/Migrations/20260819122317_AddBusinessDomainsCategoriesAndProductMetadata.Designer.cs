@@ -4,6 +4,7 @@ using MerchForge.api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MerchForge.api.Migrations
 {
     [DbContext(typeof(MerchForgeDbContext))]
-    partial class MerchForgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260819122317_AddBusinessDomainsCategoriesAndProductMetadata")]
+    partial class AddBusinessDomainsCategoriesAndProductMetadata
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -63,10 +66,6 @@ namespace MerchForge.api.Migrations
                     b.Property<string>("LogoUrl")
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
-
-                    b.Property<string>("MetadataShape")
-                        .HasColumnType("json")
-                        .HasColumnName("meta_data_shape");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -221,9 +220,6 @@ namespace MerchForge.api.Migrations
                     b.Property<Guid>("BusinessDomainId")
                         .HasColumnType("char(36)");
 
-                    b.Property<Guid?>("BusinessId")
-                        .HasColumnType("char(36)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -248,9 +244,7 @@ namespace MerchForge.api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessId");
-
-                    b.HasIndex("BusinessDomainId", "BusinessId", "Slug")
+                    b.HasIndex("BusinessDomainId", "Slug")
                         .IsUnique();
 
                     b.ToTable("categories", (string)null);
@@ -528,412 +522,6 @@ namespace MerchForge.api.Migrations
                     b.HasIndex("BusinessId", "CategoryId");
 
                     b.ToTable("products", (string)null);
-                });
-
-            modelBuilder.Entity("MerchForge.api.Models.ProductAttributeDefinition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<Guid>("BusinessDomainId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ValueType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessDomainId", "Key")
-                        .IsUnique();
-
-                    b.ToTable("product_attribute_definitions", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000001"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Key = "colors",
-                            Label = "Colors",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "TextList"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000002"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 2,
-                            IsActive = true,
-                            Key = "sizes",
-                            Label = "Sizes",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "TextList"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000003"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 3,
-                            IsActive = true,
-                            Key = "material",
-                            Label = "Material",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000004"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 4,
-                            IsActive = true,
-                            Key = "fit",
-                            Label = "Fit",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000005"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 5,
-                            IsActive = true,
-                            Key = "pattern",
-                            Label = "Pattern",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000006"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 6,
-                            IsActive = true,
-                            Key = "gender",
-                            Label = "Gender",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000007"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 7,
-                            IsActive = true,
-                            Key = "season",
-                            Label = "Season",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000008"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 8,
-                            IsActive = true,
-                            Key = "careInstructions",
-                            Label = "Care instructions",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-000000000009"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 9,
-                            IsActive = true,
-                            Key = "countryOfOrigin",
-                            Label = "Country of origin",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-00000000000a"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 10,
-                            IsActive = true,
-                            Key = "handmade",
-                            Label = "Handmade",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Boolean"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000001"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Key = "ingredients",
-                            Label = "Ingredients",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "TextList"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000002"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 2,
-                            IsActive = true,
-                            Key = "allergens",
-                            Label = "Allergens",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "TextList"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000003"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 3,
-                            IsActive = true,
-                            Key = "spicy",
-                            Label = "Spicy",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Boolean"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000004"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 4,
-                            IsActive = true,
-                            Key = "vegetarian",
-                            Label = "Vegetarian",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Boolean"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000005"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 5,
-                            IsActive = true,
-                            Key = "vegan",
-                            Label = "Vegan",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Boolean"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000006"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 6,
-                            IsActive = true,
-                            Key = "glutenFree",
-                            Label = "Gluten free",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Boolean"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000007"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 7,
-                            IsActive = true,
-                            Key = "calories",
-                            Label = "Calories",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Number"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000008"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 8,
-                            IsActive = true,
-                            Key = "portionSize",
-                            Label = "Portion size",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-000000000009"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 9,
-                            IsActive = true,
-                            Key = "preparationMinutes",
-                            Label = "Preparation time (minutes)",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Number"
-                        },
-                        new
-                        {
-                            Id = new Guid("a2000000-0000-4000-8000-00000000000a"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000002"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 10,
-                            IsActive = true,
-                            Key = "servingTemperature",
-                            Label = "Serving temperature",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000001"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Key = "brand",
-                            Label = "Brand",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000002"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 2,
-                            IsActive = true,
-                            Key = "model",
-                            Label = "Model",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000003"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 3,
-                            IsActive = true,
-                            Key = "storage",
-                            Label = "Storage",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000004"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 4,
-                            IsActive = true,
-                            Key = "ram",
-                            Label = "RAM",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000005"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 5,
-                            IsActive = true,
-                            Key = "screenSize",
-                            Label = "Screen size",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000006"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 6,
-                            IsActive = true,
-                            Key = "batteryCapacity",
-                            Label = "Battery capacity",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000007"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 7,
-                            IsActive = true,
-                            Key = "colors",
-                            Label = "Colors",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "TextList"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000008"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 8,
-                            IsActive = true,
-                            Key = "connectivity",
-                            Label = "Connectivity",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "TextList"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-000000000009"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 9,
-                            IsActive = true,
-                            Key = "operatingSystem",
-                            Label = "Operating system",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
-                        },
-                        new
-                        {
-                            Id = new Guid("a3000000-0000-4000-8000-00000000000a"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 10,
-                            IsActive = true,
-                            Key = "warrantyMonths",
-                            Label = "Warranty (months)",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Number"
-                        });
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.ProductDraft", b =>
@@ -1248,13 +836,6 @@ namespace MerchForge.api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("MerchForge.api.Models.Business", "Business")
-                        .WithMany("CustomCategories")
-                        .HasForeignKey("BusinessId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Business");
-
                     b.Navigation("BusinessDomain");
                 });
 
@@ -1314,17 +895,6 @@ namespace MerchForge.api.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("MerchForge.api.Models.ProductAttributeDefinition", b =>
-                {
-                    b.HasOne("MerchForge.api.Models.BusinessDomain", "BusinessDomain")
-                        .WithMany("ProductAttributeDefinitions")
-                        .HasForeignKey("BusinessDomainId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("BusinessDomain");
-                });
-
             modelBuilder.Entity("MerchForge.api.Models.ProductDraft", b =>
                 {
                     b.HasOne("MerchForge.api.Models.Business", "Business")
@@ -1375,8 +945,6 @@ namespace MerchForge.api.Migrations
 
             modelBuilder.Entity("MerchForge.api.Models.Business", b =>
                 {
-                    b.Navigation("CustomCategories");
-
                     b.Navigation("Members");
 
                     b.Navigation("ProductDrafts");
@@ -1389,8 +957,6 @@ namespace MerchForge.api.Migrations
                     b.Navigation("Businesses");
 
                     b.Navigation("Categories");
-
-                    b.Navigation("ProductAttributeDefinitions");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.BusinessUserRole", b =>

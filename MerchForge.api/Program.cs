@@ -23,6 +23,10 @@ using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Invitation.interfaces;
+using MerchForge.api.Services.Onboarding;
+using MerchForge.api.Services.Onboarding.interfaces;
+using MerchForge.api.Services.Storefront;
+using MerchForge.api.Services.Storefront.interfaces;
 using MerchForge.api.Services.Subscription;
 using MerchForge.api.Services.Subscription.interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -32,6 +36,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,7 +57,26 @@ builder.Services.AddControllers()
         // it with Kind=Unspecified, which makes System.Text.Json omit the "Z" suffix.
         // Force it back so clients can parse these as unambiguous UTC instants.
         options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+
+        // Serialize enums as their names, not their ordinals. ApiErrorResponse.Type
+        // was going out as e.g. 4 instead of "NotFound", while both the dashboard
+        // frontend and the Storefront SDK type it as a string union and guard on
+        // typeof === "string". Neither matched, so both silently fell back to a
+        // generic "Unexpected" error and discarded the real code and message.
+        // Names are also the stable contract: reordering the enum would otherwise
+        // silently change the meaning of every previously-returned number.
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+
+// GlobalExceptionHandler writes error responses with WriteAsJsonAsync, which reads
+// Http.Json.JsonOptions rather than the MVC options configured above. Without this
+// the converters would apply to controller responses but not to error responses --
+// exactly the responses whose enum this is meant to fix.
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 // DB context - Mysql
 var connectionString =
@@ -64,7 +88,10 @@ builder.Services.AddDbContext<MerchForgeDbContext>(options =>
 {
     options.UseMySql(
         connectionString,
-        ServerVersion.AutoDetect(connectionString));
+        ServerVersion.AutoDetect(connectionString),
+        // Required for Product.Metadata: without the Json.Microsoft plugin the
+        // provider cannot map JsonDocument to a json column at all.
+        mySqlOptions => mySqlOptions.UseMicrosoftJson());
 });
 
 // Add job queue
@@ -95,6 +122,20 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
+    });
+
+    // The public storefront API is consumed by independently deployed storefronts on
+    // origins MerchForge does not know in advance, so it cannot use an allow-list.
+    // That is safe precisely because it is anonymous and credential-free: no cookies
+    // or Authorization headers are involved, so there is no cross-site request the
+    // browser could authenticate. AllowAnyOrigin and AllowCredentials are mutually
+    // exclusive per the CORS spec, which is exactly the trade this policy makes.
+    options.AddPolicy("Storefront", policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .WithMethods("GET");
     });
 });
 
@@ -172,6 +213,12 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
+
+// Public Storefront Services
+builder.Services.AddScoped<IStorefrontService, StorefrontService>();
+
+// Onboarding Services
+builder.Services.AddScoped<IDomainService, DomainService>();
 
 // Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
@@ -275,6 +322,8 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
+builder.Services.AddScoped<IStorefrontRepository, StorefrontRepository>();
+builder.Services.AddScoped<IDomainRepository, DomainRepository>();
 
 // build app
 var app = builder.Build();

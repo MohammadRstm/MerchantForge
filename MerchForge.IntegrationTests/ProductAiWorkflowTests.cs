@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FluentAssertions;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.AI;
@@ -132,6 +132,25 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
             Headers = new HeaderDictionary(),
             ContentType = contentType,
         };
+    }
+
+
+    /// <summary>
+    /// Drives a draft to a genuinely confirmable state: an image plus every required
+    /// field. Image is required now, so "complete" means complete.
+    /// </summary>
+    private async Task<Guid> ReachReviewAsync(Harness h)
+    {
+        var started = await h.Service.StartAsync(_business.Id, _userId);
+
+        h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Nice photo."));
+        await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
+
+        h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
+            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
+        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+
+        return started.Id;
     }
 
     // ---- draft lifecycle ----
@@ -321,7 +340,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt");
 
-        result.MissingFields.Should().BeEquivalentTo(["description", "price", "category"]);
+        result.MissingFields.Should().BeEquivalentTo(["description", "price", "category", "image"]);
     }
 
     // ---- hallucinated category ----
@@ -357,15 +376,12 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
     {
         using var h = CreateHarness();
 
-        var started = await h.Service.StartAsync(_business.Id, _userId);
+        var draftId = await ReachReviewAsync(h);
 
-        h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
-            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-
-        var reviewed = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+        var reviewed = await h.Service.GetAsync(_business.Id, draftId);
         reviewed.CanConfirm.Should().BeTrue();
 
-        var product = await h.Service.ConfirmAsync(_business.Id, _userId, started.Id);
+        var product = await h.Service.ConfirmAsync(_business.Id, _userId, draftId);
 
         product.Title.Should().Be("Cotton Shirt");
         product.Price.Should().Be(25m);
@@ -376,7 +392,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         product.Metadata.RootElement.GetProperty("colors").EnumerateArray()
             .Select(e => e.GetString()).Should().Equal(["Black", "White"]);
 
-        var after = await h.Service.GetAsync(_business.Id, started.Id);
+        var after = await h.Service.GetAsync(_business.Id, draftId);
         after.Status.Should().Be(nameof(ProductDraftStatus.Completed));
         after.ProductId.Should().Be(product.Id);
     }
@@ -386,16 +402,12 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
     {
         using var h = CreateHarness();
 
-        var started = await h.Service.StartAsync(_business.Id, _userId);
+        var draftId = await ReachReviewAsync(h);
 
-        h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
-            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
-
-        await h.Service.ConfirmAsync(_business.Id, _userId, started.Id);
+        await h.Service.ConfirmAsync(_business.Id, _userId, draftId);
 
         // A double click or a stale tab must not produce a second product.
-        var act = async () => await h.Service.ConfirmAsync(_business.Id, _userId, started.Id);
+        var act = async () => await h.Service.ConfirmAsync(_business.Id, _userId, draftId);
         await act.Should().ThrowAsync<ProductDraftStateException>();
 
         await using var verify = _fixture.CreateContext();
@@ -407,11 +419,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
     {
         using var setup = CreateHarness();
 
-        var started = await setup.Service.StartAsync(_business.Id, _userId);
-
-        setup.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
-            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-        await setup.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+        var draftId = await ReachReviewAsync(setup);
 
         // Separate service instances, as two simultaneous requests would be - the
         // status check alone is a read-then-write and both would pass it.
@@ -419,8 +427,8 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         using var b = CreateHarness();
 
         var results = await Task.WhenAll(
-            Record.ExceptionAsync(() => a.Service.ConfirmAsync(_business.Id, _userId, started.Id)),
-            Record.ExceptionAsync(() => b.Service.ConfirmAsync(_business.Id, _userId, started.Id)));
+            Record.ExceptionAsync(() => a.Service.ConfirmAsync(_business.Id, _userId, draftId)),
+            Record.ExceptionAsync(() => b.Service.ConfirmAsync(_business.Id, _userId, draftId)));
 
         // Exactly one wins; the loser is told the draft is already done.
         results.Count(e => e is null).Should().Be(1);
@@ -435,17 +443,13 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
     {
         using var h = CreateHarness();
 
-        var started = await h.Service.StartAsync(_business.Id, _userId);
-
-        // Complete as far as the draft is concerned, but pointing at a category this
-        // business cannot use - so creation fails after the claim is taken.
-        h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
-            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+        // Complete as far as the draft is concerned, but retargeted below at a
+        // category this business cannot use - so creation fails after the claim.
+        var draftId = await ReachReviewAsync(h);
 
         await using (var tamper = _fixture.CreateContext())
         {
-            var stored = await tamper.ProductDrafts.FirstAsync(d => d.Id == started.Id);
+            var stored = await tamper.ProductDrafts.FirstAsync(d => d.Id == draftId);
             var json = stored.Draft!.RootElement.GetRawText()
                 .Replace(
                     CatalogDatabaseFixture.ShirtsCategoryId.ToString(),
@@ -456,13 +460,13 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         using var attempt = CreateHarness();
 
-        var act = async () => await attempt.Service.ConfirmAsync(_business.Id, _userId, started.Id);
+        var act = async () => await attempt.Service.ConfirmAsync(_business.Id, _userId, draftId);
         await act.Should().ThrowAsync<InvalidProductCategoryException>();
 
         // Without releasing the claim the draft would sit at Completed with no
         // product, unable to be retried or edited.
         await using var verify = _fixture.CreateContext();
-        var after = await verify.ProductDrafts.AsNoTracking().FirstAsync(d => d.Id == started.Id);
+        var after = await verify.ProductDrafts.AsNoTracking().FirstAsync(d => d.Id == draftId);
 
         after.Status.Should().Be(ProductDraftStatus.WaitingForProductApproval);
         after.ProductId.Should().BeNull();
@@ -473,11 +477,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
     {
         using var h = CreateHarness();
 
-        var started = await h.Service.StartAsync(_business.Id, _userId);
-
-        h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
-            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+        await ReachReviewAsync(h);
 
         // The agent calling it ready is a proposal, not a creation.
         await using var verify = _fixture.CreateContext();
@@ -520,14 +520,10 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
     {
         using var h = CreateHarness();
 
-        var started = await h.Service.StartAsync(_business.Id, _userId);
+        var draftId = await ReachReviewAsync(h);
+        await h.Service.ConfirmAsync(_business.Id, _userId, draftId);
 
-        h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
-            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
-        await h.Service.ConfirmAsync(_business.Id, _userId, started.Id);
-
-        var act = async () => await h.Service.CancelAsync(_business.Id, _userId, started.Id);
+        var act = async () => await h.Service.CancelAsync(_business.Id, _userId, draftId);
         await act.Should().ThrowAsync<ProductDraftStateException>();
     }
 

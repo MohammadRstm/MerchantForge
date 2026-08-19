@@ -9,6 +9,7 @@ using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.AI.Contracts;
 using MerchForge.api.Services.AI.Interfaces;
+using MerchForge.api.Services.BusinessDashboard;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.ProductAi.Interfaces;
 
@@ -228,7 +229,9 @@ namespace MerchForge.api.Services.ProductAi
             // product table is the thing being written, so completeness is decided by
             // us. Category usability and metadata typing are then enforced again by
             // the normal product path below.
-            var missing = FindMissingFields(state);
+            var formData = await _dashboardRepository.GetProductFormDataAsync(businessId, cancellationToken);
+
+            var missing = FindMissingFields(state, draft.OriginalImageUrl is not null, formData?.MetadataShape);
 
             if (missing.Count > 0)
             {
@@ -329,7 +332,14 @@ namespace MerchForge.api.Services.ProductAi
                     .Select(c => new ProductAiCategory { Id = c.Id, Name = c.Name })
                     .ToList(),
                 MetadataFields = form.MetadataFields
-                    .Select(f => new ProductAiField { Key = f.Key, Label = f.Label, ValueType = f.ValueType })
+                    .Select(f => new ProductAiField
+                    {
+                        Key = f.Key,
+                        Label = f.Label,
+                        ValueType = f.ValueType,
+                        IsRequired = f.IsRequired,
+                        AllowedValues = f.AllowedValues,
+                    })
                     .ToList(),
                 CurrentDraft = ProductDraftState.ReadDraft(draft),
                 // Excludes the message just appended, which is passed separately so
@@ -540,7 +550,10 @@ namespace MerchForge.api.Services.ProductAi
         /// columns on Product; optional metadata is never required, because those
         /// fields are optional by definition.
         /// </summary>
-        internal static List<string> FindMissingFields(ProductAiDraft? state)
+        internal static List<string> FindMissingFields(
+            ProductAiDraft? state,
+            bool hasImage,
+            JsonDocument? metadataShape)
         {
             var missing = new List<string>();
 
@@ -548,6 +561,32 @@ namespace MerchForge.api.Services.ProductAi
             if (string.IsNullOrWhiteSpace(state?.Description)) missing.Add("description");
             if (state?.Price is null) missing.Add("price");
             if (state?.CategoryId is null) missing.Add("category");
+
+            // A catalog listing without a picture is not something an owner would
+            // want published, so the assistant asks for one before offering to create.
+            if (!hasImage) missing.Add("image");
+
+            // Required metadata is per-domain configuration, so it is read rather than
+            // hardcoded - a Restaurant business is never asked for a colour.
+            foreach (var (key, rule) in ProductMetadataBuilder.ReadShape(metadataShape))
+            {
+                if (!rule.IsRequired)
+                {
+                    continue;
+                }
+
+                var supplied = state?.Metadata is not null
+                    && state.Metadata.TryGetValue(key, out var value)
+                    && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined)
+                    // An empty list satisfies nothing; "sizes: []" is still no sizes.
+                    && !(value.ValueKind == JsonValueKind.Array && value.GetArrayLength() == 0)
+                    && !(value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(value.GetString()));
+
+                if (!supplied)
+                {
+                    missing.Add($"metadata.{key}");
+                }
+            }
 
             return missing;
         }
@@ -585,7 +624,12 @@ namespace MerchForge.api.Services.ProductAi
                 categoryName = form.Categories.FirstOrDefault(c => c.Id == categoryId)?.Name;
             }
 
-            var backendMissing = FindMissingFields(state);
+            var formData = await _dashboardRepository.GetProductFormDataAsync(draft.BusinessId, cancellationToken);
+
+            var backendMissing = FindMissingFields(
+                state,
+                draft.OriginalImageUrl is not null,
+                formData?.MetadataShape);
 
             return new ProductDraftResponse
             {

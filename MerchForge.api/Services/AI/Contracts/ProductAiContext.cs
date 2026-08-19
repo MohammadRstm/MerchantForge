@@ -1,4 +1,4 @@
-namespace MerchForge.api.Services.AI.Contracts;
+﻿namespace MerchForge.api.Services.AI.Contracts;
 
 /// <summary>
 /// Everything the agent needs for one turn, and nothing else.
@@ -57,6 +57,14 @@ public class ProductAiField
 
     /// <summary>Text | Number | Boolean | TextList.</summary>
     public string ValueType { get; set; } = string.Empty;
+
+    public bool IsRequired { get; set; }
+
+    /// <summary>
+    /// Permitted values, or empty for free-form. Given to the agent so it can ask the
+    /// owner about an unsupported value rather than guessing a substitute.
+    /// </summary>
+    public List<string> AllowedValues { get; set; } = [];
 }
 
 public class ProductAiMessage

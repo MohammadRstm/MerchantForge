@@ -1,3 +1,4 @@
+﻿using System.Text.Json;
 using MerchForge.api.Enums;
 
 namespace MerchForge.api.Models;
@@ -28,6 +29,23 @@ public class ProductAttributeDefinition
     public string Label { get; set; } = string.Empty;
 
     public ProductAttributeValueType ValueType { get; set; }
+
+    /// <summary>
+    /// Whether a product in this domain must carry this field. Required metadata is
+    /// domain-level rather than per-business: "a garment has a colour" is a property
+    /// of selling garments, not of one shop's preference.
+    /// </summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>
+    /// Closed set of permitted values, as a JSON array of strings, or null when the
+    /// field is free-form. For a TextList every element must be in the set.
+    ///
+    /// Exists so that "it's purple" is caught rather than stored: without it the
+    /// agent's output would be the only thing deciding what lands in a product, and
+    /// a hallucinated or mistyped value would persist unchallenged.
+    /// </summary>
+    public JsonDocument? AllowedValues { get; set; }
 
     public int DisplayOrder { get; set; }
 

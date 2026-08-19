@@ -1,4 +1,4 @@
-namespace MerchForge.api.DTOs.BusinessDashboard;
+﻿namespace MerchForge.api.DTOs.BusinessDashboard;
 
 /// <summary>
 /// Everything the product form needs to render: which categories this business may
@@ -33,4 +33,10 @@ public class ProductFormFieldResponse
 
     /// <summary>Text | Number | Boolean | TextList — decides which input to render.</summary>
     public string ValueType { get; set; } = string.Empty;
+
+    /// <summary>Whether a product must carry this field to be complete.</summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>Permitted values, or empty when the field is free-form.</summary>
+    public List<string> AllowedValues { get; set; } = [];
 }

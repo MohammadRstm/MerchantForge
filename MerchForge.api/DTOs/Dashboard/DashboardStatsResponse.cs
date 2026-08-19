@@ -1,3 +1,5 @@
+using MerchForge.api.DTOs.Common;
+
 namespace MerchForge.api.DTOs.Dashboard;
 
 public class DashboardStatsResponse

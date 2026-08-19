@@ -1,4 +1,4 @@
-namespace MerchForge.api.DTOs.Dashboard;
+namespace MerchForge.api.DTOs.Common;
 
 public class TimeSeriesPointResponse
 {

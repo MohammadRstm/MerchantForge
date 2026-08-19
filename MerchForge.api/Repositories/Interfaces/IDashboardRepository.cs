@@ -21,5 +21,11 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<List<DateTime>> GetBusinessCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
 
         Task<List<DateTime>> GetProductCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
+
+        Task<(List<DashboardUserResponse> Items, int TotalCount)> GetUsersAsync(
+            UsersQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<bool> UserExistsAsync(Guid userId, CancellationToken cancellationToken = default);
     }
 }

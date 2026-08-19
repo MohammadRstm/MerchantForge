@@ -40,4 +40,8 @@ public class BusinessDomain
 
     public ICollection<Business> Businesses { get; set; }
         = new List<Business>();
+
+    /// <summary>The product metadata fields businesses in this domain may opt into.</summary>
+    public ICollection<ProductAttributeDefinition> ProductAttributeDefinitions { get; set; }
+        = new List<ProductAttributeDefinition>();
 }

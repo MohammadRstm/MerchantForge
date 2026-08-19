@@ -153,6 +153,60 @@ public class StorefrontServiceTests : IClassFixture<CatalogDatabaseFixture>, IAs
     }
 
     [Fact]
+    public async Task GetCategories_includes_this_businesss_own_custom_categories()
+    {
+        await using (var seed = _fixture.CreateContext())
+        {
+            seed.Categories.Add(new Category
+            {
+                Id = Guid.NewGuid(),
+                BusinessDomainId = CatalogDatabaseFixture.FashionDomainId,
+                BusinessId = _fashionBusiness.Id,
+                Name = "Upcycled",
+                Slug = "upcycled",
+                DisplayOrder = 100,
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        var service = CreateService(out var scope);
+        using var _ = scope;
+
+        var categories = await service.GetCategoriesAsync(_fashionBusiness.Id);
+
+        categories.Should().Contain(c => c.Slug == "upcycled");
+    }
+
+    [Fact]
+    public async Task GetCategories_never_leaks_another_businesss_custom_category()
+    {
+        // Both businesses are in the Fashion domain, so a domain-only scoping bug
+        // would show B's private category on A's storefront.
+        await using (var seed = _fixture.CreateContext())
+        {
+            seed.Categories.Add(new Category
+            {
+                Id = Guid.NewGuid(),
+                BusinessDomainId = CatalogDatabaseFixture.FashionDomainId,
+                BusinessId = _otherFashionBusiness.Id,
+                Name = "Rival Secret Line",
+                Slug = "rival-secret-line",
+                DisplayOrder = 100,
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        var service = CreateService(out var scope);
+        using var _ = scope;
+
+        var mine = await service.GetCategoriesAsync(_fashionBusiness.Id);
+        var theirs = await service.GetCategoriesAsync(_otherFashionBusiness.Id);
+
+        mine.Should().NotContain(c => c.Slug == "rival-secret-line");
+        theirs.Should().Contain(c => c.Slug == "rival-secret-line");
+    }
+
+    [Fact]
     public async Task GetCategories_is_empty_for_a_business_with_no_domain()
     {
         var service = CreateService(out var scope);

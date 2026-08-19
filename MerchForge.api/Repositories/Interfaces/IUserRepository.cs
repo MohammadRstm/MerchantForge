@@ -1,4 +1,5 @@
-﻿using MerchForge.api.Models;
+﻿using MerchForge.api.Enums;
+using MerchForge.api.Models;
 
 namespace MerchForge.api.Repositories.Interfaces
 {
@@ -13,5 +14,17 @@ namespace MerchForge.api.Repositories.Interfaces
             Business business,
             BusinessUser businessUser,
             CancellationToken token = default);
+
+        Task<User> CreateSuperAdmin(User superAdmin, CancellationToken cancellationToken);
+
+        Task<bool> SuperAdminExistsAsync(CancellationToken cancellationToken = default);
+
+        Task FinishBusinessOwnerRegistration(User user, Business business, BusinessUser businessUser, Guid invitationId, CancellationToken cancellationToken = default);
+
+        Task<Guid> GetSystemRoleId(SystemRole role, CancellationToken cancellationToken);
+        Task<SystemRole> GetSystemRoleById(Guid Id, CancellationToken cancellationToken = default);
+        Task<Guid> GetBusinessRoleId(BusinessRole role, CancellationToken cancellationToken = default);
+        Task<BusinessRole> GetBusinessRoleById(Guid Id, CancellationToken cancellationToken = default);
+
     }
 }

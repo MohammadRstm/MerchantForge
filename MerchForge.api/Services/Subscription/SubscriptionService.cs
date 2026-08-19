@@ -4,14 +4,14 @@ namespace MerchForge.api.Services.Subscription
     using MerchForge.api.Data;
     using MerchForge.api.Enums;
     using MerchForge.api.Models;
-    using MerchForge.api.Repositories.Implementations;
+    using MerchForge.api.Repositories.Interfaces;
     using MerchForge.api.Services.Subscription.interfaces;
     using Microsoft.EntityFrameworkCore;
 
     public class SubscriptionService : ISubscriptionService
     {
-        private readonly SubscriptionRepository _subscriptionRepository;
-        public SubscriptionService(SubscriptionRepository subscriptionRepository)
+        private readonly ISubscriptionRepository _subscriptionRepository;
+        public SubscriptionService(ISubscriptionRepository subscriptionRepository)
         {
             _subscriptionRepository = subscriptionRepository;
         }

@@ -57,19 +57,182 @@ namespace MerchForge.api.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("char(36)");
 
+                    b.Property<Guid?>("BusinessUserRoleId")
+                        .HasColumnType("char(36)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("BusinessId", "UserId");
+
+                    b.HasIndex("BusinessUserRoleId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("business_users", (string)null);
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.BusinessUserRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
 
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.HasKey("BusinessId", "UserId");
+                    b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.ToTable("BusinessUserRoles");
 
-                    b.ToTable("business_users", (string)null);
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
+                            Role = "Owner"
+                        },
+                        new
+                        {
+                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
+                            Role = "Admin"
+                        },
+                        new
+                        {
+                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
+                            Role = "Member"
+                        });
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.Feature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("features", (string)null);
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.Invitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("BusinessId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("BusinessRole")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("varchar(320)");
+
+                    b.Property<string>("EmailDeliveryError")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("EmailDeliveryFailedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("EmailSentAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("SystemRole")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("Invitations");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.PlanFeature", b =>
+                {
+                    b.Property<Guid>("SubscriptionPlanId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("FeatureId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("Limit")
+                        .HasColumnType("int");
+
+                    b.HasKey("SubscriptionPlanId", "FeatureId");
+
+                    b.HasIndex("FeatureId");
+
+                    b.ToTable("plan_features", (string)null);
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.Product", b =>
@@ -201,6 +364,104 @@ namespace MerchForge.api.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("MerchForge.api.Models.Subscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("CurrentPeriodEnd")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("CurrentPeriodStart")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ExternalSubscriptionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<Guid>("SubscriptionPlanId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("ExternalSubscriptionId")
+                        .IsUnique()
+                        .HasFilter("external_subscription_id IS NOT NULL");
+
+                    b.HasIndex("SubscriptionPlanId");
+
+                    b.ToTable("subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.SubscriptionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("BillingInterval")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("IsCustom")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("subscription_plans", (string)null);
+                });
+
             modelBuilder.Entity("MerchForge.api.Models.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -229,18 +490,56 @@ namespace MerchForge.api.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<int>("SystemRole")
-                        .HasColumnType("int");
+                    b.Property<Guid>("SystemRoleId")
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("UserRoleId")
+                        .HasColumnType("char(36)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
                         .IsUnique();
 
+                    b.HasIndex("UserRoleId");
+
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.UserRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SystemRoles");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
+                            Role = "SuperAdmin"
+                        },
+                        new
+                        {
+                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
+                            Role = "Admin"
+                        },
+                        new
+                        {
+                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
+                            Role = "User"
+                        });
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.Business", b =>
@@ -262,6 +561,10 @@ namespace MerchForge.api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MerchForge.api.Models.BusinessUserRole", null)
+                        .WithMany("BusinessMemberships")
+                        .HasForeignKey("BusinessUserRoleId");
+
                     b.HasOne("MerchForge.api.Models.User", "User")
                         .WithMany("BusinessMemberships")
                         .HasForeignKey("UserId")
@@ -271,6 +574,43 @@ namespace MerchForge.api.Migrations
                     b.Navigation("Business");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.Invitation", b =>
+                {
+                    b.HasOne("MerchForge.api.Models.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MerchForge.api.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.PlanFeature", b =>
+                {
+                    b.HasOne("MerchForge.api.Models.Feature", "Feature")
+                        .WithMany("PlanFeatures")
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MerchForge.api.Models.SubscriptionPlan", "SubscriptionPlan")
+                        .WithMany("PlanFeatures")
+                        .HasForeignKey("SubscriptionPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Feature");
+
+                    b.Navigation("SubscriptionPlan");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.Product", b =>
@@ -306,6 +646,32 @@ namespace MerchForge.api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MerchForge.api.Models.Subscription", b =>
+                {
+                    b.HasOne("MerchForge.api.Models.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MerchForge.api.Models.SubscriptionPlan", "SubscriptionPlan")
+                        .WithMany("Subscriptions")
+                        .HasForeignKey("SubscriptionPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Business");
+
+                    b.Navigation("SubscriptionPlan");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.User", b =>
+                {
+                    b.HasOne("MerchForge.api.Models.UserRole", null)
+                        .WithMany("Users")
+                        .HasForeignKey("UserRoleId");
+                });
+
             modelBuilder.Entity("MerchForge.api.Models.Business", b =>
                 {
                     b.Navigation("Members");
@@ -315,11 +681,33 @@ namespace MerchForge.api.Migrations
                     b.Navigation("Products");
                 });
 
+            modelBuilder.Entity("MerchForge.api.Models.BusinessUserRole", b =>
+                {
+                    b.Navigation("BusinessMemberships");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.Feature", b =>
+                {
+                    b.Navigation("PlanFeatures");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.SubscriptionPlan", b =>
+                {
+                    b.Navigation("PlanFeatures");
+
+                    b.Navigation("Subscriptions");
+                });
+
             modelBuilder.Entity("MerchForge.api.Models.User", b =>
                 {
                     b.Navigation("BusinessMemberships");
 
                     b.Navigation("RefreshTokens");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.UserRole", b =>
+                {
+                    b.Navigation("Users");
                 });
 #pragma warning restore 612, 618
         }

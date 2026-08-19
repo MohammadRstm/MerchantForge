@@ -27,9 +27,7 @@ public class BusinessUserConfiguration
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.Property(x => x.Role)
-            .HasConversion<string>()
-            .HasMaxLength(50)
+        builder.Property(x => x.RoleId)
             .IsRequired();
     }
 }

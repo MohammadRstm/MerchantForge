@@ -11,39 +11,39 @@ namespace MerchForge.api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
-        private readonly IValidator<RegisterRequest> _registerationValidator;
         private readonly IValidator<LoginRequest> _loginValidator;
+        private readonly IValidator<CompleteBusinessOwnerRegistrationRequest> _completeBusinessOwnerRegistrationRequestValidator;
 
-        public AuthController(IAuthService authService, IValidator<LoginRequest> loginValidator,
-            IValidator<RegisterRequest> registerValidator)
+        public AuthController(
+            IAuthService authService,
+            IValidator<LoginRequest> loginValidator,
+            IValidator<CompleteBusinessOwnerRegistrationRequest> completeBusinessOwnerRegistrationRequestValidator)
         {
             _authService = authService;
             _loginValidator = loginValidator;
-            _registerationValidator = registerValidator;
-        }
-
-        [HttpPost("register")]
-        public async Task<ActionResult<AuthResponse>> Register(
-            [FromBody] RegisterRequest request,
-            CancellationToken cancellationToken)
-        {
-            await _registerationValidator.ValidateAndThrowAsync(request);
-            
-            var response = await _authService.RegisterAsync(
-                request,
-                cancellationToken);
-
-            return Ok(response);
+            _completeBusinessOwnerRegistrationRequestValidator = completeBusinessOwnerRegistrationRequestValidator;
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<AuthResponse>> Login(
+        public async Task<ActionResult<LoginResponse>> Login(
             [FromBody] LoginRequest request,
             CancellationToken cancellationToken)
         {
             await _loginValidator.ValidateAndThrowAsync(request);
 
             var response = await _authService.LoginAsync(
+                request,
+                cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("register/superAdmin")]
+        public async Task<ActionResult<AuthResponse>> RegsiterSuperAdmin(
+            [FromBody] RegisterSuperAdminRequest request,
+            CancellationToken cancellationToken)
+        {
+            var response = await _authService.RegisterSuperAdmin(
                 request,
                 cancellationToken);
 
@@ -59,6 +59,18 @@ namespace MerchForge.api.Controllers
                 request.RefreshToken,
                 cancellationToken);
             
+            return Ok(response);
+        }
+
+        [HttpPost("businessOwner/registration")]
+        public async Task<ActionResult<RegistrationResponse>> CompleteBusinessOwnerRegistration(
+            [FromBody] CompleteBusinessOwnerRegistrationRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _completeBusinessOwnerRegistrationRequestValidator.ValidateAndThrowAsync(request);
+
+            var response = await _authService.CompleteBusinessOwnerRegistration(request);
+
             return Ok(response);
         }
 

@@ -3,6 +3,7 @@ using MerchForge.api.Authorization.Requirements;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using MerchForge.api.Repositories.Interfaces;
 
 
 namespace MerchForge.api.Authorization.Handlers
@@ -10,9 +11,11 @@ namespace MerchForge.api.Authorization.Handlers
     public class BusinessRoleHandler : AuthorizationHandler<BusinessRoleRequirements>
     {
         private readonly MerchForgeDbContext _db;
-        public BusinessRoleHandler(MerchForgeDbContext db)
+        private readonly IUserRepository _userRepository;
+        public BusinessRoleHandler(MerchForgeDbContext db, IUserRepository userRepository)
         {
             _db = db;
+            _userRepository = userRepository;
         }
 
         protected override async Task HandleRequirementAsync(
@@ -53,7 +56,9 @@ namespace MerchForge.api.Authorization.Handlers
                 return;
             }
 
-            if (requirement.AllowedRoles.Contains(businessUser.Role))
+            var userBusinessRole = await _userRepository.GetBusinessRoleById(businessUser.RoleId);
+
+            if (requirement.AllowedRoles.Contains(userBusinessRole))
             {
                 context.Succeed(requirement);
             }

@@ -21,9 +21,9 @@ public class SubscriptionPlan
 
     public bool IsCustom { get; set; } = false;
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public DateTime UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<PlanFeature> PlanFeatures { get; set; }
         = new List<PlanFeature>();

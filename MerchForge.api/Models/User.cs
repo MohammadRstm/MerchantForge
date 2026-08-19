@@ -8,7 +8,7 @@ public class User
 
     public string Email { get; set; } = string.Empty;
 
-    public SystemRole SystemRole { get; set; } = SystemRole.User;
+    public Guid SystemRoleId { get; set; }
 
     public string PasswordHash { get; set; } = string.Empty;
 
@@ -16,9 +16,9 @@ public class User
 
     public string LastName { get; set; } = string.Empty;
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public DateTime UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
 
     // Navigation properties

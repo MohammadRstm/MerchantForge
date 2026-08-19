@@ -26,6 +26,11 @@ namespace MerchForge.api.Data
         public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
 
+        public DbSet<Invitation> Invitations => Set<Invitation>();
+
+        public DbSet<UserRole> SystemRoles => Set<UserRole>();
+        public DbSet<BusinessUserRole> BusinessUserRoles => Set<BusinessUserRole>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

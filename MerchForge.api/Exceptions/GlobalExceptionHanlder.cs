@@ -25,7 +25,9 @@ namespace MerchForge.api.Exceptions
         {
             _logger.LogError(
                 exception,
-                "An unhandled exception occurred.");
+                "Unhandled exception. TraceId: {TraceId}. Message: {Message}",
+                httpContext.TraceIdentifier,
+                exception.Message);
 
             // vaidation layer exceptions
             if (exception is ValidationException validationException)

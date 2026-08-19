@@ -1,6 +1,7 @@
 ﻿using MerchForge.api.Configurations;
 using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Models;
+using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -13,11 +14,13 @@ namespace MerchForge.api.Services.Auth;
 public class JwtService : IJwtService
 {
     private readonly JwtOptions _options;
+    private readonly IUserRepository _userRepository;
     private readonly byte[] _signingKey;
 
-    public JwtService(IOptions<JwtOptions> options)
+    public JwtService(IOptions<JwtOptions> options, IUserRepository userRepository)
     {
         _options = options.Value;
+        _userRepository = userRepository;
 
         if (string.IsNullOrWhiteSpace(_options.SecretKey))
         {
@@ -27,15 +30,17 @@ public class JwtService : IJwtService
         _signingKey = Encoding.UTF8.GetBytes(_options.SecretKey);
     }
 
-    public string GenerateAccessToken(User user)
+    public async Task<string> GenerateAccessToken(User user)
     {
         var expiration = GetExpirationTime();
+
+        var systemRole = await _userRepository.GetSystemRoleById(user.SystemRoleId);
 
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email),
-            new(ClaimTypes.Role, user.SystemRole.ToString()),
+            new(ClaimTypes.Role, systemRole.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email)
         };

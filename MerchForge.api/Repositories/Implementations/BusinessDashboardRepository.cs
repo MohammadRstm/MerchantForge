@@ -78,11 +78,18 @@ namespace MerchForge.api.Repositories.Implementations
             Guid businessId,
             CancellationToken cancellationToken = default)
         {
-            return await _db.ProductDrafts
+            // Grouped in the database, named in memory: Status is now an enum, and
+            // ToString() on it has no SQL translation. Same shape as
+            // GetMembersByRoleAsync, which handles its enum the same way.
+            var grouped = await _db.ProductDrafts
                 .Where(d => d.BusinessId == businessId)
                 .GroupBy(d => d.Status)
-                .Select(g => new KeyCountResponse { Key = g.Key, Count = g.Count() })
+                .Select(g => new { Status = g.Key, Count = g.Count() })
                 .ToListAsync(cancellationToken);
+
+            return grouped
+                .Select(x => new KeyCountResponse { Key = x.Status.ToString(), Count = x.Count })
+                .ToList();
         }
 
         public async Task<List<KeyCountResponse>> GetMembersByRoleAsync(

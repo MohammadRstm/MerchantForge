@@ -27,5 +27,9 @@ namespace MerchForge.api.Repositories.Interfaces
             CancellationToken cancellationToken = default);
 
         Task<bool> UserExistsAsync(Guid userId, CancellationToken cancellationToken = default);
+
+        Task<(List<DashboardBusinessResponse> Items, int TotalCount)> GetBusinessesAsync(
+            BusinessesQueryRequest query,
+            CancellationToken cancellationToken = default);
     }
 }

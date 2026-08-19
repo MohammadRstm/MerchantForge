@@ -186,5 +186,58 @@ namespace MerchForge.api.Repositories.Implementations
         {
             return await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken);
         }
+
+        public async Task<(List<DashboardBusinessResponse> Items, int TotalCount)> GetBusinessesAsync(
+            BusinessesQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var baseQuery = _db.Businesses.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var pattern = $"%{query.Search.Trim()}%";
+
+                baseQuery = baseQuery.Where(b => EF.Functions.Like(b.Name, pattern));
+            }
+
+            var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+            var projected = baseQuery.Select(b => new DashboardBusinessResponse
+            {
+                Id = b.Id,
+                Name = b.Name,
+                OwnerFullName = b.Owner.FirstName + " " + b.Owner.LastName,
+                OwnerEmail = b.Owner.Email,
+                MemberCount = b.Members.Count,
+                ProductCount = b.Products.Count,
+                CreatedAt = b.CreatedAt,
+            });
+
+            projected = query.SortBy switch
+            {
+                BusinessSortField.Name => query.SortDescending
+                    ? projected.OrderByDescending(x => x.Name)
+                    : projected.OrderBy(x => x.Name),
+
+                BusinessSortField.MemberCount => query.SortDescending
+                    ? projected.OrderByDescending(x => x.MemberCount)
+                    : projected.OrderBy(x => x.MemberCount),
+
+                BusinessSortField.ProductCount => query.SortDescending
+                    ? projected.OrderByDescending(x => x.ProductCount)
+                    : projected.OrderBy(x => x.ProductCount),
+
+                _ => query.SortDescending
+                    ? projected.OrderByDescending(x => x.CreatedAt)
+                    : projected.OrderBy(x => x.CreatedAt),
+            };
+
+            var items = await projected
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
     }
 }

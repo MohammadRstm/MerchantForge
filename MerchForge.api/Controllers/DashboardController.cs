@@ -16,13 +16,16 @@ namespace MerchForge.api.Controllers
     {
         private readonly IDashboardService _dashboardService;
         private readonly IValidator<UsersQueryRequest> _usersQueryValidator;
+        private readonly IValidator<BusinessesQueryRequest> _businessesQueryValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
-            IValidator<UsersQueryRequest> usersQueryValidator)
+            IValidator<UsersQueryRequest> usersQueryValidator,
+            IValidator<BusinessesQueryRequest> businessesQueryValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
+            _businessesQueryValidator = businessesQueryValidator;
         }
 
         [HttpGet("stats")]
@@ -62,6 +65,18 @@ namespace MerchForge.api.Controllers
                 userId,
                 parsedActingUserId,
                 cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses")]
+        public async Task<ActionResult<PagedResult<DashboardBusinessResponse>>> GetBusinesses(
+            [FromQuery] BusinessesQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _businessesQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetBusinessesAsync(query, cancellationToken);
 
             return Ok(response);
         }

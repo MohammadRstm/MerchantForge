@@ -15,5 +15,9 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             Guid targetUserId,
             Guid actingUserId,
             CancellationToken cancellationToken = default);
+
+        Task<PagedResult<DashboardBusinessResponse>> GetBusinessesAsync(
+            BusinessesQueryRequest query,
+            CancellationToken cancellationToken = default);
     }
 }

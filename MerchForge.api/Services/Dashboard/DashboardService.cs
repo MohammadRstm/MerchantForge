@@ -96,6 +96,21 @@ namespace MerchForge.api.Services.Dashboard
             };
         }
 
+        public async Task<PagedResult<DashboardBusinessResponse>> GetBusinessesAsync(
+            BusinessesQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var (items, totalCount) = await _dashboardRepository.GetBusinessesAsync(query, cancellationToken);
+
+            return new PagedResult<DashboardBusinessResponse>
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = totalCount,
+            };
+        }
+
         private static List<TimeSeriesPointResponse> BuildMonthlySeries(
             List<DateTime> dates,
             DateTime seriesStart,

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MerchForge.api.DTOs.Onboarding;
 using MerchForge.api.Models;
 
@@ -28,6 +29,20 @@ namespace MerchForge.api.Services.Onboarding.interfaces
             Guid businessId,
             Guid domainId,
             IReadOnlyList<string> categoryNames,
+            CancellationToken cancellationToken = default);
+
+        Task<List<OnboardingProductAttributeResponse>> GetProductAttributesAsync(
+            Guid domainId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Snapshots the chosen domain fields into the JSON document stored on
+        /// Business.MetadataShape. Rejects keys the domain doesn't offer. Returns
+        /// null when nothing is selected, meaning "fixed product fields only".
+        /// </summary>
+        Task<JsonDocument?> BuildMetadataShapeAsync(
+            Guid domainId,
+            IReadOnlyList<string> selectedKeys,
             CancellationToken cancellationToken = default);
     }
 }

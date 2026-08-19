@@ -47,5 +47,20 @@ namespace MerchForge.api.Controllers
 
             return Ok(response);
         }
+
+        /// <summary>
+        /// The optional product fields businesses in this domain can opt into, shown
+        /// as checkboxes during registration. The selection is snapshotted into the
+        /// business's metadata shape and drives what its product form asks for.
+        /// </summary>
+        [HttpGet("{domainId:guid}/product-attributes")]
+        public async Task<ActionResult<List<OnboardingProductAttributeResponse>>> GetProductAttributes(
+            Guid domainId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _domainService.GetProductAttributesAsync(domainId, cancellationToken);
+
+            return Ok(response);
+        }
     }
 }

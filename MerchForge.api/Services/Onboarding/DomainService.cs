@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using MerchForge.api.DTOs.Onboarding;
 using MerchForge.api.Exceptions.Onboarding;
 using MerchForge.api.Models;
@@ -99,6 +101,99 @@ namespace MerchForge.api.Services.Onboarding
                     UpdatedAt = now,
                 })
                 .ToList();
+        }
+
+        public async Task<List<OnboardingProductAttributeResponse>> GetProductAttributesAsync(
+            Guid domainId,
+            CancellationToken cancellationToken = default)
+        {
+            await EnsureDomainExistsAsync(domainId, cancellationToken);
+
+            var definitions = await _domainRepository.GetProductAttributeDefinitionsAsync(
+                domainId,
+                cancellationToken);
+
+            return definitions
+                .Select(d => new OnboardingProductAttributeResponse
+                {
+                    Key = d.Key,
+                    Label = d.Label,
+                    ValueType = d.ValueType.ToString(),
+                    DisplayOrder = d.DisplayOrder,
+                })
+                .ToList();
+        }
+
+        public async Task<JsonDocument?> BuildMetadataShapeAsync(
+            Guid domainId,
+            IReadOnlyList<string> selectedKeys,
+            CancellationToken cancellationToken = default)
+        {
+            var distinctKeys = selectedKeys
+                .Select(k => k.Trim())
+                .Where(k => k.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (distinctKeys.Count == 0)
+            {
+                // Null rather than an empty fields array: both mean "fixed fields
+                // only", and one representation is easier to check than two.
+                return null;
+            }
+
+            var definitions = await _domainRepository.GetProductAttributeDefinitionsAsync(
+                domainId,
+                cancellationToken);
+
+            var byKey = definitions.ToDictionary(d => d.Key, StringComparer.OrdinalIgnoreCase);
+
+            var unknown = distinctKeys.Where(k => !byKey.ContainsKey(k)).ToList();
+
+            if (unknown.Count > 0)
+            {
+                throw new UnknownProductAttributeException(unknown);
+            }
+
+            // Emitted in the domain's own display order rather than whatever order
+            // the client happened to send, so every business's product form is laid
+            // out consistently.
+            var fields = distinctKeys
+                .Select(k => byKey[k])
+                .OrderBy(d => d.DisplayOrder)
+                .ThenBy(d => d.Label)
+                .Select(d => new MetadataShapeField
+                {
+                    Key = d.Key,
+                    Label = d.Label,
+                    ValueType = d.ValueType.ToString(),
+                })
+                .ToList();
+
+            return JsonSerializer.SerializeToDocument(new MetadataShape { Fields = fields });
+        }
+
+        /// <summary>
+        /// Serialization shape for Business.MetadataShape. An object with a "fields"
+        /// array rather than a bare array, so the format can gain siblings later
+        /// without breaking readers.
+        /// </summary>
+        private sealed class MetadataShape
+        {
+            [JsonPropertyName("fields")]
+            public List<MetadataShapeField> Fields { get; set; } = [];
+        }
+
+        private sealed class MetadataShapeField
+        {
+            [JsonPropertyName("key")]
+            public string Key { get; set; } = string.Empty;
+
+            [JsonPropertyName("label")]
+            public string Label { get; set; } = string.Empty;
+
+            [JsonPropertyName("valueType")]
+            public string ValueType { get; set; } = string.Empty;
         }
     }
 }

@@ -215,6 +215,13 @@ public class AuthService : IAuthService
             password
         );
 
+        // Snapshot the chosen optional product fields. Built before the business is
+        // constructed so an unknown key fails the request before anything is created.
+        var metadataShape = await _domainService.BuildMetadataShapeAsync(
+            request.BusinessDomainId,
+            request.SelectedProductAttributeKeys,
+            cancellationToken);
+
         // create business
         var business = new Business
         {
@@ -222,6 +229,7 @@ public class AuthService : IAuthService
             Name = request.BusinessName,
             OwnerUserId = owner.Id,
             BusinessDomainId = request.BusinessDomainId,
+            MetadataShape = metadataShape,
 
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,

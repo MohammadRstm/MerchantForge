@@ -57,5 +57,17 @@ namespace MerchForge.api.Repositories.Implementations
 
             return new HashSet<string>(slugs, StringComparer.OrdinalIgnoreCase);
         }
+
+        public async Task<List<ProductAttributeDefinition>> GetProductAttributeDefinitionsAsync(
+            Guid domainId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.ProductAttributeDefinitions
+                .AsNoTracking()
+                .Where(a => a.BusinessDomainId == domainId && a.IsActive)
+                .OrderBy(a => a.DisplayOrder)
+                .ThenBy(a => a.Label)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

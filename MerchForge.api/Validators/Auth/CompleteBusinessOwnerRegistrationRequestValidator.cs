@@ -44,6 +44,12 @@ namespace MerchForge.api.Validators.Auth
             RuleFor(x => x.NewCategoryNames)
                 .Must(names => names.Count <= 20)
                 .WithMessage("Add at most 20 custom categories.");
+
+            // Whether each key actually exists in the chosen domain is checked in the
+            // service layer, which is where the domain catalogue is read.
+            RuleForEach(x => x.SelectedProductAttributeKeys)
+                .NotEmpty()
+                .MaximumLength(100);
         }
     }
 }

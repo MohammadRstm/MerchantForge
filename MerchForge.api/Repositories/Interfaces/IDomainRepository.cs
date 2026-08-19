@@ -24,5 +24,10 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<HashSet<string>> GetGlobalCategorySlugsAsync(
             Guid domainId,
             CancellationToken cancellationToken = default);
+
+        /// <summary>Active product field definitions offered by this domain.</summary>
+        Task<List<ProductAttributeDefinition>> GetProductAttributeDefinitionsAsync(
+            Guid domainId,
+            CancellationToken cancellationToken = default);
     }
 }

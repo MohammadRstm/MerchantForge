@@ -27,5 +27,17 @@ namespace MerchForge.api.DTOs.Auth
         /// businesses will find what they need in the domain's existing categories.
         /// </summary>
         public List<string> NewCategoryNames { get; set; } = [];
+
+        /// <summary>
+        /// Keys of the optional product fields this business wants, chosen from the
+        /// domain's catalogue (GET /api/domains/{id}/product-attributes). Snapshotted
+        /// into Business.MetadataShape, which then drives what the product form asks
+        /// for beyond title/description/price/image.
+        ///
+        /// Keys rather than ids: the key is what ends up in the shape and in every
+        /// product's metadata, so it's the identifier that actually matters.
+        /// Optional — a business can run on the fixed fields alone.
+        /// </summary>
+        public List<string> SelectedProductAttributeKeys { get; set; } = [];
     }
 }

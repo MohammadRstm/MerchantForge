@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.Services.AI.Contracts;
 
 namespace MerchForge.IntegrationTests;
@@ -8,6 +8,7 @@ namespace MerchForge.IntegrationTests;
 /// json_schema and the response parsing all line up before any further calls are
 /// made. Kept separate and minimal so a contract mistake costs one call, not thirty.
 /// </summary>
+[Collection("Live AI")]
 public class LiveAgentSmokeTest : IClassFixture<LiveAgentFixture>
 {
     private readonly LiveAgentFixture _fixture;
@@ -46,7 +47,11 @@ public class LiveAgentSmokeTest : IClassFixture<LiveAgentFixture>
         // Only that the contract holds - not what the model decided, which later tests
         // examine in detail.
         result.Should().NotBeNull();
-        result.Decision.Message.Should().NotBeNullOrWhiteSpace();
+
+        // Message is deliberately not asserted non-empty: the model sometimes returns
+        // an empty one, and the service supplies a fallback reply rather than relying
+        // on it. What matters here is that the decision parses at all.
+        result.Decision.Message.Should().NotBeNull();
         result.Decision.Action.Should().BeOneOf(
             ProductAiAction.RequestInformation,
             ProductAiAction.UpdateDraft,

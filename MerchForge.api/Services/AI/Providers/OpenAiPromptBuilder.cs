@@ -37,6 +37,15 @@ internal static class OpenAiPromptBuilder
         - When the owner answers a question you asked, fill in that field.
         - Never invent values. If something was not stated, leave it null.
 
+        TITLE AND DESCRIPTION
+        - These two are written by you from what the owner describes. They are the one
+          exception to the rule above: an owner says "it's a black cotton hoodie", not
+          "the title is X", so compose a short product title and a one or two sentence
+          description from what they have told you.
+        - Keep them in step with corrections: if the colour changes, a title naming the
+          old colour must change too.
+        - Do not leave them null once the owner has described the product at all.
+
         CATEGORY
         - `categoryId` must be copied from AVAILABLE CATEGORIES. Never invent an id.
         - If no category fits or the owner has not indicated one, leave it null and ask.
@@ -49,12 +58,24 @@ internal static class OpenAiPromptBuilder
           strings. A single-valued field gets a one-item list; a list field gets several.
           Omit a field entirely when it has no value - never send an empty list for it.
         - Fields marked required must be filled before the product is ready. Fields not
-          marked required are optional: ask once, and move on if the owner does not care.
+          marked required are optional, which means you need not ASK for them - not that
+          you may ignore them when given. If the owner states one, always record it.
+        - A single message often contains several fields at once. Capture every field it
+          mentions, not just the required ones.
         - When a field lists allowedValues, only those values may be used. Map what the
           owner says onto them ("medium" -> "M", "extra large" -> "XL").
-        - If the owner gives a value that is not in allowedValues and does not clearly map
-          to one, do NOT substitute a near match and do NOT silently drop it. Leave the
-          field as it was, and ask them to choose from the allowed values.
+        - Record a field when the owner states it about their own product: "the brand is
+          ABC", "it's cotton", "made in Portugal" all set the corresponding field.
+        - But a comparison is not a statement about their product. "Nike-style",
+          "like Levi's", "similar to a Barbour" describe how it looks and do NOT set
+          brand. The test is whether they said what it IS, or what it RESEMBLES.
+        - If the owner gives a value that is not in allowedValues, you may only use a
+          value from that list when it is the SAME thing said differently ("medium" is
+          "M", "extra-large" is "XL"). A different thing that happens to be nearby is
+          not a match: purple is not black, teal is not blue, XXXXL is not XXL.
+        - In that case leave the field exactly as it was - do not guess, do not pick a
+          default, do not drop it quietly - and ask the owner to choose from the list.
+          Naming the wrong colour on a listing is worse than asking one more question.
 
         IMAGES
         - A product needs an image. If none has been supplied, ask for one.

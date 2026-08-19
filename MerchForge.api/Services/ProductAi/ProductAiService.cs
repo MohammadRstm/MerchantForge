@@ -420,6 +420,12 @@ namespace MerchForge.api.Services.ProductAi
             AiInteractionScope scope,
             CancellationToken cancellationToken)
         {
+            var formData = await _dashboardRepository.GetProductFormDataAsync(
+                draft.BusinessId,
+                cancellationToken);
+
+            var rejectedValues = new List<string>();
+
             if (decision.Draft is not null)
             {
                 // Categories are validated here because the agent picks one from a
@@ -439,12 +445,44 @@ namespace MerchForge.api.Services.ProductAi
                     }
                 }
 
+                // Metadata values are checked against the business's configured sets
+                // for the same reason as the category, and at the same point.
+                //
+                // The prompt tells the agent to ask rather than substitute, and it
+                // usually does - but observed against the live model it sometimes
+                // returns a value outside the set anyway. Leaving it in the draft would
+                // show the owner "Purple" in the preview and only fail when they press
+                // create, so it is removed the moment it is proposed.
+                rejectedValues = StripDisallowedMetadata(decision.Draft, formData?.MetadataShape);
+
+                if (rejectedValues.Count > 0)
+                {
+                    _aiLogger.LogValidationRejected(scope, "metadata_value_not_allowed");
+                }
+
                 ProductDraftState.WriteDraft(draft, decision.Draft);
             }
 
             if (!string.IsNullOrWhiteSpace(decision.Message))
             {
                 ProductDraftState.AppendMessage(draft, "assistant", decision.Message, "text");
+            }
+            else
+            {
+                // The schema requires a message but does not stop it being empty, and
+                // the model occasionally sends nothing. A silent assistant reads as a
+                // broken chat, so the turn still gets a reply.
+                ProductDraftState.AppendMessage(draft, "assistant", "Got it.", "text");
+            }
+
+            // Said explicitly rather than dropped quietly: the owner needs to know the
+            // value was not accepted, and which values are.
+            if (rejectedValues.Count > 0)
+            {
+                foreach (var rejected in rejectedValues)
+                {
+                    ProductDraftState.AppendMessage(draft, "assistant", rejected, "text");
+                }
             }
 
             // The conversation action first...
@@ -482,6 +520,85 @@ namespace MerchForge.api.Services.ProductAi
             {
                 await StartImageModificationAsync(draft, decision, cancellationToken);
             }
+        }
+
+
+        /// <summary>
+        /// Removes metadata values the business does not permit, returning a message
+        /// for each field that lost something.
+        ///
+        /// Removal rather than rejection of the whole turn: the rest of what the owner
+        /// said is still good, and losing it because one value was wrong would be worse
+        /// than asking again about that one field.
+        /// </summary>
+        private static List<string> StripDisallowedMetadata(
+            ProductAiDraft state,
+            JsonDocument? metadataShape)
+        {
+            if (state.Metadata is null || state.Metadata.Count == 0)
+            {
+                return [];
+            }
+
+            var rules = ProductMetadataBuilder.ReadShape(metadataShape);
+            var messages = new List<string>();
+
+            foreach (var key in state.Metadata.Keys.ToList())
+            {
+                if (!rules.TryGetValue(key, out var rule) || rule.AllowedValues.Count == 0)
+                {
+                    continue;
+                }
+
+                var value = state.Metadata[key];
+
+                var offending = value.ValueKind switch
+                {
+                    JsonValueKind.String => rule.AllowedValues.Contains(value.GetString()!, StringComparer.OrdinalIgnoreCase)
+                        ? []
+                        : new List<string> { value.GetString()! },
+                    JsonValueKind.Array => value.EnumerateArray()
+                        .Where(e => e.ValueKind == JsonValueKind.String)
+                        .Select(e => e.GetString()!)
+                        .Where(v => !rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase))
+                        .ToList(),
+                    _ => [],
+                };
+
+                if (offending.Count == 0)
+                {
+                    continue;
+                }
+
+                // Keep whatever was valid; only the unsupported entries go.
+                if (value.ValueKind == JsonValueKind.Array)
+                {
+                    var kept = value.EnumerateArray()
+                        .Where(e => e.ValueKind == JsonValueKind.String)
+                        .Select(e => e.GetString()!)
+                        .Where(v => rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase))
+                        .ToList();
+
+                    if (kept.Count > 0)
+                    {
+                        state.Metadata[key] = JsonSerializer.SerializeToDocument(kept).RootElement.Clone();
+                    }
+                    else
+                    {
+                        state.Metadata.Remove(key);
+                    }
+                }
+                else
+                {
+                    state.Metadata.Remove(key);
+                }
+
+                messages.Add(
+                    $"{string.Join(" and ", offending)} isn't available for {key}. "
+                    + $"Please choose from: {string.Join(", ", rule.AllowedValues)}.");
+            }
+
+            return messages;
         }
 
         private async Task StartImageModificationAsync(
@@ -678,9 +795,12 @@ namespace MerchForge.api.Services.ProductAi
                         ? null
                         : JsonSerializer.SerializeToDocument(state.Metadata),
                 },
-                // The agent's list when it offered one, otherwise ours. Either way
-                // CanConfirm below is computed from our own check, not from this.
-                MissingFields = agentMissingFields.Count > 0 ? agentMissingFields : backendMissing,
+                // Always ours, never the agent's. Preferring the agent's list when it
+                // offered one made this field inconsistent: it named things differently
+                // ("colors" against our "metadata.colors") and could omit a field it
+                // had overlooked, so a client could not rely on either the naming or
+                // the completeness. The agent's opinion is still visible in its message.
+                MissingFields = backendMissing,
                 OriginalImageUrl = draft.OriginalImageUrl,
                 ProcessedImageUrl = draft.ProcessedImageUrl,
                 ImageModificationPrompt = draft.ImageModificationPrompt,

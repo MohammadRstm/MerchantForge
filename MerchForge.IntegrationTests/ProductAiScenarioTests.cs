@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FluentAssertions;
 using MerchForge.api.DTOs.ProductAi;
 using MerchForge.api.Enums;
@@ -319,7 +319,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
     }
 
     [Fact]
-    public async Task Scenario54_a_value_outside_the_allowed_set_is_rejected_at_creation()
+    public async Task Scenario54_a_hallucinated_value_never_reaches_the_products_table()
     {
         using var h = CreateHarness();
         var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
@@ -327,24 +327,51 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Nice photo."));
         await h.Service.AttachImageAsync(_fashion.Id, _ownerA, d.Id, Png());
 
-        // Purple is not one of the five permitted colours.
+        // The agent claims the product is finished, with a colour that does not exist
+        // for this business.
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Ready.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Purple"],"sizes":["M"]}""")));
         var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "it's purple");
 
-        // Completeness is satisfied, so the guard has to be the value check itself.
-        after.CanConfirm.Should().BeTrue();
+        // Caught where it was proposed, so the owner never sees it in the preview and
+        // confirmation is simply unavailable.
+        after.CanConfirm.Should().BeFalse();
+        after.MissingFields.Should().Contain("metadata.colors");
 
         var act = async () => await h.Service.ConfirmAsync(_fashion.Id, _ownerA, d.Id);
+        await act.Should().ThrowAsync<ProductDraftStateException>();
+
+        await using var verify = _fixture.CreateContext();
+        (await verify.Products.CountAsync(p => p.BusinessId == _fashion.Id)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Scenario54b_creation_still_refuses_a_disallowed_value_that_bypassed_the_conversation()
+    {
+        using var h = CreateHarness();
+        var d = await ReachReviewAsync(h);
+
+        // Writing straight to the draft stands in for any path that skips the turn
+        // handler - a tampered record, or a future code path that forgets to strip.
+        // Creation has to hold the line on its own.
+        await using (var tamper = _fixture.CreateContext())
+        {
+            var stored = await tamper.ProductDrafts.FirstAsync(x => x.Id == d);
+            stored.Draft = JsonDocument.Parse(
+                "{\"title\":\"Hoodie\",\"description\":\"A hoodie.\",\"price\":40,"
+                + $"\"categoryId\":\"{Shirts}\","
+                + "\"metadata\":{\"colors\":[\"Purple\"],\"sizes\":[\"M\"]}}");
+            await tamper.SaveChangesAsync();
+        }
+
+        using var attempt = CreateHarness();
+        var act = async () => await attempt.Service.ConfirmAsync(_fashion.Id, _ownerA, d);
+
         var ex = (await act.Should().ThrowAsync<api.Exceptions.BusinessDashboard.InvalidProductMetadataException>()).Which;
         ex.Message.Should().Contain("Purple");
 
         await using var verify = _fixture.CreateContext();
         (await verify.Products.CountAsync(p => p.BusinessId == _fashion.Id)).Should().Be(0);
-
-        // And the draft is still usable, not stranded by the failed attempt.
-        var recovered = await h.Service.GetAsync(_fashion.Id, d.Id);
-        recovered.Status.Should().Be(nameof(ProductDraftStatus.WaitingForProductApproval));
     }
 
     // =====================================================================
@@ -909,7 +936,70 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         finalDraft.ProductId.Should().Be(product.Id);
     }
 
+
+    [Fact]
+    public async Task Scenario32_a_disallowed_value_never_enters_the_draft()
+    {
+        using var h = CreateHarness();
+        var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
+
+        // Observed against the live model: it sometimes returns a value outside the
+        // configured set despite the prompt. The guarantee has to be ours.
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.",
+            Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Purple"],"sizes":["M"]}""")));
+
+        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "it's purple");
+
+        after.Draft!.Metadata!.RootElement.TryGetProperty("colors", out _)
+            .Should().BeFalse("an unsupported value is removed where it is proposed, not at creation");
+
+        // Valid values in the same turn survive.
+        after.Draft.Metadata.RootElement.GetProperty("sizes")
+            .EnumerateArray().Select(e => e.GetString()).Should().Equal(["M"]);
+
+        // And the owner is told, with the values they can actually use.
+        after.Messages.Last().Text.Should().Contain("Purple").And.Contain("Black");
+        after.MissingFields.Should().Contain("metadata.colors");
+        h.Logger.Events.Should().Contain("rejected:metadata_value_not_allowed");
+    }
+
+    [Fact]
+    public async Task Scenario33_only_the_unsupported_size_is_dropped()
+    {
+        using var h = CreateHarness();
+        var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
+
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.",
+            Draft("Hoodie", "A hoodie.", 40m, Shirts,
+                """{"colors":["Black"],"sizes":["M","L","XXXXL"]}""")));
+
+        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "sizes M, L, XXXXL");
+
+        after.Draft!.Metadata!.RootElement.GetProperty("sizes")
+            .EnumerateArray().Select(e => e.GetString())
+            .Should().Equal(["M", "L"], "the valid sizes are kept rather than the whole turn being lost");
+
+        after.Messages.Last().Text.Should().Contain("XXXXL");
+    }
+
+    [Fact]
+    public async Task An_empty_assistant_message_still_produces_a_reply()
+    {
+        using var h = CreateHarness();
+        var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
+
+        // Observed against the live model: the schema requires a message but does not
+        // stop it being empty, and a silent assistant reads as a broken chat.
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "", Draft("Hoodie", "A hoodie.", 40m, Shirts)));
+
+        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "a hoodie for $40");
+
+        after.Messages.Last().Role.Should().Be("assistant");
+        after.Messages.Last().Text.Should().NotBeNullOrWhiteSpace();
+    }
+
     // ---- helpers ----
+
 
     private async Task<Guid> ReachReviewAsync(Harness h, decimal price = 40m)
     {

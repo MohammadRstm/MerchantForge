@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace MerchForge.api.Models;
 
 public class Business
@@ -39,6 +41,27 @@ public class Business
     public string? ContactEmail { get; set; }
 
     public string? ContactPhone { get; set; }
+
+    /// <summary>
+    /// Which product metadata fields this business's products use, snapshotted from
+    /// the domain's ProductAttributeDefinition catalogue at onboarding:
+    ///
+    ///   { "fields": [ { "key": "colors", "label": "Colors", "valueType": "TextList" } ] }
+    ///
+    /// Read when building a product form, to decide what to ask for beyond the fixed
+    /// title/description/price/image, and later to validate Product.Metadata.
+    ///
+    /// A snapshot rather than a list of definition ids on purpose: a business's
+    /// product form must not silently change shape because a SuperAdmin edited or
+    /// retired a shared definition, which could invalidate metadata already written
+    /// against it. `key` still identifies the source definition, so a deliberate
+    /// re-sync remains possible.
+    ///
+    /// Null for businesses created before this existed, and for a business that
+    /// opted into no extra fields — both mean "fixed fields only".
+    /// Internal: never exposed on the public storefront API.
+    /// </summary>
+    public JsonDocument? MetadataShape { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

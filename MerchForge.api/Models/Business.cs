@@ -1,4 +1,4 @@
-﻿namespace MerchForge.api.Models;
+namespace MerchForge.api.Models;
 
 public class Business
 {
@@ -8,6 +8,38 @@ public class Business
 
     public Guid OwnerUserId { get; set; }
 
+    /// <summary>
+    /// The business vertical this store operates in. Nullable because businesses
+    /// registered before domains existed genuinely have not selected one, and
+    /// because onboarding does not ask for it yet — backfilling a guess would be
+    /// inventing data. A business must have a domain before it can add products,
+    /// since products require a category and categories belong to a domain.
+    /// </summary>
+    public Guid? BusinessDomainId { get; set; }
+
+    // Storefront configuration. Deliberately a handful of columns on Business rather
+    // than a separate settings table/CMS: each of these is needed by essentially
+    // every storefront to render correctly, and a 1:1 table would buy nothing yet.
+
+    public string? Description { get; set; }
+
+    public string? LogoUrl { get; set; }
+
+    /// <summary>
+    /// ISO 4217 code. Prices are meaningless to a storefront without it, so unlike
+    /// the other configuration fields this one is required and defaulted.
+    /// </summary>
+    public string Currency { get; set; } = "USD";
+
+    /// <summary>
+    /// BCP 47 tag, used by storefronts for price/date formatting.
+    /// </summary>
+    public string Locale { get; set; } = "en-US";
+
+    public string? ContactEmail { get; set; }
+
+    public string? ContactPhone { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -15,6 +47,8 @@ public class Business
     // Navigation properties
 
     public User Owner { get; set; } = null!;
+
+    public BusinessDomain? BusinessDomain { get; set; }
 
     public ICollection<BusinessUser> Members { get; set; }
         = new List<BusinessUser>();

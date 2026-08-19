@@ -15,6 +15,10 @@ namespace MerchForge.api.Data
 
         public DbSet<BusinessUser> BusinessUsers => Set<BusinessUser>();
 
+        public DbSet<BusinessDomain> BusinessDomains => Set<BusinessDomain>();
+
+        public DbSet<Category> Categories => Set<Category>();
+
         public DbSet<Product> Products => Set<Product>();
 
         public DbSet<ProductDraft> ProductDrafts => Set<ProductDraft>();

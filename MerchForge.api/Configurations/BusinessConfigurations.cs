@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using MerchForge.api.Models;
 
@@ -20,6 +20,35 @@ public class BusinessConfigurations : IEntityTypeConfiguration<Business>
             .WithMany()
             .HasForeignKey(x => x.OwnerUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict: retiring a domain must not cascade into deleting businesses.
+        builder.HasOne(x => x.BusinessDomain)
+            .WithMany(x => x.Businesses)
+            .HasForeignKey(x => x.BusinessDomainId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Storefront configuration
+        builder.Property(x => x.Description)
+            .HasMaxLength(1000);
+
+        builder.Property(x => x.LogoUrl)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.Currency)
+            .IsRequired()
+            .HasMaxLength(3)
+            .HasDefaultValue("USD");
+
+        builder.Property(x => x.Locale)
+            .IsRequired()
+            .HasMaxLength(10)
+            .HasDefaultValue("en-US");
+
+        builder.Property(x => x.ContactEmail)
+            .HasMaxLength(255);
+
+        builder.Property(x => x.ContactPhone)
+            .HasMaxLength(50);
 
         builder.Property(x => x.CreatedAt)
             .IsRequired();

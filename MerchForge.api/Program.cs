@@ -23,6 +23,8 @@ using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Invitation.interfaces;
+using MerchForge.api.Services.Onboarding;
+using MerchForge.api.Services.Onboarding.interfaces;
 using MerchForge.api.Services.Storefront;
 using MerchForge.api.Services.Storefront.interfaces;
 using MerchForge.api.Services.Subscription;
@@ -215,6 +217,9 @@ builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>(
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();
 
+// Onboarding Services
+builder.Services.AddScoped<IDomainService, DomainService>();
+
 // Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
@@ -318,6 +323,7 @@ builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
 builder.Services.AddScoped<IStorefrontRepository, StorefrontRepository>();
+builder.Services.AddScoped<IDomainRepository, DomainRepository>();
 
 // build app
 var app = builder.Build();

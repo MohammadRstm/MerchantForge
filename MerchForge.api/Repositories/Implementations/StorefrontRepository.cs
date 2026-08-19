@@ -58,13 +58,16 @@ namespace MerchForge.api.Repositories.Implementations
             Guid businessId,
             CancellationToken cancellationToken = default)
         {
-            // Categories are platform-level per domain, so "this storefront's
-            // categories" means "the active categories of this business's domain",
-            // with product counts scoped to this business only.
+            // "This storefront's categories" = the platform categories of its domain
+            // (BusinessId null) UNION its own custom categories (BusinessId ==
+            // businessId). Explicitly excludes every OTHER business's custom
+            // categories, even ones sharing this domain — those are private to
+            // whoever created them.
             return await _db.Categories
                 .AsNoTracking()
                 .Where(c =>
                     c.IsActive &&
+                    (c.BusinessId == null || c.BusinessId == businessId) &&
                     _db.Businesses.Any(b =>
                         b.Id == businessId &&
                         b.BusinessDomainId == c.BusinessDomainId))

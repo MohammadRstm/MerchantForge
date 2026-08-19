@@ -58,4 +58,8 @@ public class Business
 
     public ICollection<ProductDraft> ProductDrafts { get; set; }
         = new List<ProductDraft>();
+
+    /// <summary>Custom categories this business created for itself. See Category.BusinessId.</summary>
+    public ICollection<Category> CustomCategories { get; set; }
+        = new List<Category>();
 }

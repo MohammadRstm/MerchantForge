@@ -56,10 +56,33 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
             .HasForeignKey(x => x.BusinessDomainId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Slug is unique per domain, not globally — "accessories" legitimately exists
-        // under both Fashion and Electronics.
-        builder.HasIndex(x => new { x.BusinessDomainId, x.Slug })
+        // Restrict, not Cascade: there is no business-deletion feature yet, and
+        // MariaDB's ordering across two independent CASCADE paths from the same
+        // parent (Business -> Product and Business -> Category, with Product ->
+        // Category itself RESTRICTed) is not something to depend on unverified. If
+        // business deletion is ever built, its own custom categories need to be
+        // reassigned or deleted explicitly first — same as it already must handle
+        // Product -> Category RESTRICT.
+        builder.HasOne(x => x.Business)
+            .WithMany(x => x.CustomCategories)
+            .HasForeignKey(x => x.BusinessId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Slug is unique per (domain, owning business) — NOT per domain alone.
+        // BusinessId is null for platform categories, so two different businesses can
+        // each have their own private "vintage" category without colliding: their
+        // rows differ on BusinessId, which is the whole point.
+        //
+        // Caveat: MariaDB (standard SQL) treats every NULL as distinct in a unique
+        // index, so this does NOT stop two platform (BusinessId IS NULL) categories
+        // from sharing a slug within a domain. That's accepted here rather than
+        // worked around (e.g. a generated column substituting a sentinel for NULL):
+        // platform categories are only ever created by seeding, which is under this
+        // codebase's own control, not by any runtime request path.
+        builder.HasIndex(x => new { x.BusinessDomainId, x.BusinessId, x.Slug })
             .IsUnique();
+
+        builder.HasIndex(x => x.BusinessId);
 
         builder.HasData(
             // Fashion

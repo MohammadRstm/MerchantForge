@@ -6,6 +6,7 @@ using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
+using MerchForge.api.Services.Onboarding.interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
@@ -21,6 +22,7 @@ public class AuthService : IAuthService
 
     private readonly IInvitationService _invitationService;
     private readonly IBusinessRepository _businessRepository;
+    private readonly IDomainService _domainService;
 
     public AuthService(
         IUserRepository userRepository,
@@ -28,7 +30,8 @@ public class AuthService : IAuthService
         IJwtService jwtService,
         IRefreshTokenService refreshTokenService,
         IInvitationService invitationService,
-        IBusinessRepository businessRepository)
+        IBusinessRepository businessRepository,
+        IDomainService domainService)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
@@ -36,6 +39,7 @@ public class AuthService : IAuthService
         _refreshTokenService = refreshTokenService;
         _invitationService = invitationService;
         _businessRepository = businessRepository;
+        _domainService = domainService;
     }
     public async Task<(LoginResponse Response, string RefreshToken)> LoginAsync(
         LoginRequest request,
@@ -185,6 +189,10 @@ public class AuthService : IAuthService
 
         _invitationService.ValidateBusinessOwnerInvitation(invitation);
 
+        // Fail before creating anything if the chosen domain doesn't exist, rather
+        // than partway through building the user/business/category rows below.
+        await _domainService.EnsureDomainExistsAsync(request.BusinessDomainId, cancellationToken);
+
         var systemRoleId = await _userRepository.GetSystemRoleId(Enums.SystemRole.User, cancellationToken);
         var businessRoleId = await _userRepository.GetBusinessRoleId(BusinessRole.Owner, cancellationToken);
 
@@ -213,7 +221,8 @@ public class AuthService : IAuthService
             Id = Guid.NewGuid(),
             Name = request.BusinessName,
             OwnerUserId = owner.Id,
-            
+            BusinessDomainId = request.BusinessDomainId,
+
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -229,7 +238,18 @@ public class AuthService : IAuthService
             UpdatedAt = DateTime.UtcNow,
         };
 
-        await _userRepository.FinishBusinessOwnerRegistration(owner, business, businessUser, invitation.Id, cancellationToken);
+        // Any category names that don't already exist as platform categories in this
+        // domain become private categories owned by the new business. Built before
+        // the business is persisted, same as businessUser above — business.Id is
+        // already known since it's a client-generated Guid.
+        var customCategories = await _domainService.BuildCustomCategoriesAsync(
+            business.Id,
+            request.BusinessDomainId,
+            request.NewCategoryNames,
+            cancellationToken);
+
+        await _userRepository.FinishBusinessOwnerRegistration(
+            owner, business, businessUser, customCategories, invitation.Id, cancellationToken);
 
         var (refreshToken, _) =
             await _refreshTokenService.CreateAsync(owner, cancellationToken);

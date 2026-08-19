@@ -52,22 +52,101 @@ public class CatalogDomainModelTests : IClassFixture<CatalogDatabaseFixture>
     }
 
     [Fact]
-    public async Task Duplicate_slug_within_the_same_domain_is_rejected()
+    public async Task Duplicate_slug_within_the_same_businesss_custom_categories_is_rejected()
     {
+        var business = await _fixture.CreateBusinessAsync(
+            "Duplicate Slug Co", CatalogDatabaseFixture.FashionDomainId);
+
         await using var db = _fixture.CreateContext();
 
         db.Categories.Add(new Category
         {
             Id = Guid.NewGuid(),
             BusinessDomainId = CatalogDatabaseFixture.FashionDomainId,
-            Name = "Shoes Again",
-            Slug = "shoes", // already taken under Fashion
-            DisplayOrder = 99,
+            BusinessId = business.Id,
+            Name = "Vintage",
+            Slug = "vintage",
+            DisplayOrder = 100,
+        });
+        await db.SaveChangesAsync();
+
+        db.Categories.Add(new Category
+        {
+            Id = Guid.NewGuid(),
+            BusinessDomainId = CatalogDatabaseFixture.FashionDomainId,
+            BusinessId = business.Id,
+            Name = "Vintage Again",
+            Slug = "vintage", // same business, same domain, same slug
+            DisplayOrder = 101,
         });
 
         var act = async () => await db.SaveChangesAsync();
 
         await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    [Fact]
+    public async Task Two_different_businesses_can_each_have_a_custom_category_with_the_same_slug()
+    {
+        var businessA = await _fixture.CreateBusinessAsync(
+            "Vintage Shop A", CatalogDatabaseFixture.FashionDomainId);
+        var businessB = await _fixture.CreateBusinessAsync(
+            "Vintage Shop B", CatalogDatabaseFixture.FashionDomainId);
+
+        await using var db = _fixture.CreateContext();
+
+        db.Categories.AddRange(
+            new Category
+            {
+                Id = Guid.NewGuid(),
+                BusinessDomainId = CatalogDatabaseFixture.FashionDomainId,
+                BusinessId = businessA.Id,
+                Name = "Vintage",
+                Slug = "vintage",
+                DisplayOrder = 100,
+            },
+            new Category
+            {
+                Id = Guid.NewGuid(),
+                BusinessDomainId = CatalogDatabaseFixture.FashionDomainId,
+                BusinessId = businessB.Id,
+                Name = "Vintage",
+                Slug = "vintage",
+                DisplayOrder = 100,
+            });
+
+        var act = async () => await db.SaveChangesAsync();
+
+        await act.Should().NotThrowAsync(
+            "each business's custom categories are scoped by BusinessId, so identical slugs for different businesses don't collide");
+    }
+
+    [Fact]
+    public async Task Database_does_not_prevent_two_platform_categories_sharing_a_slug()
+    {
+        // Documents a known, accepted gap: MariaDB treats every NULL as distinct in a
+        // unique index, so (BusinessDomainId, BusinessId, Slug) does not stop two
+        // platform (BusinessId IS NULL) rows from sharing a slug. Accepted because
+        // platform categories are only ever created by seeding, which is under this
+        // codebase's own control — see CategoryConfiguration's index comment. Custom
+        // categories created through registration are protected at the application
+        // layer instead (DomainService.BuildCustomCategoriesAsync checks existing
+        // platform slugs before creating anything).
+        await using var db = _fixture.CreateContext();
+
+        db.Categories.Add(new Category
+        {
+            Id = Guid.NewGuid(),
+            BusinessDomainId = CatalogDatabaseFixture.FashionDomainId,
+            BusinessId = null,
+            Name = "Shoes Duplicate",
+            Slug = "shoes", // already taken by the seeded platform "Shoes" category
+            DisplayOrder = 99,
+        });
+
+        var act = async () => await db.SaveChangesAsync();
+
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]

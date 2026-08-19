@@ -17,6 +17,17 @@ public class Category
 
     public Guid BusinessDomainId { get; set; }
 
+    /// <summary>
+    /// Null for platform categories, seeded and visible to every business in the
+    /// domain. Set to the owning business's id for a category a business added for
+    /// itself during onboarding because nothing existing fit — that category is then
+    /// private: usable by this business, but never offered to other business owners
+    /// as a suggestion. This single nullable column is the "custom" flag; there is no
+    /// separate IsCustom bool, since one would just be BusinessId != null restated
+    /// and could drift out of sync with it.
+    /// </summary>
+    public Guid? BusinessId { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
@@ -40,6 +51,8 @@ public class Category
     // Navigation properties
 
     public BusinessDomain BusinessDomain { get; set; } = null!;
+
+    public Business? Business { get; set; }
 
     public ICollection<Product> Products { get; set; }
         = new List<Product>();

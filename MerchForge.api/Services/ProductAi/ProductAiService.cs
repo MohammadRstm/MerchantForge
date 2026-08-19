@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text.Json;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.ProductAi;
@@ -79,7 +79,7 @@ namespace MerchForge.api.Services.ProductAi
 
             await _draftRepository.CreateAsync(draft, cancellationToken);
 
-            return await BuildResponseAsync(draft, [], cancellationToken);
+            return await BuildResponseAsync(draft, [], cancellationToken, form);
         }
 
         public async Task<ProductDraftResponse> GetAsync(
@@ -246,10 +246,36 @@ namespace MerchForge.api.Services.ProductAi
                 Metadata = state.Metadata,
             };
 
-            // Deliberately goes through the same service manual creation uses, so the
-            // category guard and metadata validation apply identically no matter how
-            // a product was authored.
-            var product = await _dashboardService.CreateProductAsync(businessId, request, cancellationToken);
+            // Claimed before the product is created, in one atomic statement. The
+            // status checks above are a fast, friendly rejection; this is what
+            // actually makes concurrent confirmations exclusive, since two of them
+            // would otherwise both pass those checks and create two products.
+            var claimed = await _draftRepository.TryClaimForConfirmationAsync(
+                businessId,
+                draftId,
+                cancellationToken);
+
+            if (!claimed)
+            {
+                throw new ProductDraftStateException("This draft has already been turned into a product.");
+            }
+
+            BusinessProductDetailResponse product;
+
+            try
+            {
+                // Deliberately goes through the same service manual creation uses, so
+                // the category guard and metadata validation apply identically no
+                // matter how a product was authored.
+                product = await _dashboardService.CreateProductAsync(businessId, request, cancellationToken);
+            }
+            catch
+            {
+                // Otherwise a rejection here - an unusable category, say - would leave
+                // the draft Completed with no product and no way to try again.
+                await _draftRepository.ReleaseConfirmationClaimAsync(draftId, cancellationToken);
+                throw;
+            }
 
             draft.ProductId = product.Id;
             draft.Status = ProductDraftStatus.Completed;
@@ -363,7 +389,7 @@ namespace MerchForge.api.Services.ProductAi
 
             await _draftRepository.SaveChangesAsync(cancellationToken);
 
-            return await BuildResponseAsync(draft, decision.MissingFields, cancellationToken);
+            return await BuildResponseAsync(draft, decision.MissingFields, cancellationToken, form);
         }
 
         private async Task ApplyDecisionAsync(
@@ -537,10 +563,15 @@ namespace MerchForge.api.Services.ProductAi
                 + "You can type or record a voice message.";
         }
 
+        /// <param name="knownForm">
+        /// Passed in by callers that already loaded it, so a turn doesn't fetch the
+        /// same categories and field configuration twice.
+        /// </param>
         private async Task<ProductDraftResponse> BuildResponseAsync(
             ProductDraft draft,
             List<string> agentMissingFields,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            ProductFormResponse? knownForm = null)
         {
             var state = ProductDraftState.ReadDraft(draft);
 
@@ -548,7 +579,9 @@ namespace MerchForge.api.Services.ProductAi
 
             if (state?.CategoryId is { } categoryId)
             {
-                var form = await _dashboardService.GetProductFormAsync(draft.BusinessId, cancellationToken);
+                var form = knownForm
+                    ?? await _dashboardService.GetProductFormAsync(draft.BusinessId, cancellationToken);
+
                 categoryName = form.Categories.FirstOrDefault(c => c.Id == categoryId)?.Name;
             }
 

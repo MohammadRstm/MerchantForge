@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.AI;
+using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Services.AI.Contracts;
@@ -399,6 +400,72 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         await using var verify = _fixture.CreateContext();
         (await verify.Products.CountAsync(p => p.BusinessId == _business.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Concurrent_confirmations_create_only_one_product()
+    {
+        using var setup = CreateHarness();
+
+        var started = await setup.Service.StartAsync(_business.Id, _userId);
+
+        setup.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
+            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
+        await setup.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+
+        // Separate service instances, as two simultaneous requests would be - the
+        // status check alone is a read-then-write and both would pass it.
+        using var a = CreateHarness();
+        using var b = CreateHarness();
+
+        var results = await Task.WhenAll(
+            Record.ExceptionAsync(() => a.Service.ConfirmAsync(_business.Id, _userId, started.Id)),
+            Record.ExceptionAsync(() => b.Service.ConfirmAsync(_business.Id, _userId, started.Id)));
+
+        // Exactly one wins; the loser is told the draft is already done.
+        results.Count(e => e is null).Should().Be(1);
+        results.Count(e => e is ProductDraftStateException).Should().Be(1);
+
+        await using var verify = _fixture.CreateContext();
+        (await verify.Products.CountAsync(p => p.BusinessId == _business.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_failed_creation_leaves_the_draft_confirmable_again()
+    {
+        using var h = CreateHarness();
+
+        var started = await h.Service.StartAsync(_business.Id, _userId);
+
+        // Complete as far as the draft is concerned, but pointing at a category this
+        // business cannot use - so creation fails after the claim is taken.
+        h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
+            CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
+        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+
+        await using (var tamper = _fixture.CreateContext())
+        {
+            var stored = await tamper.ProductDrafts.FirstAsync(d => d.Id == started.Id);
+            var json = stored.Draft!.RootElement.GetRawText()
+                .Replace(
+                    CatalogDatabaseFixture.ShirtsCategoryId.ToString(),
+                    CatalogDatabaseFixture.PizzaCategoryId.ToString());
+            stored.Draft = JsonDocument.Parse(json);
+            await tamper.SaveChangesAsync();
+        }
+
+        using var attempt = CreateHarness();
+
+        var act = async () => await attempt.Service.ConfirmAsync(_business.Id, _userId, started.Id);
+        await act.Should().ThrowAsync<InvalidProductCategoryException>();
+
+        // Without releasing the claim the draft would sit at Completed with no
+        // product, unable to be retried or edited.
+        await using var verify = _fixture.CreateContext();
+        var after = await verify.ProductDrafts.AsNoTracking().FirstAsync(d => d.Id == started.Id);
+
+        after.Status.Should().Be(ProductDraftStatus.WaitingForProductApproval);
+        after.ProductId.Should().BeNull();
     }
 
     [Fact]

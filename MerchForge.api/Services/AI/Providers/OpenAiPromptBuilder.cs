@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using MerchForge.api.Services.AI.Contracts;
 
@@ -45,6 +45,9 @@ internal static class OpenAiPromptBuilder
         - Only use keys listed in CONFIGURED PRODUCT FIELDS. Never invent keys.
         - Match the declared type: Text -> string, Number -> number, Boolean -> true/false,
           TextList -> array of strings.
+        - Report metadata as a list of { key, values }, where values is always a list of
+          strings. A single-valued field gets a one-item list; a list field gets several.
+          Omit a field entirely when it has no value - never send an empty list for it.
         - Fields marked required must be filled before the product is ready. Fields not
           marked required are optional: ask once, and move on if the owner does not care.
         - When a field lists allowedValues, only those values may be used. Map what the
@@ -57,14 +60,17 @@ internal static class OpenAiPromptBuilder
         - A product needs an image. If none has been supplied, ask for one.
         - Requests to change the picture itself - background, lighting, cropping, removing
           objects - are image modifications, never product metadata.
+        - Whenever the owner asks for a change to the picture, put a single clear
+          instruction in `imageModificationPrompt`. Do this independently of `action`:
+          a message can both change the product and ask for an image edit, and the two
+          must not displace each other. Set `imageModificationPrompt` to null otherwise.
         - Never say an image has been edited. You only report that a change was requested.
 
         CHOOSING AN ACTION
         - request_information: something required is missing or ambiguous. Ask for it in `message`.
         - update_draft: you recorded information and the conversation continues.
-        - request_image_modification: the owner asked to change the image itself
-          (background, lighting, cropping). Put the instruction in `imageModificationPrompt`.
-          You never edit images; you only report that one was requested.
+        - request_image_modification: the owner asked ONLY to change the image and there
+          is nothing new about the product itself.
         - ready_for_review: title, description, price and categoryId are all set.
           This proposes the product for review. It does NOT create it - the owner
           confirms separately - so do not tell them it has been created or saved.
@@ -106,7 +112,8 @@ internal static class OpenAiPromptBuilder
         builder.AppendLine(JsonSerializer.Serialize(context.Categories, Json));
         builder.AppendLine();
 
-        builder.AppendLine("# CONFIGURED PRODUCT FIELDS (the only metadata keys allowed; all optional)");
+        builder.AppendLine(
+            "# CONFIGURED PRODUCT FIELDS (the only metadata keys allowed; isRequired marks the mandatory ones)");
         builder.AppendLine(context.MetadataFields.Count > 0
             ? JsonSerializer.Serialize(context.MetadataFields, Json)
             : "[] (this store has no extra fields; do not ask about any)");
@@ -143,6 +150,13 @@ internal static class OpenAiPromptBuilder
     /// additionalProperties is false and every property is required, which is what
     /// OpenAI's strict structured outputs demand and what stops silently-shaped
     /// responses reaching the backend.
+    ///
+    /// Metadata is a list of { key, values } rather than a free-form object because
+    /// strict mode requires additionalProperties:false everywhere, which cannot
+    /// express "arbitrary keys" - and per-business keys are the whole point. Values
+    /// are always strings: the backend already knows each field's declared type from
+    /// the business configuration, so it converts, and the model never has to choose
+    /// a JSON type.
     /// </summary>
     public static string BuildDecisionSchema() =>
         """
@@ -167,7 +181,18 @@ internal static class OpenAiPromptBuilder
                 "description": { "type": ["string", "null"] },
                 "price": { "type": ["number", "null"] },
                 "categoryId": { "type": ["string", "null"] },
-                "metadata": { "type": ["object", "null"], "additionalProperties": true }
+                "metadata": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["key", "values"],
+                    "properties": {
+                      "key": { "type": "string" },
+                      "values": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                }
               }
             }
           }

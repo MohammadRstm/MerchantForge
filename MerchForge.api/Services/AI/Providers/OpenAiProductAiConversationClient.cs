@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using MerchForge.api.Configurations;
@@ -89,10 +89,10 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        return ParseCompletion(body);
+        return ParseCompletion(body, context);
     }
 
-    private static ProductAiTurnResult ParseCompletion(string body)
+    private static ProductAiTurnResult ParseCompletion(string body, ProductAiContext context)
     {
         try
         {
@@ -121,7 +121,7 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
                     Message = raw.Message ?? string.Empty,
                     MissingFields = raw.MissingFields ?? [],
                     ImageModificationPrompt = raw.ImageModificationPrompt,
-                    Draft = MapDraft(raw.Draft),
+                    Draft = MapDraft(raw.Draft, context),
                 },
             };
 
@@ -163,7 +163,7 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         _ => ProductAiAction.RequestInformation,
     };
 
-    private static ProductAiDraft? MapDraft(RawDraft? raw)
+    private static ProductAiDraft? MapDraft(RawDraft? raw, ProductAiContext context)
     {
         if (raw is null)
         {
@@ -178,9 +178,71 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
             Description = raw.Description,
             Price = raw.Price,
             CategoryId = categoryId,
-            Metadata = raw.Metadata,
+            Metadata = MapMetadata(raw.Metadata, context),
         };
     }
+
+    /// <summary>
+    /// Turns the model's { key, values } list back into typed JSON.
+    ///
+    /// The model always sends strings, because the strict schema cannot express a
+    /// per-key type. The declared type is already in the context, so the conversion
+    /// happens here rather than being guessed downstream. A value that does not parse
+    /// as its declared type is dropped rather than coerced into something plausible -
+    /// downstream validation would reject it anyway, and inventing a number from
+    /// "about twenty" would be worse than leaving the field unanswered.
+    /// </summary>
+    private static Dictionary<string, JsonElement>? MapMetadata(
+        List<RawMetadataEntry>? entries,
+        ProductAiContext context)
+    {
+        if (entries is null || entries.Count == 0)
+        {
+            return null;
+        }
+
+        var typesByKey = context.MetadataFields
+            .ToDictionary(f => f.Key, f => f.ValueType, StringComparer.OrdinalIgnoreCase);
+
+        var result = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Key) || entry.Values is null)
+            {
+                continue;
+            }
+
+            var values = entry.Values.Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
+
+            if (values.Count == 0)
+            {
+                continue;
+            }
+
+            // Unknown keys are kept as text and rejected later by name, so the owner
+            // is told which field was not recognised instead of it vanishing.
+            var valueType = typesByKey.GetValueOrDefault(entry.Key, "Text");
+
+            JsonElement? mapped = valueType switch
+            {
+                "TextList" => ToElement(values),
+                "Number" => decimal.TryParse(values[0], out var number) ? ToElement(number) : null,
+                "Boolean" => bool.TryParse(values[0], out var flag) ? ToElement(flag) : null,
+                _ => ToElement(values[0]),
+            };
+
+            if (mapped is { } element)
+            {
+                result[entry.Key] = element;
+            }
+        }
+
+        return result.Count == 0 ? null : result;
+    }
+
+    private static JsonElement ToElement<T>(T value) =>
+        JsonSerializer.SerializeToDocument(value).RootElement.Clone();
 
     private sealed class RawDecision
     {
@@ -191,12 +253,18 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         public RawDraft? Draft { get; set; }
     }
 
+    private sealed class RawMetadataEntry
+    {
+        public string? Key { get; set; }
+        public List<string>? Values { get; set; }
+    }
+
     private sealed class RawDraft
     {
         public string? Title { get; set; }
         public string? Description { get; set; }
         public decimal? Price { get; set; }
         public string? CategoryId { get; set; }
-        public Dictionary<string, JsonElement>? Metadata { get; set; }
+        public List<RawMetadataEntry>? Metadata { get; set; }
     }
 }

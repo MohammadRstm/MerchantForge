@@ -447,12 +447,9 @@ namespace MerchForge.api.Services.ProductAi
                 ProductDraftState.AppendMessage(draft, "assistant", decision.Message, "text");
             }
 
+            // The conversation action first...
             switch (decision.Action)
             {
-                case ProductAiAction.RequestImageModification:
-                    await StartImageModificationAsync(draft, decision, cancellationToken);
-                    break;
-
                 case ProductAiAction.ReadyForReview:
                     // Only a preview state. Creating the product still requires the
                     // owner to confirm.
@@ -470,6 +467,20 @@ namespace MerchForge.api.Services.ProductAi
                 default:
                     draft.Status = ProductDraftStatus.CollectingInformation;
                     break;
+            }
+
+            // ...then the image request, which is deliberately independent of it.
+            //
+            // "Make the background white and change the price to $35" is two things at
+            // once, and the action is single-valued. Keying the image edit off the
+            // action made the model choose between them, and it reasonably reported
+            // update_draft because the product genuinely had changed - so the image
+            // request was silently lost. The prompt is the trigger; the action only
+            // describes where the product conversation stands.
+            if (!string.IsNullOrWhiteSpace(decision.ImageModificationPrompt)
+                && draft.Status is not ProductDraftStatus.Cancelled)
+            {
+                await StartImageModificationAsync(draft, decision, cancellationToken);
             }
         }
 

@@ -5,6 +5,7 @@ using MerchForge.api.Authorization;
 using MerchForge.api.Authorization.Handlers;
 using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Configurations;
+using MerchForge.api.Configurations.Json;
 using MerchForge.api.Data;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
@@ -14,6 +15,10 @@ using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
+using MerchForge.api.Services.BusinessDashboard;
+using MerchForge.api.Services.BusinessDashboard.interfaces;
+using MerchForge.api.Services.Dashboard;
+using MerchForge.api.Services.Dashboard.interfaces;
 using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.Invitation;
@@ -40,7 +45,14 @@ builder.Services
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Every DateTime in this app is stored/generated as UTC, but MySQL round-trips
+        // it with Kind=Unspecified, which makes System.Text.Json omit the "Z" suffix.
+        // Force it back so clients can parse these as unambiguous UTC instants.
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+    });
 
 // DB context - Mysql
 var connectionString =
@@ -144,6 +156,10 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 
+// Dashboard Services
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
+
 // Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
@@ -244,6 +260,8 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
+builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
 
 // build app
 var app = builder.Build();

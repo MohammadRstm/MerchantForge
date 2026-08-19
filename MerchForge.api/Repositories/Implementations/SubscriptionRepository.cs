@@ -24,5 +24,18 @@
                     s.BusinessId == businessId &&
                     s.Status == SubscriptionStatus.Active);
         }
+
+        public async Task<Subscription?> GetLatestSubscriptionWithPlanFeaturesAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.Subscriptions
+                .Include(s => s.SubscriptionPlan)
+                    .ThenInclude(p => p.PlanFeatures)
+                        .ThenInclude(pf => pf.Feature)
+                .Where(s => s.BusinessId == businessId)
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
     }
 }

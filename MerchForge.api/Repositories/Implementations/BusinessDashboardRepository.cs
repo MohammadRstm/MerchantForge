@@ -67,7 +67,7 @@ namespace MerchForge.api.Repositories.Implementations
         {
             return await _db.Products
                 .Where(p => p.BusinessId == businessId)
-                .GroupBy(p => p.Category)
+                .GroupBy(p => p.Category.Name)
                 .Select(g => new KeyCountResponse { Key = g.Key, Count = g.Count() })
                 .ToListAsync(cancellationToken);
         }
@@ -127,7 +127,11 @@ namespace MerchForge.api.Repositories.Implementations
 
             if (!string.IsNullOrWhiteSpace(query.Category))
             {
-                baseQuery = baseQuery.Where(p => p.Category == query.Category);
+                // The dashboard filters by category name (its dropdown is populated
+                // from the ProductsByCategory stat, which is name-keyed). Kept as-is
+                // so the existing merchant UI keeps working; the storefront API uses
+                // categoryId instead.
+                baseQuery = baseQuery.Where(p => p.Category.Name == query.Category);
             }
 
             var totalCount = await baseQuery.CountAsync(cancellationToken);
@@ -136,7 +140,7 @@ namespace MerchForge.api.Repositories.Implementations
             {
                 Id = p.Id,
                 Title = p.Title,
-                Category = p.Category,
+                Category = p.Category.Name,
                 Price = p.Price,
                 ImageUrl = p.ImageUrl,
                 CreatedAt = p.CreatedAt,

@@ -33,6 +33,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using System.Text;
@@ -345,14 +346,20 @@ app.UseHttpsRedirection();
 
 app.UseCors("Frontend");
 
-// Serves uploaded product images from wwwroot. Created up front because
-// UseStaticFiles throws if the web root is missing on a fresh checkout, and because
-// nothing else in the app creates it.
-Directory.CreateDirectory(app.Environment.WebRootPath
-    ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"));
+// Serves uploaded product images. The file provider is built explicitly rather than
+// relying on the ambient web root: ASP.NET resolves that once while the host is
+// built, so on a checkout where wwwroot doesn't exist yet it becomes a null provider
+// and every upload 404s for the lifetime of the process, even after the folder is
+// created. Creating the directory before constructing the provider makes this
+// independent of whether wwwroot happened to exist at startup.
+var webRootPath = app.Environment.WebRootPath
+    ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+
+Directory.CreateDirectory(webRootPath);
 
 app.UseStaticFiles(new StaticFileOptions
 {
+    FileProvider = new PhysicalFileProvider(webRootPath),
     OnPrepareResponse = context =>
     {
         // These files are served from the API's own origin, so a stored file that

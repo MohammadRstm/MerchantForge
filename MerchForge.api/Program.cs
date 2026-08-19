@@ -15,6 +15,8 @@ using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
+using MerchForge.api.Services.BusinessDashboard;
+using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Dashboard;
 using MerchForge.api.Services.Dashboard.interfaces;
 using MerchForge.api.Services.Email;
@@ -156,6 +158,7 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
 
 // Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
@@ -258,6 +261,7 @@ builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
 
 // build app
 var app = builder.Build();

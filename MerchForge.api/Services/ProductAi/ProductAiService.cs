@@ -223,6 +223,18 @@ namespace MerchForge.api.Services.ProductAi
                 throw new ProductDraftStateException("This draft is no longer active.");
             }
 
+            // An unresolved image edit blocks creation. The UI already hides the button
+            // via CanConfirm, but this endpoint is reachable on its own - a stale tab, a
+            // retried request, or a direct API call - so the rule has to be enforced
+            // here rather than trusted to the client. Otherwise a product could be
+            // created carrying the pre-edit image the owner was still deciding about.
+            if (draft.Status is ProductDraftStatus.WaitingForImageApproval
+                or ProductDraftStatus.ProcessingImage)
+            {
+                throw new ProductDraftStateException(
+                    "Please accept or reject the updated image before creating the product.");
+            }
+
             var state = ProductDraftState.ReadDraft(draft);
 
             // Re-validated here rather than trusting the agent's ReadyForReview: the

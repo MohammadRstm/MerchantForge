@@ -58,12 +58,31 @@ namespace MerchForge.api.Repositories.Implementations
             return superAdmin;
         }
 
-        public async Task FinishBusinessOwnerRegistration(User user , Business business, BusinessUser businessUser, CancellationToken cancellationToken = default)
+        public async Task FinishBusinessOwnerRegistration(User user , Business business, BusinessUser businessUser, Guid invitationId, CancellationToken cancellationToken = default)
         {
             await using var transaction =
                await _db.Database.BeginTransactionAsync(cancellationToken);
             try
             {
+                // Atomically claim the invitation: only succeeds if it is still
+                // unaccepted, unrevoked and unexpired, closing the race window where
+                // two concurrent requests for the same token could both pass
+                // validation and create two businesses.
+                var claimed = await _db.Invitations
+                    .Where(i =>
+                        i.Id == invitationId &&
+                        i.AcceptedAt == null &&
+                        i.RevokedAt == null &&
+                        i.ExpiresAt > DateTime.UtcNow)
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(i => i.AcceptedAt, DateTime.UtcNow),
+                        cancellationToken);
+
+                if (claimed == 0)
+                {
+                    throw new Exceptions.Invitation.InvitationAlreadyUsedException();
+                }
+
                 await _db.Users.AddAsync(user, cancellationToken);
                 await _db.Businesses.AddAsync(business, cancellationToken);
                 await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
@@ -79,7 +98,13 @@ namespace MerchForge.api.Repositories.Implementations
             }
         }
 
-        public async Task<Guid> GetSystemRoleId(SystemRole role, CancellationToken cancellationToken = default) 
+        public async Task<bool> SuperAdminExistsAsync(CancellationToken cancellationToken = default)
+        {
+            var superAdminRoleId = await GetSystemRoleId(SystemRole.SuperAdmin, cancellationToken);
+            return await _db.Users.AnyAsync(u => u.SystemRoleId == superAdminRoleId, cancellationToken);
+        }
+
+        public async Task<Guid> GetSystemRoleId(SystemRole role, CancellationToken cancellationToken = default)
         {
             var systemRole = await _db.SystemRoles.FirstAsync(s => s.Role == role);
             return systemRole.Id;

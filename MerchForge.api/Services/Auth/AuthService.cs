@@ -115,6 +115,13 @@ public class AuthService : IAuthService
         RegisterSuperAdminRequest request,
         CancellationToken cancellationToken)
     {
+        // Bootstrap-only: this endpoint is intentionally unauthenticated so the very first
+        // super admin can be created, but it must never work once one already exists.
+        if (await _userRepository.SuperAdminExistsAsync(cancellationToken))
+        {
+            throw new SuperAdminAlreadyExistsException();
+        }
+
         // get super admin role id
         var superAdminRoleId = await _userRepository.GetSystemRoleId(SystemRole.SuperAdmin, cancellationToken);
 
@@ -197,9 +204,7 @@ public class AuthService : IAuthService
             UpdatedAt = DateTime.UtcNow,
         };
 
-        invitation.AcceptedAt = DateTime.UtcNow;
-
-        await _userRepository.FinishBusinessOwnerRegistration(owner, business,  businessUser, cancellationToken);
+        await _userRepository.FinishBusinessOwnerRegistration(owner, business, businessUser, invitation.Id, cancellationToken);
 
         var (refreshToken, _) =
             await _refreshTokenService.CreateAsync(owner, cancellationToken);

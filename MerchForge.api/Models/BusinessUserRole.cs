@@ -4,8 +4,8 @@ namespace MerchForge.api.Models
 {
     public class BusinessUserRole
     {
-        public Guid Id;
-        public BusinessRole Role;
+        public Guid Id { get; set; }
+        public BusinessRole Role { get; set; }
 
 
         public ICollection<BusinessUser> BusinessMemberships { get; set; }

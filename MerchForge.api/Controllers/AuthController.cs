@@ -1,8 +1,10 @@
-﻿using MerchForge.api.DTOs.Auth;
+using MerchForge.api.Configurations;
+using MerchForge.api.DTOs.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.AspNetCore.Mvc;
 using FluentValidation;
 using MerchForge.api.Validators.Auth;
+using Microsoft.Extensions.Options;
 
 namespace MerchForge.api.Controllers
 {
@@ -13,15 +15,18 @@ namespace MerchForge.api.Controllers
         private readonly IAuthService _authService;
         private readonly IValidator<LoginRequest> _loginValidator;
         private readonly IValidator<CompleteBusinessOwnerRegistrationRequest> _completeBusinessOwnerRegistrationRequestValidator;
+        private readonly RefreshTokenOptions _refreshTokenOptions;
 
         public AuthController(
             IAuthService authService,
             IValidator<LoginRequest> loginValidator,
-            IValidator<CompleteBusinessOwnerRegistrationRequest> completeBusinessOwnerRegistrationRequestValidator)
+            IValidator<CompleteBusinessOwnerRegistrationRequest> completeBusinessOwnerRegistrationRequestValidator,
+            IOptions<RefreshTokenOptions> refreshTokenOptions)
         {
             _authService = authService;
             _loginValidator = loginValidator;
             _completeBusinessOwnerRegistrationRequestValidator = completeBusinessOwnerRegistrationRequestValidator;
+            _refreshTokenOptions = refreshTokenOptions.Value;
         }
 
         [HttpPost("login")]
@@ -31,9 +36,11 @@ namespace MerchForge.api.Controllers
         {
             await _loginValidator.ValidateAndThrowAsync(request);
 
-            var response = await _authService.LoginAsync(
+            var (response, refreshToken) = await _authService.LoginAsync(
                 request,
                 cancellationToken);
+
+            SetRefreshTokenCookie(refreshToken);
 
             return Ok(response);
         }
@@ -43,22 +50,31 @@ namespace MerchForge.api.Controllers
             [FromBody] RegisterSuperAdminRequest request,
             CancellationToken cancellationToken)
         {
-            var response = await _authService.RegisterSuperAdmin(
+            var (response, refreshToken) = await _authService.RegisterSuperAdmin(
                 request,
                 cancellationToken);
+
+            SetRefreshTokenCookie(refreshToken);
 
             return Ok(response);
         }
 
         [HttpPost("refresh")]
-        public async Task<ActionResult<AuthResponse>> Refresh(
-            [FromBody] RefreshTokenRequest request,
+        public async Task<ActionResult<LoginResponse>> Refresh(
             CancellationToken cancellationToken)
         {
-            var response = await _authService.RefreshAsync(
-                request.RefreshToken,
+            if (!Request.Cookies.TryGetValue(_refreshTokenOptions.CookieName, out var refreshToken) ||
+                string.IsNullOrEmpty(refreshToken))
+            {
+                return Unauthorized();
+            }
+
+            var (response, newRefreshToken) = await _authService.RefreshAsync(
+                refreshToken,
                 cancellationToken);
-            
+
+            SetRefreshTokenCookie(newRefreshToken);
+
             return Ok(response);
         }
 
@@ -69,21 +85,62 @@ namespace MerchForge.api.Controllers
         {
             await _completeBusinessOwnerRegistrationRequestValidator.ValidateAndThrowAsync(request);
 
-            var response = await _authService.CompleteBusinessOwnerRegistration(request);
+            var (response, refreshToken) = await _authService.CompleteBusinessOwnerRegistration(request);
+
+            SetRefreshTokenCookie(refreshToken);
 
             return Ok(response);
         }
 
         [HttpPost("logout")]
         public async Task<IActionResult> Logout(
-            [FromBody] RefreshTokenRequest request,
             CancellationToken cancellationToken)
         {
-            await _authService.LogoutAsync(
-                request.RefreshToken,
-                cancellationToken);
+            if (Request.Cookies.TryGetValue(_refreshTokenOptions.CookieName, out var refreshToken) &&
+                !string.IsNullOrEmpty(refreshToken))
+            {
+                await _authService.LogoutAsync(
+                    refreshToken,
+                    cancellationToken);
+            }
+
+            ClearRefreshTokenCookie();
 
             return NoContent();
+        }
+
+        private void SetRefreshTokenCookie(string refreshToken)
+        {
+            Response.Cookies.Append(
+                _refreshTokenOptions.CookieName,
+                refreshToken,
+                BuildCookieOptions(DateTimeOffset.UtcNow.AddDays(_refreshTokenOptions.ExpirationDays)));
+        }
+
+        private void ClearRefreshTokenCookie()
+        {
+            Response.Cookies.Delete(
+                _refreshTokenOptions.CookieName,
+                BuildCookieOptions(null));
+        }
+
+        private CookieOptions BuildCookieOptions(DateTimeOffset? expires)
+        {
+            return new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = _refreshTokenOptions.Secure,
+                SameSite = ParseSameSite(_refreshTokenOptions.SameSite),
+                Path = _refreshTokenOptions.CookiePath,
+                Expires = expires,
+            };
+        }
+
+        private static SameSiteMode ParseSameSite(string value)
+        {
+            return Enum.TryParse<SameSiteMode>(value, ignoreCase: true, out var mode)
+                ? mode
+                : SameSiteMode.Lax;
         }
     }
 }

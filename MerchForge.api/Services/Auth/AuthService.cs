@@ -37,7 +37,7 @@ public class AuthService : IAuthService
         _invitationService = invitationService;
         _businessRepository = businessRepository;
     }
-    public async Task<LoginResponse> LoginAsync(
+    public async Task<(LoginResponse Response, string RefreshToken)> LoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -72,13 +72,9 @@ public class AuthService : IAuthService
 
         var systemRole = await _userRepository.GetSystemRoleById(user.SystemRoleId, cancellationToken);
 
-
-        return new LoginResponse
+        var response = new LoginResponse
         {
-            AuthResponse =
-                await CreateAuthResponse(
-                    user,
-                    refreshToken),
+            AuthResponse = await CreateAuthResponse(user),
 
             UserId = user.Id,
 
@@ -90,9 +86,11 @@ public class AuthService : IAuthService
 
             Business = business
         };
+
+        return (response, refreshToken);
     }
 
-    public async Task<AuthResponse> RefreshAsync(
+    public async Task<(LoginResponse Response, string RefreshToken)> RefreshAsync(
         string refreshToken,
         CancellationToken cancellationToken = default)
     {
@@ -108,10 +106,35 @@ public class AuthService : IAuthService
                  refreshTokenEntity,
                  cancellationToken);
 
-        return await CreateAuthResponse(refreshTokenEntity.User, newRefreshToken);
+        var user = refreshTokenEntity.User;
+
+        var business =
+            await _businessRepository
+                .GetUserBusinessAsync(
+                    user.Id,
+                    cancellationToken);
+
+        var systemRole = await _userRepository.GetSystemRoleById(user.SystemRoleId, cancellationToken);
+
+        var response = new LoginResponse
+        {
+            AuthResponse = await CreateAuthResponse(user),
+
+            UserId = user.Id,
+
+            FirstName = user.FirstName,
+
+            LastName = user.LastName,
+
+            SystemRole = systemRole.ToString(),
+
+            Business = business
+        };
+
+        return (response, newRefreshToken);
     }
 
-    public async Task<AuthResponse> RegisterSuperAdmin(
+    public async Task<(AuthResponse Response, string RefreshToken)> RegisterSuperAdmin(
         RegisterSuperAdminRequest request,
         CancellationToken cancellationToken)
     {
@@ -141,15 +164,17 @@ public class AuthService : IAuthService
         // do this in a transaction later please
         await _userRepository.CreateSuperAdmin(superAdmin, cancellationToken);
 
-        var (refresh_token, _) =
+        var (refreshToken, _) =
             await _refreshTokenService.CreateAsync(
                 superAdmin,
                 cancellationToken);
-       
-        return await CreateAuthResponse(superAdmin , refresh_token);
+
+        var response = await CreateAuthResponse(superAdmin);
+
+        return (response, refreshToken);
     }
 
-    public async Task<RegistrationResponse> CompleteBusinessOwnerRegistration(
+    public async Task<(RegistrationResponse Response, string RefreshToken)> CompleteBusinessOwnerRegistration(
         CompleteBusinessOwnerRegistrationRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -209,7 +234,9 @@ public class AuthService : IAuthService
         var (refreshToken, _) =
             await _refreshTokenService.CreateAsync(owner, cancellationToken);
 
-        return await CreateRegistrationResponse(owner, refreshToken, password);
+        var response = await CreateRegistrationResponse(owner, password);
+
+        return (response, refreshToken);
     }
 
     public async Task LogoutAsync(
@@ -231,30 +258,22 @@ public class AuthService : IAuthService
     }
 
     private async Task<AuthResponse> CreateAuthResponse(
-    User user,
-    string refreshToken)
+    User user)
     {
         return new AuthResponse
         {
             AccessToken = await _jwtService.GenerateAccessToken(user),
-            RefreshToken = refreshToken,
             AccessTokenExpiresAt = _jwtService.GetExpirationTime()
         };
     }
 
     private async Task<RegistrationResponse> CreateRegistrationResponse(
         User user,
-        string refreshToken,
         string rawPassword)
     {
         return new RegistrationResponse
         {
-            AuthResponse = new AuthResponse
-            {
-                AccessToken = await _jwtService.GenerateAccessToken(user),
-                RefreshToken = refreshToken,
-                AccessTokenExpiresAt = _jwtService.GetExpirationTime()
-            },
+            AuthResponse = await CreateAuthResponse(user),
             rawPassword = rawPassword
         };
     }

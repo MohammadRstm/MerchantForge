@@ -1,8 +1,10 @@
-﻿using MerchForge.api.Data;
+﻿using MerchForge.api.Configurations;
+using MerchForge.api.Data;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -11,12 +13,14 @@ namespace MerchForge.api.Services.Auth
     public class RefreshTokenService : IRefreshTokenService
     {
         private readonly IRefreshTokenRepository _refreshTokenRepository;
+        private readonly int _refreshTokenExpirationDays;
 
-        private int RefreshTokenExpirationDays = 30;// not good to have this here but who cares
-
-        public RefreshTokenService(IRefreshTokenRepository refreshTokenRepository)
+        public RefreshTokenService(
+            IRefreshTokenRepository refreshTokenRepository,
+            IOptions<RefreshTokenOptions> options)
         {
             _refreshTokenRepository = refreshTokenRepository;
+            _refreshTokenExpirationDays = options.Value.ExpirationDays;
         }
 
         public async Task<(string Token, RefreshToken Entity)> CreateAsync(
@@ -33,7 +37,7 @@ namespace MerchForge.api.Services.Auth
                 UserId = user.Id,
                 TokenHash = tokenHash,
                 CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays)
+                ExpiresAt = DateTime.UtcNow.AddDays(_refreshTokenExpirationDays)
             };
 
             await _refreshTokenRepository.AddAsync(refreshToken, cancellationToken);
@@ -86,7 +90,7 @@ namespace MerchForge.api.Services.Auth
                 UserId = currentToken.UserId,
                 TokenHash = tokenHash,
                 CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpirationDays)
+                ExpiresAt = DateTime.UtcNow.AddDays(_refreshTokenExpirationDays)
             };
 
             await _refreshTokenRepository.AddAsync(newToken, cancellationToken);// the _db.save on add_token will also save the revoke_token

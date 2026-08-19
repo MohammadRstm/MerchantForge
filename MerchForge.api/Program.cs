@@ -79,14 +79,22 @@ builder.Services.AddHangfire(configuration =>
 builder.Services.AddHangfireServer();
 
 // Add cors policy
+var corsAllowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
+        // Cookies (the refresh-token cookie) require the caller's exact origin to be
+        // allow-listed and credentials explicitly enabled; AllowAnyOrigin() cannot be
+        // combined with AllowCredentials() per the CORS spec.
         policy
-            .WithOrigins("http://localhost:5173")
+            .WithOrigins(corsAllowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -145,6 +153,11 @@ builder.Services
 builder.Services
     .AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<RefreshTokenOptions>()
+    .Bind(builder.Configuration.GetSection(RefreshTokenOptions.SectionName))
     .ValidateOnStart();
 
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

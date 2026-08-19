@@ -5,6 +5,7 @@ using MerchForge.api.Authorization;
 using MerchForge.api.Authorization.Handlers;
 using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Configurations;
+using MerchForge.api.Configurations.Json;
 using MerchForge.api.Data;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
@@ -42,7 +43,14 @@ builder.Services
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Every DateTime in this app is stored/generated as UTC, but MySQL round-trips
+        // it with Kind=Unspecified, which makes System.Text.Json omit the "Z" suffix.
+        // Force it back so clients can parse these as unambiguous UTC instants.
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+    });
 
 // DB context - Mysql
 var connectionString =

@@ -182,6 +182,130 @@ public class OnboardingDomainServiceTests : IClassFixture<CatalogDatabaseFixture
             business.Id, CatalogDatabaseFixture.FashionDomainId, [])).Should().BeEmpty();
     }
 
+    // ---------- product attribute definitions / metadata shape ----------
+
+    [Fact]
+    public async Task Product_attributes_are_listed_for_the_domain_in_display_order()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        var attributes = await service.GetProductAttributesAsync(CatalogDatabaseFixture.FashionDomainId);
+
+        attributes.Should().NotBeEmpty();
+        attributes.Select(a => a.DisplayOrder).Should().BeInAscendingOrder();
+        attributes.Should().Contain(a => a.Key == "colors" && a.ValueType == "TextList");
+        attributes.Should().Contain(a => a.Key == "handmade" && a.ValueType == "Boolean");
+
+        // Restaurant-only fields must not leak into Fashion's catalogue.
+        attributes.Should().NotContain(a => a.Key == "spicy");
+    }
+
+    [Fact]
+    public async Task Metadata_shape_snapshots_the_selected_fields()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        var shape = await service.BuildMetadataShapeAsync(
+            CatalogDatabaseFixture.FashionDomainId,
+            ["material", "colors"]);
+
+        shape.Should().NotBeNull();
+
+        var fields = shape!.RootElement.GetProperty("fields");
+
+        // Emitted in the domain's display order (colors=1 before material=3), not the
+        // order the caller happened to send them in.
+        fields.EnumerateArray().Select(f => f.GetProperty("key").GetString())
+            .Should().Equal(["colors", "material"]);
+
+        var colors = fields.EnumerateArray().First();
+        colors.GetProperty("label").GetString().Should().Be("Colors");
+        colors.GetProperty("valueType").GetString().Should().Be("TextList");
+    }
+
+    [Fact]
+    public async Task Metadata_shape_is_null_when_nothing_is_selected()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        (await service.BuildMetadataShapeAsync(CatalogDatabaseFixture.FashionDomainId, []))
+            .Should().BeNull("no selection and an empty shape both mean fixed fields only");
+    }
+
+    [Fact]
+    public async Task Metadata_shape_deduplicates_repeated_keys()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        var shape = await service.BuildMetadataShapeAsync(
+            CatalogDatabaseFixture.FashionDomainId,
+            ["colors", "colors", "  colors  "]);
+
+        shape!.RootElement.GetProperty("fields").GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Metadata_shape_rejects_a_key_the_domain_does_not_offer()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        // "spicy" is a Restaurant field; a Fashion business must not be able to
+        // smuggle it in, or its products would carry metadata nothing can render.
+        var act = async () => await service.BuildMetadataShapeAsync(
+            CatalogDatabaseFixture.FashionDomainId,
+            ["colors", "spicy"]);
+
+        await act.Should().ThrowAsync<UnknownProductAttributeException>();
+    }
+
+    [Fact]
+    public async Task Metadata_shape_rejects_an_entirely_invented_key()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        var act = async () => await service.BuildMetadataShapeAsync(
+            CatalogDatabaseFixture.FashionDomainId,
+            ["totallyMadeUpField"]);
+
+        await act.Should().ThrowAsync<UnknownProductAttributeException>();
+    }
+
+    [Fact]
+    public async Task Metadata_shape_persists_to_the_business_as_real_json()
+    {
+        var business = await _fixture.CreateBusinessAsync(
+            "Shape Persist Co", CatalogDatabaseFixture.FashionDomainId);
+
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        var shape = await service.BuildMetadataShapeAsync(
+            CatalogDatabaseFixture.FashionDomainId,
+            ["colors", "sizes"]);
+
+        await using (var save = _fixture.CreateContext())
+        {
+            var tracked = await save.Businesses.FirstAsync(b => b.Id == business.Id);
+            tracked.MetadataShape = shape;
+            await save.SaveChangesAsync();
+        }
+
+        await using var verify = _fixture.CreateContext();
+
+        var reloaded = await verify.Businesses.AsNoTracking().FirstAsync(b => b.Id == business.Id);
+
+        reloaded.MetadataShape.Should().NotBeNull();
+        reloaded.MetadataShape!.RootElement.GetProperty("fields")
+            .EnumerateArray().Select(f => f.GetProperty("key").GetString())
+            .Should().Equal(["colors", "sizes"]);
+    }
+
     [Fact]
     public async Task Registration_persists_business_domain_and_custom_categories_atomically()
     {

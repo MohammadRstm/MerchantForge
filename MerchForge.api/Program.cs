@@ -64,7 +64,10 @@ builder.Services.AddDbContext<MerchForgeDbContext>(options =>
 {
     options.UseMySql(
         connectionString,
-        ServerVersion.AutoDetect(connectionString));
+        ServerVersion.AutoDetect(connectionString),
+        // Required for Product.Metadata: without the Json.Microsoft plugin the
+        // provider cannot map JsonDocument to a json column at all.
+        mySqlOptions => mySqlOptions.UseMicrosoftJson());
 });
 
 // Add job queue

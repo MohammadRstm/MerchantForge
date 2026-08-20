@@ -11,7 +11,7 @@ namespace MerchForge.api.Services.Invitation.interfaces
 
         string HashInvitationToken(string token);
 
-        Task<Models.Invitation> GetInvitationByHashToken(string hashToken, CancellationToken cancellationToken = default);
+        Task<Models.Invitation?> GetInvitationByHashToken(string hashToken, CancellationToken cancellationToken = default);
 
         void ValidateBusinessOwnerInvitation(Models.Invitation? invitation);
     }

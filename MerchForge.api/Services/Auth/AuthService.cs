@@ -149,6 +149,11 @@ public class AuthService : IAuthService
             throw new SuperAdminAlreadyExistsException();
         }
 
+        if (await _userRepository.GetByEmailAsync(request.Email, cancellationToken) is not null)
+        {
+            throw new EmailAlreadyExistsException();
+        }
+
         // get super admin role id
         var superAdminRoleId = await _userRepository.GetSystemRoleId(SystemRole.SuperAdmin, cancellationToken);
 
@@ -192,6 +197,15 @@ public class AuthService : IAuthService
         // Fail before creating anything if the chosen domain doesn't exist, rather
         // than partway through building the user/business/category rows below.
         await _domainService.EnsureDomainExistsAsync(request.BusinessDomainId, cancellationToken);
+
+        // The unique index on users.Email catches this too, but only as a
+        // DbUpdateException the caller sees as a 500. An invitation sent to an
+        // address that already has an account is an ordinary mistake, not a server
+        // fault, so it gets a named conflict instead.
+        if (await _userRepository.GetByEmailAsync(request.Email, cancellationToken) is not null)
+        {
+            throw new EmailAlreadyExistsException();
+        }
 
         var systemRoleId = await _userRepository.GetSystemRoleId(Enums.SystemRole.User, cancellationToken);
         var businessRoleId = await _userRepository.GetBusinessRoleId(BusinessRole.Owner, cancellationToken);

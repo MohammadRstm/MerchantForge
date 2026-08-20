@@ -219,6 +219,7 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
+builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<IProductImageService, ProductImageService>();
 
 builder.Services

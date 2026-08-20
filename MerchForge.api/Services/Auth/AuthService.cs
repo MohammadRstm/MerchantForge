@@ -6,6 +6,7 @@ using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
+using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Onboarding.interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -149,6 +150,11 @@ public class AuthService : IAuthService
             throw new SuperAdminAlreadyExistsException();
         }
 
+        if (await _userRepository.GetByEmailAsync(request.Email, cancellationToken) is not null)
+        {
+            throw new EmailAlreadyExistsException();
+        }
+
         // get super admin role id
         var superAdminRoleId = await _userRepository.GetSystemRoleId(SystemRole.SuperAdmin, cancellationToken);
 
@@ -193,6 +199,15 @@ public class AuthService : IAuthService
         // than partway through building the user/business/category rows below.
         await _domainService.EnsureDomainExistsAsync(request.BusinessDomainId, cancellationToken);
 
+        // The unique index on users.Email catches this too, but only as a
+        // DbUpdateException the caller sees as a 500. An invitation sent to an
+        // address that already has an account is an ordinary mistake, not a server
+        // fault, so it gets a named conflict instead.
+        if (await _userRepository.GetByEmailAsync(request.Email, cancellationToken) is not null)
+        {
+            throw new EmailAlreadyExistsException();
+        }
+
         var systemRoleId = await _userRepository.GetSystemRoleId(Enums.SystemRole.User, cancellationToken);
         var businessRoleId = await _userRepository.GetBusinessRoleId(BusinessRole.Owner, cancellationToken);
 
@@ -208,7 +223,7 @@ public class AuthService : IAuthService
             UpdatedAt = DateTime.UtcNow,
         };
 
-        var password = GenerateRandomPassword();
+        var password = PasswordGenerator.Generate();
 
         owner.PasswordHash = _passwordHasher.HashPassword(
             owner,
@@ -304,37 +319,6 @@ public class AuthService : IAuthService
             AuthResponse = await CreateAuthResponse(user),
             rawPassword = rawPassword
         };
-    }
-    private static string GenerateRandomPassword(int length = 16)
-    {
-        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-        const string lower = "abcdefghijkmnopqrstuvwxyz";
-        const string numbers = "23456789";
-        const string special = "!@#$%^&*";
-
-        const string all = upper + lower + numbers + special;
-
-        var password = new char[length];
-
-        // Guarantee at least one character from each category
-        password[0] = upper[RandomNumberGenerator.GetInt32(upper.Length)];
-        password[1] = lower[RandomNumberGenerator.GetInt32(lower.Length)];
-        password[2] = numbers[RandomNumberGenerator.GetInt32(numbers.Length)];
-        password[3] = special[RandomNumberGenerator.GetInt32(special.Length)];
-
-        for (int i = 4; i < length; i++)
-        {
-            password[i] = all[RandomNumberGenerator.GetInt32(all.Length)];
-        }
-
-        // Shuffle so the first four characters aren't predictable
-        for (int i = password.Length - 1; i > 0; i--)
-        {
-            int j = RandomNumberGenerator.GetInt32(i + 1);
-            (password[i], password[j]) = (password[j], password[i]);
-        }
-
-        return new string(password);
     }
 
 

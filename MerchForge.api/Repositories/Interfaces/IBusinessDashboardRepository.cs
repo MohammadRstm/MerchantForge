@@ -39,6 +39,15 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<List<BusinessMemberResponse>> GetMembersAsync(Guid businessId, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Creates the user and their membership together, so a failure on either
+        /// cannot leave a user account with no business behind.
+        /// </summary>
+        Task CreateMemberAsync(
+            User user,
+            BusinessUser businessUser,
+            CancellationToken cancellationToken = default);
+
         // ---- product CRUD ----
 
         Task<BusinessProductDetailResponse?> GetProductAsync(

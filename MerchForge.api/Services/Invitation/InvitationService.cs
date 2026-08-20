@@ -124,14 +124,19 @@ namespace MerchForge.api.Services.Invitation
             return Convert.ToHexString(bytes);
         }
 
-        public async Task<Models.Invitation> GetInvitationByHashToken(string hashToken, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// Null when no invitation carries that token. Deliberately not an exception:
+        /// a token that matches nothing is the ordinary case for a mistyped or stale
+        /// link, and ValidateBusinessOwnerInvitation already turns null into the same
+        /// InvalidInvitationException a revoked or expired one produces. Throwing a
+        /// bare Exception here surfaced to the caller as a 500.
+        /// </summary>
+        public async Task<Models.Invitation?> GetInvitationByHashToken(string hashToken, CancellationToken cancellationToken = default)
         {
-            var invitation = await _db.Invitations
-            .SingleOrDefaultAsync(
-                i => i.TokenHash == hashToken,
-                cancellationToken);
-            if (invitation == null) { throw new Exception("Invitation wasn't found"); } 
-            return invitation;
+            return await _db.Invitations
+                .SingleOrDefaultAsync(
+                    i => i.TokenHash == hashToken,
+                    cancellationToken);
         }
 
         public void ValidateBusinessOwnerInvitation(Models.Invitation? invitation)

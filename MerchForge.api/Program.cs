@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Hangfire;
 using Hangfire.MySql;
 using MerchForge.api.Authorization;
@@ -23,8 +23,13 @@ using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Invitation.interfaces;
+using MerchForge.api.Services.AI;
+using MerchForge.api.Services.AI.Interfaces;
+using MerchForge.api.Services.AI.Providers;
 using MerchForge.api.Services.Onboarding;
 using MerchForge.api.Services.Onboarding.interfaces;
+using MerchForge.api.Services.ProductAi;
+using MerchForge.api.Services.ProductAi.Interfaces;
 using MerchForge.api.Services.Storefront;
 using MerchForge.api.Services.Storefront.interfaces;
 using MerchForge.api.Services.Subscription;
@@ -226,6 +231,35 @@ builder.Services.AddScoped<IStorefrontService, StorefrontService>();
 // Onboarding Services
 builder.Services.AddScoped<IDomainService, DomainService>();
 
+// AI product creation.
+//
+// The provider is chosen once, here: when no API key is configured the app
+// registers implementations that fail cleanly, so MerchForge still starts and every
+// non-AI feature keeps working on a developer machine with no credentials.
+builder.Services
+    .AddOptions<AiOptions>()
+    .Bind(builder.Configuration.GetSection(AiOptions.SectionName));
+
+var aiOptions = builder.Configuration.GetSection(AiOptions.SectionName).Get<AiOptions>() ?? new AiOptions();
+
+if (aiOptions.IsConfigured)
+{
+    builder.Services.AddHttpClient<IProductAiConversationClient, OpenAiProductAiConversationClient>();
+    builder.Services.AddHttpClient<IAiTranscriptionService, OpenAiTranscriptionService>();
+}
+else
+{
+    builder.Services.AddScoped<IProductAiConversationClient, UnavailableProductAiConversationClient>();
+    builder.Services.AddScoped<IAiTranscriptionService, UnavailableAiTranscriptionService>();
+}
+
+// No image editing backend yet. The interface and workflow exist so one can be
+// added without touching the orchestration.
+builder.Services.AddScoped<IProductImageEditor, UnavailableProductImageEditor>();
+
+builder.Services.AddScoped<IAiInteractionLogger, AiInteractionLogger>();
+builder.Services.AddScoped<IProductAiService, ProductAiService>();
+
 // Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, FeatureHandler>();
@@ -330,6 +364,7 @@ builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
 builder.Services.AddScoped<IStorefrontRepository, StorefrontRepository>();
 builder.Services.AddScoped<IDomainRepository, DomainRepository>();
+builder.Services.AddScoped<IProductDraftRepository, ProductDraftRepository>();
 
 // build app
 var app = builder.Build();

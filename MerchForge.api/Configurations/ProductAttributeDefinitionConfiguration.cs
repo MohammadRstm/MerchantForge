@@ -1,3 +1,4 @@
+﻿using System.Text.Json;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -14,18 +15,29 @@ public class ProductAttributeDefinitionConfiguration
         string key,
         string label,
         ProductAttributeValueType valueType,
-        int displayOrder) => new()
+        int displayOrder,
+        bool isRequired = false,
+        string[]? allowedValues = null) => new()
         {
             Id = Guid.Parse(id),
             BusinessDomainId = domainId,
             Key = key,
             Label = label,
             ValueType = valueType,
+            IsRequired = isRequired,
+            AllowedValues = allowedValues is null
+                ? null
+                : JsonSerializer.SerializeToDocument(allowedValues),
             DisplayOrder = displayOrder,
             IsActive = true,
             CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
             UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
         };
+
+    // Closed sets where a free-form value would be meaningless to filter or display
+    // consistently across a catalog.
+    private static readonly string[] GarmentColors = ["Black", "White", "Red", "Blue", "Green"];
+    private static readonly string[] GarmentSizes = ["XS", "S", "M", "L", "XL", "XXL"];
 
     public void Configure(EntityTypeBuilder<ProductAttributeDefinition> builder)
     {
@@ -48,6 +60,14 @@ public class ProductAttributeDefinitionConfiguration
             .IsRequired()
             .HasConversion<string>()
             .HasMaxLength(20);
+
+        builder.Property(x => x.IsRequired)
+            .IsRequired();
+
+        // Real json column, so a malformed allowed-value set is rejected by the
+        // database rather than only when validation next runs.
+        builder.Property(x => x.AllowedValues)
+            .HasColumnType("json");
 
         builder.Property(x => x.DisplayOrder)
             .IsRequired();
@@ -79,8 +99,8 @@ public class ProductAttributeDefinitionConfiguration
 
         builder.HasData(
             // ---- Fashion ----
-            Seed("a1000000-0000-4000-8000-000000000001", fashion, "colors", "Colors", ProductAttributeValueType.TextList, 1),
-            Seed("a1000000-0000-4000-8000-000000000002", fashion, "sizes", "Sizes", ProductAttributeValueType.TextList, 2),
+            Seed("a1000000-0000-4000-8000-000000000001", fashion, "colors", "Colors", ProductAttributeValueType.TextList, 1, isRequired: true, allowedValues: GarmentColors),
+            Seed("a1000000-0000-4000-8000-000000000002", fashion, "sizes", "Sizes", ProductAttributeValueType.TextList, 2, isRequired: true, allowedValues: GarmentSizes),
             Seed("a1000000-0000-4000-8000-000000000003", fashion, "material", "Material", ProductAttributeValueType.Text, 3),
             Seed("a1000000-0000-4000-8000-000000000004", fashion, "fit", "Fit", ProductAttributeValueType.Text, 4),
             Seed("a1000000-0000-4000-8000-000000000005", fashion, "pattern", "Pattern", ProductAttributeValueType.Text, 5),
@@ -89,6 +109,7 @@ public class ProductAttributeDefinitionConfiguration
             Seed("a1000000-0000-4000-8000-000000000008", fashion, "careInstructions", "Care instructions", ProductAttributeValueType.Text, 8),
             Seed("a1000000-0000-4000-8000-000000000009", fashion, "countryOfOrigin", "Country of origin", ProductAttributeValueType.Text, 9),
             Seed("a1000000-0000-4000-8000-00000000000a", fashion, "handmade", "Handmade", ProductAttributeValueType.Boolean, 10),
+            Seed("a1000000-0000-4000-8000-00000000000b", fashion, "brand", "Brand", ProductAttributeValueType.Text, 11),
 
             // ---- Restaurant ----
             Seed("a2000000-0000-4000-8000-000000000001", restaurant, "ingredients", "Ingredients", ProductAttributeValueType.TextList, 1),

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.BusinessDashboard;
 
@@ -15,6 +15,12 @@ namespace MerchForge.api.Services.BusinessDashboard;
 /// </summary>
 public static class ProductMetadataBuilder
 {
+    /// <summary>One configured field's constraints, as snapshotted on the business.</summary>
+    public readonly record struct FieldRule(
+        ProductAttributeValueType ValueType,
+        bool IsRequired,
+        IReadOnlyList<string> AllowedValues);
+
     public static JsonDocument? Build(
         JsonDocument? metadataShape,
         Dictionary<string, JsonElement>? submitted)
@@ -38,14 +44,19 @@ public static class ProductMetadataBuilder
 
         var result = new Dictionary<string, object?>();
 
-        foreach (var (key, definedType) in allowed)
+        foreach (var (key, rule) in allowed)
         {
             if (!submitted.TryGetValue(key, out var value))
             {
                 continue;
             }
 
-            var coerced = Coerce(key, definedType, value);
+            var coerced = Coerce(key, rule.ValueType, value);
+
+            // Checked after coercion so the value is already trimmed and typed - and
+            // rejected rather than dropped, because silently discarding "Purple"
+            // would leave the owner believing the product has a colour it does not.
+            EnsureAllowed(key, rule, coerced);
 
             // Null means "left blank" — the field simply doesn't appear on this
             // product, which is different from it being invalid.
@@ -60,9 +71,9 @@ public static class ProductMetadataBuilder
             : JsonSerializer.SerializeToDocument(result);
     }
 
-    private static Dictionary<string, ProductAttributeValueType> ReadShape(JsonDocument? metadataShape)
+    public static Dictionary<string, FieldRule> ReadShape(JsonDocument? metadataShape)
     {
-        var allowed = new Dictionary<string, ProductAttributeValueType>(StringComparer.Ordinal);
+        var allowed = new Dictionary<string, FieldRule>(StringComparer.Ordinal);
 
         if (metadataShape is null)
         {
@@ -91,10 +102,47 @@ public static class ProductMetadataBuilder
                 continue;
             }
 
-            allowed[key] = valueType;
+            var isRequired = field.TryGetProperty("isRequired", out var requiredElement)
+                && requiredElement.ValueKind == JsonValueKind.True;
+
+            var allowedValues = new List<string>();
+
+            if (field.TryGetProperty("allowedValues", out var allowedElement)
+                && allowedElement.ValueKind == JsonValueKind.Array)
+            {
+                allowedValues.AddRange(allowedElement.EnumerateArray()
+                    .Where(v => v.ValueKind == JsonValueKind.String)
+                    .Select(v => v.GetString()!));
+            }
+
+            allowed[key] = new FieldRule(valueType, isRequired, allowedValues);
         }
 
         return allowed;
+    }
+
+    private static void EnsureAllowed(string key, FieldRule rule, object? coerced)
+    {
+        if (rule.AllowedValues.Count == 0 || coerced is null)
+        {
+            return;
+        }
+
+        var offending = coerced switch
+        {
+            string single => rule.AllowedValues.Contains(single, StringComparer.OrdinalIgnoreCase)
+                ? null
+                : single,
+            List<string> many => many.FirstOrDefault(v =>
+                !rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase)),
+            _ => null,
+        };
+
+        if (offending is not null)
+        {
+            throw new InvalidProductMetadataException(
+                $"'{offending}' isn't an accepted value for '{key}'. Allowed: {string.Join(", ", rule.AllowedValues)}.");
+        }
     }
 
     private static object? Coerce(string key, ProductAttributeValueType type, JsonElement value)

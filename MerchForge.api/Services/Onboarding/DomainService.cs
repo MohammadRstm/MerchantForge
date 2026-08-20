@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using MerchForge.api.DTOs.Onboarding;
 using MerchForge.api.Exceptions.Onboarding;
@@ -167,6 +167,8 @@ namespace MerchForge.api.Services.Onboarding
                     Key = d.Key,
                     Label = d.Label,
                     ValueType = d.ValueType.ToString(),
+                    IsRequired = d.IsRequired,
+                    AllowedValues = ReadAllowedValues(d.AllowedValues),
                 })
                 .ToList();
 
@@ -184,6 +186,26 @@ namespace MerchForge.api.Services.Onboarding
             public List<MetadataShapeField> Fields { get; set; } = [];
         }
 
+        /// <summary>
+        /// Constraints are snapshotted alongside the field, for the same reason the
+        /// field list itself is: a product validated against "colours must be one of
+        /// these five" should not silently start accepting a sixth because a
+        /// SuperAdmin widened the platform definition afterwards.
+        /// </summary>
+        private static List<string> ReadAllowedValues(JsonDocument? allowedValues)
+        {
+            if (allowedValues is null || allowedValues.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            return allowedValues.RootElement
+                .EnumerateArray()
+                .Where(v => v.ValueKind == JsonValueKind.String)
+                .Select(v => v.GetString()!)
+                .ToList();
+        }
+
         private sealed class MetadataShapeField
         {
             [JsonPropertyName("key")]
@@ -194,6 +216,12 @@ namespace MerchForge.api.Services.Onboarding
 
             [JsonPropertyName("valueType")]
             public string ValueType { get; set; } = string.Empty;
+
+            [JsonPropertyName("isRequired")]
+            public bool IsRequired { get; set; }
+
+            [JsonPropertyName("allowedValues")]
+            public List<string> AllowedValues { get; set; } = [];
         }
     }
 }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.Exceptions.BusinessDashboard;
@@ -282,6 +282,15 @@ namespace MerchForge.api.Services.BusinessDashboard
                     Key = key,
                     Label = label,
                     ValueType = valueType,
+                    IsRequired = field.TryGetProperty("isRequired", out var req)
+                        && req.ValueKind == JsonValueKind.True,
+                    AllowedValues = field.TryGetProperty("allowedValues", out var allowed)
+                        && allowed.ValueKind == JsonValueKind.Array
+                            ? allowed.EnumerateArray()
+                                .Where(v => v.ValueKind == JsonValueKind.String)
+                                .Select(v => v.GetString()!)
+                                .ToList()
+                            : [],
                 });
             }
 

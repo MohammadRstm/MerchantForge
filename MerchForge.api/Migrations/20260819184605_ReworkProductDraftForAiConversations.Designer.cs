@@ -4,6 +4,7 @@ using MerchForge.api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MerchForge.api.Migrations
 {
     [DbContext(typeof(MerchForgeDbContext))]
-    partial class MerchForgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260819184605_ReworkProductDraftForAiConversations")]
+    partial class ReworkProductDraftForAiConversations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -536,9 +539,6 @@ namespace MerchForge.api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<string>("AllowedValues")
-                        .HasColumnType("json");
-
                     b.Property<Guid>("BusinessDomainId")
                         .HasColumnType("char(36)");
 
@@ -549,9 +549,6 @@ namespace MerchForge.api.Migrations
                         .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<bool>("IsRequired")
                         .HasColumnType("tinyint(1)");
 
                     b.Property<string>("Key")
@@ -583,12 +580,10 @@ namespace MerchForge.api.Migrations
                         new
                         {
                             Id = new Guid("a1000000-0000-4000-8000-000000000001"),
-                            AllowedValues = "[\"Black\",\"White\",\"Red\",\"Blue\",\"Green\"]",
                             BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 1,
                             IsActive = true,
-                            IsRequired = true,
                             Key = "colors",
                             Label = "Colors",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -597,12 +592,10 @@ namespace MerchForge.api.Migrations
                         new
                         {
                             Id = new Guid("a1000000-0000-4000-8000-000000000002"),
-                            AllowedValues = "[\"XS\",\"S\",\"M\",\"L\",\"XL\",\"XXL\"]",
                             BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 2,
                             IsActive = true,
-                            IsRequired = true,
                             Key = "sizes",
                             Label = "Sizes",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -615,7 +608,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 3,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "material",
                             Label = "Material",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -628,7 +620,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 4,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "fit",
                             Label = "Fit",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -641,7 +632,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 5,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "pattern",
                             Label = "Pattern",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -654,7 +644,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 6,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "gender",
                             Label = "Gender",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -667,7 +656,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 7,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "season",
                             Label = "Season",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -680,7 +668,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 8,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "careInstructions",
                             Label = "Care instructions",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -693,7 +680,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 9,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "countryOfOrigin",
                             Label = "Country of origin",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -706,24 +692,10 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 10,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "handmade",
                             Label = "Handmade",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             ValueType = "Boolean"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1000000-0000-4000-8000-00000000000b"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 11,
-                            IsActive = true,
-                            IsRequired = false,
-                            Key = "brand",
-                            Label = "Brand",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ValueType = "Text"
                         },
                         new
                         {
@@ -732,7 +704,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 1,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "ingredients",
                             Label = "Ingredients",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -745,7 +716,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 2,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "allergens",
                             Label = "Allergens",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -758,7 +728,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 3,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "spicy",
                             Label = "Spicy",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -771,7 +740,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 4,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "vegetarian",
                             Label = "Vegetarian",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -784,7 +752,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 5,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "vegan",
                             Label = "Vegan",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -797,7 +764,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 6,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "glutenFree",
                             Label = "Gluten free",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -810,7 +776,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 7,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "calories",
                             Label = "Calories",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -823,7 +788,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 8,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "portionSize",
                             Label = "Portion size",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -836,7 +800,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 9,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "preparationMinutes",
                             Label = "Preparation time (minutes)",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -849,7 +812,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 10,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "servingTemperature",
                             Label = "Serving temperature",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -862,7 +824,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 1,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "brand",
                             Label = "Brand",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -875,7 +836,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 2,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "model",
                             Label = "Model",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -888,7 +848,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 3,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "storage",
                             Label = "Storage",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -901,7 +860,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 4,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "ram",
                             Label = "RAM",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -914,7 +872,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 5,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "screenSize",
                             Label = "Screen size",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -927,7 +884,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 6,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "batteryCapacity",
                             Label = "Battery capacity",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -940,7 +896,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 7,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "colors",
                             Label = "Colors",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -953,7 +908,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 8,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "connectivity",
                             Label = "Connectivity",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -966,7 +920,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 9,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "operatingSystem",
                             Label = "Operating system",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -979,7 +932,6 @@ namespace MerchForge.api.Migrations
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 10,
                             IsActive = true,
-                            IsRequired = false,
                             Key = "warrantyMonths",
                             Label = "Warranty (months)",
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),

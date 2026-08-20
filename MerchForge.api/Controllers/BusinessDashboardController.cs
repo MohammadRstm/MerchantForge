@@ -14,20 +14,26 @@ namespace MerchForge.api.Controllers
     public class BusinessDashboardController : ControllerBase
     {
         private readonly IBusinessDashboardService _businessDashboardService;
+        private readonly IBusinessMemberService _businessMemberService;
         private readonly IProductImageService _productImageService;
         private readonly IValidator<ProductsQueryRequest> _productsQueryValidator;
         private readonly IValidator<SaveProductRequest> _saveProductValidator;
+        private readonly IValidator<CreateBusinessMemberRequest> _createMemberValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
+            IBusinessMemberService businessMemberService,
             IProductImageService productImageService,
             IValidator<ProductsQueryRequest> productsQueryValidator,
-            IValidator<SaveProductRequest> saveProductValidator)
+            IValidator<SaveProductRequest> saveProductValidator,
+            IValidator<CreateBusinessMemberRequest> createMemberValidator)
         {
             _businessDashboardService = businessDashboardService;
+            _businessMemberService = businessMemberService;
             _productImageService = productImageService;
             _productsQueryValidator = productsQueryValidator;
             _saveProductValidator = saveProductValidator;
+            _createMemberValidator = createMemberValidator;
         }
 
         [HttpGet("stats")]
@@ -59,6 +65,28 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _businessDashboardService.GetMembersAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Creates a team member account and attaches it to this business.
+        ///
+        /// businessId comes from the route, which the BusinessOwner policy has
+        /// already checked — never from the body.
+        /// </summary>
+        [HttpPost("members")]
+        public async Task<ActionResult<CreateBusinessMemberResponse>> CreateMember(
+            Guid businessId,
+            [FromBody] CreateBusinessMemberRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createMemberValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessMemberService.CreateMemberAsync(
+                businessId,
+                request,
+                cancellationToken);
 
             return Ok(response);
         }

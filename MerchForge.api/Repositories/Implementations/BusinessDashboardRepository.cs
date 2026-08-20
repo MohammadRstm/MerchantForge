@@ -205,6 +205,30 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToList();
         }
 
+        public async Task CreateMemberAsync(
+            User user,
+            BusinessUser businessUser,
+            CancellationToken cancellationToken = default)
+        {
+            await using var transaction =
+                await _db.Database.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                await _db.Users.AddAsync(user, cancellationToken);
+                await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        }
+
         // ---- product CRUD ----
 
         public async Task<BusinessProductDetailResponse?> GetProductAsync(

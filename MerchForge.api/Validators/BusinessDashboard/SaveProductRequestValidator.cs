@@ -11,9 +11,6 @@ public class SaveProductRequestValidator : AbstractValidator<SaveProductRequest>
             .NotEmpty()
             .MaximumLength(255);
 
-        RuleFor(x => x.Description)
-            .NotEmpty();
-
         // Non-negative rather than strictly positive: a free item is legitimate.
         RuleFor(x => x.Price)
             .GreaterThanOrEqualTo(0)

@@ -30,9 +30,6 @@ public class ProductConfiguration
             .IsRequired()
             .HasMaxLength(255);
 
-        builder.Property(x => x.Description)
-            .IsRequired();
-
         builder.Property(x => x.Price)
             .HasPrecision(10, 2)
             .IsRequired();

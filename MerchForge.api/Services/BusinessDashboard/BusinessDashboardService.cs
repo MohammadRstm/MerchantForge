@@ -184,7 +184,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 BusinessId = businessId,
                 CategoryId = request.CategoryId,
                 Title = request.Title.Trim(),
-                Description = request.Description.Trim(),
+                Description = NormalizeDescription(request.Description),
                 Price = request.Price,
                 CompareAtPrice = request.CompareAtPrice,
                 // Kept in sync with Images so consumers that only read ImageUrl (the
@@ -223,7 +223,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             var images = BuildProductImages(request.Images);
 
             product.Title = request.Title.Trim();
-            product.Description = request.Description.Trim();
+            product.Description = NormalizeDescription(request.Description);
             product.Price = request.Price;
             product.CompareAtPrice = request.CompareAtPrice;
             product.CategoryId = request.CategoryId;
@@ -390,6 +390,10 @@ namespace MerchForge.api.Services.BusinessDashboard
         /// </summary>
         private static string? NormalizeSku(string? sku) =>
             string.IsNullOrWhiteSpace(sku) ? null : sku.Trim();
+
+        /// <summary>Same reasoning as NormalizeSku — a blank description is stored as null, not an empty string.</summary>
+        private static string? NormalizeDescription(string? description) =>
+            string.IsNullOrWhiteSpace(description) ? null : description.Trim();
 
         /// <summary>
         /// Trims each tag and drops blanks/duplicates. A null request means "no tags

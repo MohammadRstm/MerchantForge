@@ -215,6 +215,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+builder.Services.AddScoped<IFeatureCreditService, FeatureCreditService>();
 
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();

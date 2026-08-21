@@ -30,8 +30,7 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
     private static ProductAiContext Fashion(
         string latestMessage,
         ProductAiDraft? current = null,
-        (string Role, string Text)[]? history = null,
-        bool hasImage = true) => new()
+        (string Role, string Text)[]? history = null) => new()
         {
             BusinessName = "Test Apparel",
             Currency = "USD",
@@ -53,7 +52,6 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
             History = (history ?? [])
                 .Select(h => new ProductAiMessage { Role = h.Role, Text = h.Text }).ToList(),
             LatestUserMessage = latestMessage,
-            HasImage = hasImage,
         };
 
     private static ProductAiDraft Draft(
@@ -192,7 +190,7 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
     }
 
     [SkippableFact]
-    public async Task Live24_an_image_request_and_a_price_change_are_separated()
+    public async Task Live24_a_photo_request_is_deflected_without_derailing_the_product()
     {
         Skip.IfNot(_fixture.IsConfigured, "No AI provider configured.");
 
@@ -202,40 +200,16 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
         var decision = await AskAsync(Fashion(
             "Make the background white and change the price to $35.", current));
 
-        // The image request is carried by the prompt field, not by the action: this
-        // message changes the product AND asks for an edit, and a single-valued action
-        // cannot express both.
-        decision.ImageModificationPrompt.Should().NotBeNullOrWhiteSpace();
-        decision.ImageModificationPrompt!.ToLowerInvariant().Should().Contain("background");
-
-        // The product edit is not lost to the image request.
+        // Photos are out of scope for this agent now - handled by a separate model -
+        // so the price correction should still land even though the same message
+        // also asked for a picture edit.
         decision.Draft!.Price.Should().Be(35m);
 
-        // And the image instruction does not leak into product data. Null is the
+        // And no trace of the photo request leaks into product data. Null is the
         // expected result for material here, so the check has to tolerate it rather
         // than assert on a string that should not exist.
         Mentions(decision.Draft.Description, "background").Should().BeFalse();
         Mentions(Text(decision.Draft, "material"), "background").Should().BeFalse();
-    }
-
-    [SkippableFact]
-    public async Task Live23_a_multi_part_image_request_stays_one_instruction()
-    {
-        Skip.IfNot(_fixture.IsConfigured, "No AI provider configured.");
-
-        var current = Draft("Hoodie", "A hoodie.", 40m, ShirtsId,
-            """{"colors":["Black"],"sizes":["M"]}""");
-
-        var decision = await AskAsync(Fashion(
-            "Remove the background, put the product on a clean neutral studio background and make the lighting better.",
-            current));
-
-        decision.Action.Should().Be(ProductAiAction.RequestImageModification);
-        decision.ImageModificationPrompt.Should().NotBeNullOrWhiteSpace();
-
-        // Not shredded into metadata.
-        decision.Draft!.Price.Should().Be(40m);
-        Text(decision.Draft, "material").Should().BeNull();
     }
 
     [SkippableFact]
@@ -271,7 +245,6 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
                 new ProductAiField { Key = "origin", Label = "Origin", ValueType = "Text" },
             ],
             LatestUserMessage = "This is vanilla flavor, 500 grams.",
-            HasImage = true,
         };
 
         var decision = await AskAsync(context);
@@ -310,7 +283,6 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
             "allowedvalues",
             "request_information",
             "ready_for_review",
-            "imagemodificationprompt",
             "configured product fields");
 
         // The product is left exactly as it was.
@@ -320,14 +292,13 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
     }
 
     [SkippableFact]
-    public async Task Live41_a_dense_message_is_separated_into_product_metadata_and_image_request()
+    public async Task Live41_a_dense_message_populates_every_field_it_mentions()
     {
         Skip.IfNot(_fixture.IsConfigured, "No AI provider configured.");
 
         var decision = await AskAsync(Fashion(
             "Add this black cotton hoodie. It's from our winter collection, sizes S M L XL, $59.99, "
-            + "made from 80% cotton and 20% polyester. The brand is ABC and I want the background "
-            + "removed and replaced with a white studio background."));
+            + "made from 80% cotton and 20% polyester. The brand is ABC."));
 
         decision.Draft.Should().NotBeNull();
         decision.Draft!.Price.Should().Be(59.99m);
@@ -339,9 +310,5 @@ public class LiveAgentBehaviourTests : IClassFixture<LiveAgentFixture>
         // consistently but drops an optional one - brand, in this case - roughly half
         // the time, and three prompt revisions did not change that. Asserting it would
         // buy a flaky suite rather than a working guarantee. See the report.
-
-        // The image instruction is carried as an image request, not as product data.
-        decision.ImageModificationPrompt.Should().NotBeNullOrWhiteSpace();
-        decision.ImageModificationPrompt!.ToLowerInvariant().Should().Contain("background");
     }
 }

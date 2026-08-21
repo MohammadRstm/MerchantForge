@@ -78,21 +78,17 @@ internal static class OpenAiPromptBuilder
           Naming the wrong colour on a listing is worse than asking one more question.
 
         IMAGES
-        - A product needs an image. If none has been supplied, ask for one.
-        - Requests to change the picture itself - background, lighting, cropping, removing
-          objects - are image modifications, never product metadata.
-        - Whenever the owner asks for a change to the picture, put a single clear
-          instruction in `imageModificationPrompt`. Do this independently of `action`:
-          a message can both change the product and ask for an image edit, and the two
-          must not displace each other. Set `imageModificationPrompt` to null otherwise.
-        - Never say an image has been edited. You only report that a change was requested.
+        - Photos are handled elsewhere, not by you. Never ask for a picture, never
+          acknowledge one, and never discuss editing, replacing or improving one -
+          even if the owner brings it up. If they mention a photo, say briefly that
+          it's handled separately and move on to whatever product detail is still
+          needed. This is true regardless of whether one has been supplied already.
 
         CHOOSING AN ACTION
         - request_information: something required is missing or ambiguous. Ask for it in `message`.
         - update_draft: you recorded information and the conversation continues.
-        - request_image_modification: the owner asked ONLY to change the image and there
-          is nothing new about the product itself.
-        - ready_for_review: title, description, price and categoryId are all set.
+        - ready_for_review: title, price and categoryId are all set (description too,
+          if the owner has said enough to write one).
           This proposes the product for review. It does NOT create it - the owner
           confirms separately - so do not tell them it has been created or saved.
         - cancel: the owner clearly wants to abandon this product.
@@ -126,7 +122,6 @@ internal static class OpenAiPromptBuilder
         builder.AppendLine("# STORE");
         builder.AppendLine($"Name: {context.BusinessName}");
         builder.AppendLine($"Currency: {context.Currency}");
-        builder.AppendLine($"Image supplied: {(context.HasImage ? "yes" : "no")}");
         builder.AppendLine();
 
         builder.AppendLine("# AVAILABLE CATEGORIES (copy an id exactly, or null)");
@@ -184,15 +179,14 @@ internal static class OpenAiPromptBuilder
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["action", "message", "draft", "missingFields", "imageModificationPrompt"],
+          "required": ["action", "message", "draft", "missingFields"],
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["request_information", "update_draft", "request_image_modification", "ready_for_review", "cancel"]
+              "enum": ["request_information", "update_draft", "ready_for_review", "cancel"]
             },
             "message": { "type": "string" },
             "missingFields": { "type": "array", "items": { "type": "string" } },
-            "imageModificationPrompt": { "type": ["string", "null"] },
             "draft": {
               "type": ["object", "null"],
               "additionalProperties": false,

@@ -120,7 +120,6 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
                     Action = MapAction(raw.Action),
                     Message = raw.Message ?? string.Empty,
                     MissingFields = raw.MissingFields ?? [],
-                    ImageModificationPrompt = raw.ImageModificationPrompt,
                     Draft = MapDraft(raw.Draft, context),
                 },
             };
@@ -154,7 +153,6 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
     {
         "request_information" => ProductAiAction.RequestInformation,
         "update_draft" => ProductAiAction.UpdateDraft,
-        "request_image_modification" => ProductAiAction.RequestImageModification,
         "ready_for_review" => ProductAiAction.ReadyForReview,
         "cancel" => ProductAiAction.Cancel,
         // The schema constrains this to the enum above, so anything else means the
@@ -249,7 +247,6 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         public string? Action { get; set; }
         public string? Message { get; set; }
         public List<string>? MissingFields { get; set; }
-        public string? ImageModificationPrompt { get; set; }
         public RawDraft? Draft { get; set; }
     }
 

@@ -36,9 +36,6 @@ public class ProductAiContext
 
     /// <summary>The message being responded to, already transcribed if it was voice.</summary>
     public string LatestUserMessage { get; set; } = string.Empty;
-
-    /// <summary>Whether an image has been supplied, so the agent stops asking for one.</summary>
-    public bool HasImage { get; set; }
 }
 
 public class ProductAiCategory

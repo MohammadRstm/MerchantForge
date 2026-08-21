@@ -63,7 +63,6 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         public required ProductAiService Service { get; init; }
         public required FakeProductAiConversationClient Ai { get; init; }
         public required FakeAiTranscriptionService Transcription { get; init; }
-        public required FakeProductImageEditor ImageEditor { get; init; }
         public required RecordingAiInteractionLogger Logger { get; init; }
 
         public void Dispose() => Db.Dispose();
@@ -75,18 +74,16 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var ai = new FakeProductAiConversationClient();
         var transcription = new FakeAiTranscriptionService();
-        var imageEditor = new FakeProductImageEditor();
         var logger = new RecordingAiInteractionLogger();
 
         var dashboardRepository = new BusinessDashboardRepository(db);
-        var dashboardService = new BusinessDashboardService(dashboardRepository, new SubscriptionRepository(db));
+        var dashboardService = new BusinessDashboardService(dashboardRepository, new SubscriptionRepository(db), new FakeBackgroundJobClient());
 
         return new Harness
         {
             Db = db,
             Ai = ai,
             Transcription = transcription,
-            ImageEditor = imageEditor,
             Logger = logger,
             Service = new ProductAiService(
                 new ProductDraftRepository(db),
@@ -94,7 +91,6 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
                 dashboardService,
                 ai,
                 transcription,
-                imageEditor,
                 new FakeProductImageService(),
                 logger),
         };
@@ -104,14 +100,12 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         ProductAiAction action,
         string message = "ok",
         ProductAiDraft? draft = null,
-        List<string>? missing = null,
-        string? imagePrompt = null) => new()
+        List<string>? missing = null) => new()
         {
             Action = action,
             Message = message,
             Draft = draft,
             MissingFields = missing ?? [],
-            ImageModificationPrompt = imagePrompt,
         };
 
     private static ProductAiDraft CompleteDraft(Guid categoryId, decimal price = 25m) => new()
@@ -340,7 +334,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt");
 
-        result.MissingFields.Should().BeEquivalentTo(["description", "price", "category", "image"]);
+        result.MissingFields.Should().BeEquivalentTo(["price", "category", "image"]);
     }
 
     // ---- hallucinated category ----
@@ -638,31 +632,6 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var result = await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
 
         result.OriginalImageUrl.Should().Be("/uploads/products/uploaded.png");
-        h.Ai.ReceivedContexts.Single().HasImage.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task An_image_modification_request_waits_for_the_owners_approval()
-    {
-        using var h = CreateHarness();
-
-        var started = await h.Service.StartAsync(_business.Id, _userId);
-
-        h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Nice photo."));
-        await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
-
-        h.Ai.Enqueue(Decision(ProductAiAction.RequestImageModification, "I'll neutralise the background.",
-            imagePrompt: "Make the background neutral"));
-
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "make the background neutral");
-
-        result.Status.Should().Be(nameof(ProductDraftStatus.WaitingForImageApproval));
-        result.ProcessedImageUrl.Should().Be("/uploads/products/edited.png");
-        result.ImageModificationPrompt.Should().Be("Make the background neutral");
-
-        // The edited image is a proposal; it is not the product's image yet.
-        result.OriginalImageUrl.Should().Be("/uploads/products/uploaded.png");
-        result.CanConfirm.Should().BeFalse("nothing else can happen until the image is resolved");
     }
 
     [Fact]
@@ -692,49 +661,6 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
     }
 
     [Fact]
-    public async Task A_failed_image_edit_does_not_strand_the_draft()
-    {
-        using var h = CreateHarness();
-        h.ImageEditor.Failure = new InvalidOperationException("editor exploded");
-
-        var started = await h.Service.StartAsync(_business.Id, _userId);
-
-        h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Nice photo."));
-        await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
-
-        h.Ai.Enqueue(Decision(ProductAiAction.RequestImageModification, "On it.",
-            imagePrompt: "Make the background neutral"));
-
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "neutral background please");
-
-        // ProcessingImage has no way out on its own, so a failure must not leave the
-        // draft sitting in it.
-        result.Status.Should().Be(nameof(ProductDraftStatus.CollectingInformation));
-        result.ProcessedImageUrl.Should().BeNull();
-        result.Messages.Last().Text.Should().Contain("couldn't edit the image");
-    }
-
-    [Fact]
-    public async Task An_edit_request_with_no_editor_configured_says_so_and_continues()
-    {
-        using var h = CreateHarness();
-        h.ImageEditor.IsAvailable = false;
-
-        var started = await h.Service.StartAsync(_business.Id, _userId);
-
-        h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Nice photo."));
-        await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
-
-        h.Ai.Enqueue(Decision(ProductAiAction.RequestImageModification, "On it.",
-            imagePrompt: "Make the background neutral"));
-
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "neutral background please");
-
-        result.Status.Should().Be(nameof(ProductDraftStatus.CollectingInformation));
-        result.Messages.Last().Text.Should().Contain("can't edit images yet");
-    }
-
-    [Fact]
     public async Task Messages_are_blocked_while_an_image_is_awaiting_approval()
     {
         using var h = CreateHarness();
@@ -745,6 +671,12 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         await act.Should().ThrowAsync<ProductDraftStateException>();
     }
 
+    /// <summary>
+    /// Puts a draft into WaitingForImageApproval directly rather than through a
+    /// conversation turn: the agent no longer requests or edits images itself (a
+    /// separate model owns that now), but the approve/reject machinery around an
+    /// in-flight edit is still real code and still worth testing on its own terms.
+    /// </summary>
     private async Task<Guid> StartWithPendingImageEditAsync(Harness h)
     {
         var started = await h.Service.StartAsync(_business.Id, _userId);
@@ -752,9 +684,11 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Nice photo."));
         await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
 
-        h.Ai.Enqueue(Decision(ProductAiAction.RequestImageModification, "On it.",
-            imagePrompt: "Make the background neutral"));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "neutral background");
+        var draft = await h.Db.ProductDrafts.FirstAsync(x => x.Id == started.Id);
+        draft.ProcessedImageUrl = "/uploads/products/edited.png";
+        draft.ImageModificationPrompt = "Make the background neutral";
+        draft.Status = ProductDraftStatus.WaitingForImageApproval;
+        await h.Db.SaveChangesAsync();
 
         return started.Id;
     }

@@ -29,7 +29,6 @@ namespace MerchForge.api.Services.ProductAi
         private readonly IBusinessDashboardService _dashboardService;
         private readonly IProductAiConversationClient _conversationClient;
         private readonly IAiTranscriptionService _transcription;
-        private readonly IProductImageEditor _imageEditor;
         private readonly IProductImageService _imageService;
         private readonly IAiInteractionLogger _aiLogger;
 
@@ -39,7 +38,6 @@ namespace MerchForge.api.Services.ProductAi
             IBusinessDashboardService dashboardService,
             IProductAiConversationClient conversationClient,
             IAiTranscriptionService transcription,
-            IProductImageEditor imageEditor,
             IProductImageService imageService,
             IAiInteractionLogger aiLogger)
         {
@@ -48,7 +46,6 @@ namespace MerchForge.api.Services.ProductAi
             _dashboardService = dashboardService;
             _conversationClient = conversationClient;
             _transcription = transcription;
-            _imageEditor = imageEditor;
             _imageService = imageService;
             _aiLogger = aiLogger;
         }
@@ -254,7 +251,7 @@ namespace MerchForge.api.Services.ProductAi
             var request = new SaveProductRequest
             {
                 Title = state!.Title!,
-                Description = state.Description!,
+                Description = state.Description,
                 Price = state.Price!.Value,
                 CategoryId = state.CategoryId!.Value,
                 // The missing-fields check above already guarantees this is non-null —
@@ -363,7 +360,6 @@ namespace MerchForge.api.Services.ProductAi
                     .SkipLast(1)
                     .ToList(),
                 LatestUserMessage = userMessage,
-                HasImage = draft.OriginalImageUrl is not null,
             };
 
             var scope = new AiInteractionScope(
@@ -488,7 +484,6 @@ namespace MerchForge.api.Services.ProductAi
                 }
             }
 
-            // The conversation action first...
             switch (decision.Action)
             {
                 case ProductAiAction.ReadyForReview:
@@ -508,20 +503,6 @@ namespace MerchForge.api.Services.ProductAi
                 default:
                     draft.Status = ProductDraftStatus.CollectingInformation;
                     break;
-            }
-
-            // ...then the image request, which is deliberately independent of it.
-            //
-            // "Make the background white and change the price to $35" is two things at
-            // once, and the action is single-valued. Keying the image edit off the
-            // action made the model choose between them, and it reasonably reported
-            // update_draft because the product genuinely had changed - so the image
-            // request was silently lost. The prompt is the trigger; the action only
-            // describes where the product conversation stands.
-            if (!string.IsNullOrWhiteSpace(decision.ImageModificationPrompt)
-                && draft.Status is not ProductDraftStatus.Cancelled)
-            {
-                await StartImageModificationAsync(draft, decision, cancellationToken);
             }
         }
 
@@ -604,64 +585,6 @@ namespace MerchForge.api.Services.ProductAi
             return messages;
         }
 
-        private async Task StartImageModificationAsync(
-            ProductDraft draft,
-            ProductAiDecision decision,
-            CancellationToken cancellationToken)
-        {
-            if (draft.OriginalImageUrl is null || string.IsNullOrWhiteSpace(decision.ImageModificationPrompt))
-            {
-                // Nothing to edit, or no instruction: stay in the conversation rather
-                // than entering an image state that can never resolve.
-                draft.Status = ProductDraftStatus.CollectingInformation;
-                return;
-            }
-
-            draft.ImageModificationPrompt = decision.ImageModificationPrompt;
-
-            if (!_imageEditor.IsAvailable)
-            {
-                // Said plainly instead of silently ignoring the request, which would
-                // leave the owner waiting for an edit that is never coming.
-                ProductDraftState.AppendMessage(
-                    draft,
-                    "assistant",
-                    "I can't edit images yet, so I'll use the image as you uploaded it.",
-                    "text");
-
-                draft.ImageModificationPrompt = null;
-                draft.Status = ProductDraftStatus.CollectingInformation;
-                return;
-            }
-
-            draft.Status = ProductDraftStatus.ProcessingImage;
-
-            try
-            {
-                draft.ProcessedImageUrl = await _imageEditor.EditAsync(
-                    draft.BusinessId,
-                    draft.OriginalImageUrl,
-                    decision.ImageModificationPrompt,
-                    cancellationToken);
-
-                draft.Status = ProductDraftStatus.WaitingForImageApproval;
-            }
-            catch (Exception)
-            {
-                // A failed edit must not strand the draft in ProcessingImage, which
-                // has no way out.
-                ProductDraftState.AppendMessage(
-                    draft,
-                    "assistant",
-                    "I couldn't edit the image. We can carry on with the original.",
-                    "text");
-
-                draft.ProcessedImageUrl = null;
-                draft.ImageModificationPrompt = null;
-                draft.Status = ProductDraftStatus.CollectingInformation;
-            }
-        }
-
         // ---- helpers ----
 
         private async Task<ProductDraft> LoadDraftAsync(
@@ -701,7 +624,6 @@ namespace MerchForge.api.Services.ProductAi
             var missing = new List<string>();
 
             if (string.IsNullOrWhiteSpace(state?.Title)) missing.Add("title");
-            if (string.IsNullOrWhiteSpace(state?.Description)) missing.Add("description");
             if (state?.Price is null) missing.Add("price");
             if (state?.CategoryId is null) missing.Add("category");
 
@@ -740,7 +662,7 @@ namespace MerchForge.api.Services.ProductAi
                 ? $" I'll also ask about {string.Join(", ", form.MetadataFields.Select(f => f.Label.ToLowerInvariant()))} if they apply."
                 : string.Empty;
 
-            return "Hi! I can set up a product for you. Send me a photo and tell me what it is, "
+            return "Hi! I can set up a product for you. Tell me what it is, "
                 + $"what it costs, and which category it belongs to.{extras} "
                 + "You can type or record a voice message.";
         }

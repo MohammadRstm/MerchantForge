@@ -42,16 +42,13 @@ public class LiveDiagnostic : IClassFixture<LiveAgentFixture>
             ],
             LatestUserMessage =
                 "Add this black cotton hoodie. It's from our winter collection, sizes S M L XL, $59.99, "
-                + "made from 80% cotton and 20% polyester. The brand is ABC and I want the background "
-                + "removed and replaced with a white studio background.",
-            HasImage = true,
+                + "made from 80% cotton and 20% polyester. The brand is ABC.",
         };
 
         var result = await _fixture.CreateClient().ContinueConversationAsync(context);
         var d = result.Decision;
 
         _output.WriteLine($"action={d.Action}");
-        _output.WriteLine($"imagePrompt={d.ImageModificationPrompt}");
         _output.WriteLine($"title={d.Draft?.Title}");
         _output.WriteLine($"price={d.Draft?.Price}");
         _output.WriteLine("metadata=" + JsonSerializer.Serialize(d.Draft?.Metadata));

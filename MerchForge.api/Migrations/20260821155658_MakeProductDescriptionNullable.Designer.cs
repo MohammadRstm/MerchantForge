@@ -4,6 +4,7 @@ using MerchForge.api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MerchForge.api.Migrations
 {
     [DbContext(typeof(MerchForgeDbContext))]
-    partial class MerchForgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260821155658_MakeProductDescriptionNullable")]
+    partial class MakeProductDescriptionNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

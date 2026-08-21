@@ -82,7 +82,6 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         public required ProductAiService Service { get; init; }
         public required FakeProductAiConversationClient Ai { get; init; }
         public required FakeAiTranscriptionService Transcription { get; init; }
-        public required FakeProductImageEditor ImageEditor { get; init; }
         public required RecordingAiInteractionLogger Logger { get; init; }
 
         public void Dispose() => Db.Dispose();
@@ -93,36 +92,32 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var db = _fixture.CreateContext();
         var ai = new FakeProductAiConversationClient();
         var transcription = new FakeAiTranscriptionService();
-        var editor = new FakeProductImageEditor();
         var logger = new RecordingAiInteractionLogger();
 
         var repo = new BusinessDashboardRepository(db);
-        var dashboard = new BusinessDashboardService(repo, new SubscriptionRepository(db));
+        var dashboard = new BusinessDashboardService(repo, new SubscriptionRepository(db), new FakeBackgroundJobClient());
 
         return new Harness
         {
             Db = db,
             Ai = ai,
             Transcription = transcription,
-            ImageEditor = editor,
             Logger = logger,
             Service = new ProductAiService(
                 new ProductDraftRepository(db), repo, dashboard,
-                ai, transcription, editor, new FakeProductImageService(), logger),
+                ai, transcription, new FakeProductImageService(), logger),
         };
     }
 
     private static ProductAiDecision D(
         ProductAiAction action,
         string message = "ok",
-        ProductAiDraft? draft = null,
-        string? imagePrompt = null) => new()
+        ProductAiDraft? draft = null) => new()
         {
             Action = action,
             Message = message,
             Draft = draft,
             MissingFields = [],
-            ImageModificationPrompt = imagePrompt,
         };
 
     private static ProductAiDraft Draft(
@@ -130,12 +125,22 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         string? description = null,
         decimal? price = null,
         Guid? categoryId = null,
-        string? metadataJson = null) => new()
+        string? metadataJson = null,
+        decimal? compareAtPrice = null,
+        string? sku = null,
+        int? stockQuantity = null,
+        List<string>? tags = null,
+        DateTime? saleEndsAt = null) => new()
         {
             Title = title,
             Description = description,
             Price = price,
+            CompareAtPrice = compareAtPrice,
             CategoryId = categoryId,
+            Sku = sku,
+            StockQuantity = stockQuantity,
+            Tags = tags ?? [],
+            SaleEndsAt = saleEndsAt,
             Metadata = metadataJson is null
                 ? null
                 : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadataJson),
@@ -451,7 +456,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
     // =====================================================================
 
     [Fact]
-    public async Task Scenario24_an_image_edit_and_a_price_change_in_one_message_both_take_effect()
+    public async Task Scenario24_a_photo_request_alongside_a_product_change_does_not_block_the_change()
     {
         using var h = CreateHarness();
         var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
@@ -463,19 +468,17 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             Draft("Hoodie", "A hoodie.", 40m, Shirts, CompleteMetadata)));
         await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black hoodie $40 M L");
 
-        // "Make the background white and change the price to $35."
-        h.Ai.Enqueue(D(ProductAiAction.RequestImageModification, "I'll whiten the background.",
-            Draft("Hoodie", "A hoodie.", 35m, Shirts, CompleteMetadata),
-            imagePrompt: "Replace the background with plain white, keeping the product unchanged."));
+        // Photos are out of scope for this agent now, so a message that also brings
+        // one up should still land the price change and leave the draft in the
+        // ordinary conversation state — not waiting on anything image-related.
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.",
+            Draft("Hoodie", "A hoodie.", 35m, Shirts, CompleteMetadata)));
 
         var after = await h.Service.SendMessageAsync(
             _fashion.Id, _ownerA, d.Id, "Make the background white and change the price to $35.");
 
-        // Neither change swallows the other.
-        after.Draft!.Price.Should().Be(35m, "the product edit is applied alongside the image request");
-        after.Status.Should().Be(nameof(ProductDraftStatus.WaitingForImageApproval));
-        after.ImageModificationPrompt.Should().Contain("white");
-        after.ProcessedImageUrl.Should().NotBeNull();
+        after.Draft!.Price.Should().Be(35m);
+        after.Status.Should().Be(nameof(ProductDraftStatus.CollectingInformation));
     }
 
     [Fact]
@@ -898,13 +901,16 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
                 """{"colors":["Black"],"material":"Cotton","sizes":["M","L","XL"]}""")));
         await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Actually change the price to $55.");
 
-        // "And make the background clean and white."
-        h.Ai.Enqueue(D(ProductAiAction.RequestImageModification, "I'll clean up the background.",
-            Draft("Black Cotton Hoodie", "A black cotton hoodie.", 55m, Shirts,
-                """{"colors":["Black"],"material":"Cotton","sizes":["M","L","XL"]}"""),
-            imagePrompt: "Replace the background with a clean white studio backdrop."));
-        var pendingImage = await h.Service.SendMessageAsync(
-            _fashion.Id, _ownerA, d.Id, "And make the background clean and white.");
+        // An image edit lands (not through this conversation — a separate model owns
+        // that — so it's simulated the same way anything outside the chat turn would
+        // arrive: written straight onto the draft).
+        var draft = await h.Db.ProductDrafts.FirstAsync(x => x.Id == d.Id);
+        draft.ProcessedImageUrl = "/uploads/products/edited.png";
+        draft.ImageModificationPrompt = "Replace the background with a clean white studio backdrop.";
+        draft.Status = ProductDraftStatus.WaitingForImageApproval;
+        await h.Db.SaveChangesAsync();
+
+        var pendingImage = await h.Service.GetAsync(_fashion.Id, d.Id);
 
         pendingImage.Status.Should().Be(nameof(ProductDraftStatus.WaitingForImageApproval));
         pendingImage.CanConfirm.Should().BeFalse();
@@ -982,6 +988,83 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         after.Messages.Last().Text.Should().Contain("XXXXL");
     }
 
+    /// <summary>
+    /// ColorList has no allowedValues in practice - any colour is normally fine - so
+    /// the closed-set check above never fires for it. What has to hold instead is the
+    /// value shape: ProductMetadataBuilder requires hex codes and throws on anything
+    /// else, so a colour name reaching ConfirmAsync would crash product creation
+    /// instead of failing gracefully. This is caught here, the same turn it's proposed.
+    /// </summary>
+    [Fact]
+    public async Task Scenario62_a_color_name_is_stripped_from_a_hex_only_field()
+    {
+        await using (var db = _fixture.CreateContext())
+        {
+            var fashion = await db.Businesses.FirstAsync(b => b.Id == _fashion.Id);
+            fashion.MetadataShape = JsonDocument.Parse("""
+                {"fields":[
+                  {"key":"colors","label":"Colors","valueType":"ColorList","isRequired":true,"allowedValues":[]},
+                  {"key":"sizes","label":"Sizes","valueType":"TextList","isRequired":true,
+                   "allowedValues":["XS","S","M","L","XL","XXL"]}
+                ]}
+                """);
+            await db.SaveChangesAsync();
+        }
+
+        using var h = CreateHarness();
+        var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
+
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.",
+            Draft("Hoodie", "A hoodie.", 40m, Shirts,
+                """{"colors":["#000000","white"],"sizes":["M"]}""")));
+
+        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black and white");
+
+        after.Draft!.Metadata!.RootElement.GetProperty("colors")
+            .EnumerateArray().Select(e => e.GetString())
+            .Should().Equal(["#000000"], "the hex value survives; the colour name does not");
+
+        after.Messages.Last().Text.Should().Contain("white").And.Contain("hex");
+    }
+
+    [Fact]
+    public async Task Scenario61_fixed_attributes_beyond_the_basics_reach_the_created_product()
+    {
+        using var h = CreateHarness();
+        var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
+
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Nice photo."));
+        await h.Service.AttachImageAsync(_fashion.Id, _ownerA, d.Id, Png());
+
+        var saleEndsAt = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "All set - here it is.",
+            Draft("Hoodie", "A hoodie.", 45m, Shirts, CompleteMetadata,
+                compareAtPrice: 60m,
+                sku: "HD-BLK-M",
+                stockQuantity: 12,
+                tags: ["New", "Bestseller"],
+                saleEndsAt: saleEndsAt)));
+        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "that's everything, it was $60 now $45");
+
+        // Visible in the chat's own draft preview before confirmation, same as every
+        // other field - this is what a "product so far" preview showing tags or stock
+        // is actually backed by.
+        after.Draft!.CompareAtPrice.Should().Be(60m);
+        after.Draft.Sku.Should().Be("HD-BLK-M");
+        after.Draft.StockQuantity.Should().Be(12);
+        after.Draft.Tags.Should().BeEquivalentTo(["New", "Bestseller"]);
+        after.Draft.SaleEndsAt.Should().Be(saleEndsAt);
+
+        var product = await h.Service.ConfirmAsync(_fashion.Id, _ownerA, d.Id);
+
+        product.CompareAtPrice.Should().Be(60m);
+        product.Sku.Should().Be("HD-BLK-M");
+        product.StockQuantity.Should().Be(12);
+        product.Tags.Should().BeEquivalentTo(["New", "Bestseller"]);
+        product.SaleEndsAt.Should().Be(saleEndsAt);
+    }
+
     [Fact]
     public async Task An_empty_assistant_message_still_produces_a_reply()
     {
@@ -1015,14 +1098,22 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         return d.Id;
     }
 
+    /// <summary>
+    /// Puts a draft into WaitingForImageApproval directly, rather than through a
+    /// conversation turn: the conversational agent no longer requests or edits images
+    /// at all (a separate model owns that), but the approve/reject machinery around
+    /// an in-flight edit is still real code, still reachable by whatever eventually
+    /// writes into these same columns, and still worth testing on its own terms.
+    /// </summary>
     private async Task<Guid> ReachReviewWithPendingImageAsync(Harness h)
     {
         var d = await ReachReviewAsync(h);
 
-        h.Ai.Enqueue(D(ProductAiAction.RequestImageModification, "I'll adjust it.",
-            Draft("Hoodie", "A hoodie.", 40m, Shirts, CompleteMetadata),
-            imagePrompt: "Make the background white."));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d, "make the background white");
+        var draft = await h.Db.ProductDrafts.FirstAsync(x => x.Id == d);
+        draft.ProcessedImageUrl = "/uploads/products/edited.png";
+        draft.ImageModificationPrompt = "Make the background white.";
+        draft.Status = ProductDraftStatus.WaitingForImageApproval;
+        await h.Db.SaveChangesAsync();
 
         return d;
     }

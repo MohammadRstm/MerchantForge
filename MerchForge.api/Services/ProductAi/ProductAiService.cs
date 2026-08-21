@@ -15,7 +15,7 @@ using MerchForge.api.Services.ProductAi.Interfaces;
 
 namespace MerchForge.api.Services.ProductAi
 {
-    public class ProductAiService : IProductAiService
+    public partial class ProductAiService : IProductAiService
     {
         /// <summary>
         /// How many past turns go to the agent. The structured draft already carries
@@ -29,7 +29,6 @@ namespace MerchForge.api.Services.ProductAi
         private readonly IBusinessDashboardService _dashboardService;
         private readonly IProductAiConversationClient _conversationClient;
         private readonly IAiTranscriptionService _transcription;
-        private readonly IProductImageEditor _imageEditor;
         private readonly IProductImageService _imageService;
         private readonly IAiInteractionLogger _aiLogger;
 
@@ -39,7 +38,6 @@ namespace MerchForge.api.Services.ProductAi
             IBusinessDashboardService dashboardService,
             IProductAiConversationClient conversationClient,
             IAiTranscriptionService transcription,
-            IProductImageEditor imageEditor,
             IProductImageService imageService,
             IAiInteractionLogger aiLogger)
         {
@@ -48,7 +46,6 @@ namespace MerchForge.api.Services.ProductAi
             _dashboardService = dashboardService;
             _conversationClient = conversationClient;
             _transcription = transcription;
-            _imageEditor = imageEditor;
             _imageService = imageService;
             _aiLogger = aiLogger;
         }
@@ -254,9 +251,14 @@ namespace MerchForge.api.Services.ProductAi
             var request = new SaveProductRequest
             {
                 Title = state!.Title!,
-                Description = state.Description!,
+                Description = state.Description,
                 Price = state.Price!.Value,
+                CompareAtPrice = state.CompareAtPrice,
                 CategoryId = state.CategoryId!.Value,
+                Sku = state.Sku,
+                StockQuantity = state.StockQuantity,
+                Tags = state.Tags,
+                SaleEndsAt = state.SaleEndsAt,
                 // The missing-fields check above already guarantees this is non-null —
                 // a draft can't reach here without one. The AI flow only ever produces
                 // a single image today, so it's the product's one and only (main) image.
@@ -363,7 +365,6 @@ namespace MerchForge.api.Services.ProductAi
                     .SkipLast(1)
                     .ToList(),
                 LatestUserMessage = userMessage,
-                HasImage = draft.OriginalImageUrl is not null,
             };
 
             var scope = new AiInteractionScope(
@@ -488,7 +489,6 @@ namespace MerchForge.api.Services.ProductAi
                 }
             }
 
-            // The conversation action first...
             switch (decision.Action)
             {
                 case ProductAiAction.ReadyForReview:
@@ -509,26 +509,22 @@ namespace MerchForge.api.Services.ProductAi
                     draft.Status = ProductDraftStatus.CollectingInformation;
                     break;
             }
-
-            // ...then the image request, which is deliberately independent of it.
-            //
-            // "Make the background white and change the price to $35" is two things at
-            // once, and the action is single-valued. Keying the image edit off the
-            // action made the model choose between them, and it reasonably reported
-            // update_draft because the product genuinely had changed - so the image
-            // request was silently lost. The prompt is the trigger; the action only
-            // describes where the product conversation stands.
-            if (!string.IsNullOrWhiteSpace(decision.ImageModificationPrompt)
-                && draft.Status is not ProductDraftStatus.Cancelled)
-            {
-                await StartImageModificationAsync(draft, decision, cancellationToken);
-            }
         }
 
+
+        [System.Text.RegularExpressions.GeneratedRegex("^#[0-9A-Fa-f]{6}$")]
+        private static partial System.Text.RegularExpressions.Regex HexColorPattern();
 
         /// <summary>
         /// Removes metadata values the business does not permit, returning a message
         /// for each field that lost something.
+        ///
+        /// Two independent reasons a value gets removed: it's outside a closed
+        /// allowedValues set, or - for ColorList, which normally has no allowedValues
+        /// at all - it isn't a hex code. Both are checked here, before confirmation,
+        /// rather than left to fail at product creation: ProductMetadataBuilder
+        /// rejects a non-hex ColorList value with a hard exception, and a colour
+        /// name reaching that far would surface as a crash instead of a chat message.
         ///
         /// Removal rather than rejection of the whole turn: the rest of what the owner
         /// said is still good, and losing it because one value was wrong would be worse
@@ -548,22 +544,37 @@ namespace MerchForge.api.Services.ProductAi
 
             foreach (var key in state.Metadata.Keys.ToList())
             {
-                if (!rules.TryGetValue(key, out var rule) || rule.AllowedValues.Count == 0)
+                if (!rules.TryGetValue(key, out var rule))
                 {
                     continue;
                 }
+
+                Func<string, bool>? isAllowed = rule.AllowedValues.Count > 0
+                    ? v => rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase)
+                    : rule.ValueType == ProductAttributeValueType.ColorList
+                        ? v => HexColorPattern().IsMatch(v)
+                        : null;
+
+                if (isAllowed is null)
+                {
+                    continue;
+                }
+
+                var expectation = rule.AllowedValues.Count > 0
+                    ? $"Please choose from: {string.Join(", ", rule.AllowedValues)}."
+                    : "Colors must be hex codes, like #RRGGBB.";
 
                 var value = state.Metadata[key];
 
                 var offending = value.ValueKind switch
                 {
-                    JsonValueKind.String => rule.AllowedValues.Contains(value.GetString()!, StringComparer.OrdinalIgnoreCase)
+                    JsonValueKind.String => isAllowed(value.GetString()!)
                         ? []
                         : new List<string> { value.GetString()! },
                     JsonValueKind.Array => value.EnumerateArray()
                         .Where(e => e.ValueKind == JsonValueKind.String)
                         .Select(e => e.GetString()!)
-                        .Where(v => !rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase))
+                        .Where(v => !isAllowed(v))
                         .ToList(),
                     _ => [],
                 };
@@ -579,7 +590,7 @@ namespace MerchForge.api.Services.ProductAi
                     var kept = value.EnumerateArray()
                         .Where(e => e.ValueKind == JsonValueKind.String)
                         .Select(e => e.GetString()!)
-                        .Where(v => rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase))
+                        .Where(isAllowed)
                         .ToList();
 
                     if (kept.Count > 0)
@@ -597,69 +608,10 @@ namespace MerchForge.api.Services.ProductAi
                 }
 
                 messages.Add(
-                    $"{string.Join(" and ", offending)} isn't available for {key}. "
-                    + $"Please choose from: {string.Join(", ", rule.AllowedValues)}.");
+                    $"{string.Join(" and ", offending)} isn't available for {key}. {expectation}");
             }
 
             return messages;
-        }
-
-        private async Task StartImageModificationAsync(
-            ProductDraft draft,
-            ProductAiDecision decision,
-            CancellationToken cancellationToken)
-        {
-            if (draft.OriginalImageUrl is null || string.IsNullOrWhiteSpace(decision.ImageModificationPrompt))
-            {
-                // Nothing to edit, or no instruction: stay in the conversation rather
-                // than entering an image state that can never resolve.
-                draft.Status = ProductDraftStatus.CollectingInformation;
-                return;
-            }
-
-            draft.ImageModificationPrompt = decision.ImageModificationPrompt;
-
-            if (!_imageEditor.IsAvailable)
-            {
-                // Said plainly instead of silently ignoring the request, which would
-                // leave the owner waiting for an edit that is never coming.
-                ProductDraftState.AppendMessage(
-                    draft,
-                    "assistant",
-                    "I can't edit images yet, so I'll use the image as you uploaded it.",
-                    "text");
-
-                draft.ImageModificationPrompt = null;
-                draft.Status = ProductDraftStatus.CollectingInformation;
-                return;
-            }
-
-            draft.Status = ProductDraftStatus.ProcessingImage;
-
-            try
-            {
-                draft.ProcessedImageUrl = await _imageEditor.EditAsync(
-                    draft.BusinessId,
-                    draft.OriginalImageUrl,
-                    decision.ImageModificationPrompt,
-                    cancellationToken);
-
-                draft.Status = ProductDraftStatus.WaitingForImageApproval;
-            }
-            catch (Exception)
-            {
-                // A failed edit must not strand the draft in ProcessingImage, which
-                // has no way out.
-                ProductDraftState.AppendMessage(
-                    draft,
-                    "assistant",
-                    "I couldn't edit the image. We can carry on with the original.",
-                    "text");
-
-                draft.ProcessedImageUrl = null;
-                draft.ImageModificationPrompt = null;
-                draft.Status = ProductDraftStatus.CollectingInformation;
-            }
         }
 
         // ---- helpers ----
@@ -701,7 +653,6 @@ namespace MerchForge.api.Services.ProductAi
             var missing = new List<string>();
 
             if (string.IsNullOrWhiteSpace(state?.Title)) missing.Add("title");
-            if (string.IsNullOrWhiteSpace(state?.Description)) missing.Add("description");
             if (state?.Price is null) missing.Add("price");
             if (state?.CategoryId is null) missing.Add("category");
 
@@ -740,7 +691,7 @@ namespace MerchForge.api.Services.ProductAi
                 ? $" I'll also ask about {string.Join(", ", form.MetadataFields.Select(f => f.Label.ToLowerInvariant()))} if they apply."
                 : string.Empty;
 
-            return "Hi! I can set up a product for you. Send me a photo and tell me what it is, "
+            return "Hi! I can set up a product for you. Tell me what it is, "
                 + $"what it costs, and which category it belongs to.{extras} "
                 + "You can type or record a voice message.";
         }
@@ -792,8 +743,13 @@ namespace MerchForge.api.Services.ProductAi
                     Title = state.Title,
                     Description = state.Description,
                     Price = state.Price,
+                    CompareAtPrice = state.CompareAtPrice,
                     CategoryId = state.CategoryId,
                     CategoryName = categoryName,
+                    Sku = state.Sku,
+                    StockQuantity = state.StockQuantity,
+                    Tags = state.Tags,
+                    SaleEndsAt = state.SaleEndsAt,
                     Metadata = state.Metadata is null
                         ? null
                         : JsonSerializer.SerializeToDocument(state.Metadata),

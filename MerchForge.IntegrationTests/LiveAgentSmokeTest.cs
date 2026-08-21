@@ -39,7 +39,6 @@ public class LiveAgentSmokeTest : IClassFixture<LiveAgentFixture>
             CurrentDraft = null,
             History = [],
             LatestUserMessage = "A black shirt for $20.",
-            HasImage = false,
         };
 
         var result = await _fixture.CreateClient().ContinueConversationAsync(context);
@@ -56,7 +55,6 @@ public class LiveAgentSmokeTest : IClassFixture<LiveAgentFixture>
             ProductAiAction.RequestInformation,
             ProductAiAction.UpdateDraft,
             ProductAiAction.ReadyForReview,
-            ProductAiAction.RequestImageModification,
             ProductAiAction.Cancel);
 
         // Token usage is read back, which the interaction logger depends on.

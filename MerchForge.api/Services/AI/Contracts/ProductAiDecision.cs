@@ -28,12 +28,6 @@ public class ProductAiDecision
     /// this list being empty.
     /// </summary>
     public List<string> MissingFields { get; set; } = [];
-
-    /// <summary>
-    /// Set when Action is RequestImageModification. The instruction is passed to the
-    /// image service; the agent never edits an image itself.
-    /// </summary>
-    public string? ImageModificationPrompt { get; set; }
 }
 
 public enum ProductAiAction
@@ -43,9 +37,6 @@ public enum ProductAiAction
 
     /// <summary>Information was recorded; the conversation continues.</summary>
     UpdateDraft,
-
-    /// <summary>The owner asked for an image change; see ImageModificationPrompt.</summary>
-    RequestImageModification,
 
     /// <summary>The agent believes the product is complete and should be previewed.</summary>
     ReadyForReview,
@@ -66,7 +57,22 @@ public class ProductAiDraft
 
     public decimal? Price { get; set; }
 
+    /// <summary>Pre-discount price for a struck-through sale display. Null when not on sale.</summary>
+    public decimal? CompareAtPrice { get; set; }
+
     public Guid? CategoryId { get; set; }
+
+    /// <summary>Merchant-facing inventory code. Optional and free-form — the owner brings their own scheme.</summary>
+    public string? Sku { get; set; }
+
+    /// <summary>Units available. Null means untracked, distinct from 0 (tracked and out of stock).</summary>
+    public int? StockQuantity { get; set; }
+
+    /// <summary>Freeform merchandising badges ("New", "Bestseller"). Never null — an empty list means none.</summary>
+    public List<string> Tags { get; set; } = [];
+
+    /// <summary>When a time-limited sale on this product ends. Null means no promotion deadline.</summary>
+    public DateTime? SaleEndsAt { get; set; }
 
     /// <summary>
     /// Values for the business's configured fields, keyed by field key. Raw JSON so

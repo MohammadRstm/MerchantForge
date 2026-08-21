@@ -120,7 +120,6 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
                     Action = MapAction(raw.Action),
                     Message = raw.Message ?? string.Empty,
                     MissingFields = raw.MissingFields ?? [],
-                    ImageModificationPrompt = raw.ImageModificationPrompt,
                     Draft = MapDraft(raw.Draft, context),
                 },
             };
@@ -154,7 +153,6 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
     {
         "request_information" => ProductAiAction.RequestInformation,
         "update_draft" => ProductAiAction.UpdateDraft,
-        "request_image_modification" => ProductAiAction.RequestImageModification,
         "ready_for_review" => ProductAiAction.ReadyForReview,
         "cancel" => ProductAiAction.Cancel,
         // The schema constrains this to the enum above, so anything else means the
@@ -171,13 +169,19 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         }
 
         Guid? categoryId = Guid.TryParse(raw.CategoryId, out var parsed) ? parsed : null;
+        DateTime? saleEndsAt = DateTime.TryParse(raw.SaleEndsAt, out var parsedDate) ? parsedDate : null;
 
         return new ProductAiDraft
         {
             Title = raw.Title,
             Description = raw.Description,
             Price = raw.Price,
+            CompareAtPrice = raw.CompareAtPrice,
             CategoryId = categoryId,
+            Sku = raw.Sku,
+            StockQuantity = raw.StockQuantity,
+            Tags = raw.Tags ?? [],
+            SaleEndsAt = saleEndsAt,
             Metadata = MapMetadata(raw.Metadata, context),
         };
     }
@@ -226,7 +230,7 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
 
             JsonElement? mapped = valueType switch
             {
-                "TextList" => ToElement(values),
+                "TextList" or "ColorList" => ToElement(values),
                 "Number" => decimal.TryParse(values[0], out var number) ? ToElement(number) : null,
                 "Boolean" => bool.TryParse(values[0], out var flag) ? ToElement(flag) : null,
                 _ => ToElement(values[0]),
@@ -249,7 +253,6 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         public string? Action { get; set; }
         public string? Message { get; set; }
         public List<string>? MissingFields { get; set; }
-        public string? ImageModificationPrompt { get; set; }
         public RawDraft? Draft { get; set; }
     }
 
@@ -264,7 +267,12 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         public string? Title { get; set; }
         public string? Description { get; set; }
         public decimal? Price { get; set; }
+        public decimal? CompareAtPrice { get; set; }
         public string? CategoryId { get; set; }
+        public string? Sku { get; set; }
+        public int? StockQuantity { get; set; }
+        public List<string>? Tags { get; set; }
+        public string? SaleEndsAt { get; set; }
         public List<RawMetadataEntry>? Metadata { get; set; }
     }
 }

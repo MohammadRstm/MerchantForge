@@ -58,26 +58,23 @@ public class LiveEndToEndConversationTest
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private (ProductAiService Service, FakeProductImageEditor Editor, IDisposable Scope) CreateService()
+    private (ProductAiService Service, IDisposable Scope) CreateService()
     {
         var context = _db.CreateContext();
         var repo = new BusinessDashboardRepository(context);
-        var dashboard = new BusinessDashboardService(repo, new SubscriptionRepository(context));
-        var editor = new FakeProductImageEditor();
+        var dashboard = new BusinessDashboardService(repo, new SubscriptionRepository(context), new FakeBackgroundJobClient());
 
-        // Everything real except the image editor and file storage, which have no
-        // provider behind them yet.
+        // Everything real except file storage, which has no provider behind it yet.
         var service = new ProductAiService(
             new ProductDraftRepository(context),
             repo,
             dashboard,
             _ai.CreateClient(),
             new FakeAiTranscriptionService(),
-            editor,
             new FakeProductImageService(),
             new RecordingAiInteractionLogger());
 
-        return (service, editor, context);
+        return (service, context);
     }
 
     private static IFormFile Png() =>
@@ -92,7 +89,7 @@ public class LiveEndToEndConversationTest
     {
         Skip.IfNot(_ai.IsConfigured, "No AI provider configured.");
 
-        var (service, _, scope) = CreateService();
+        var (service, scope) = CreateService();
         using var _s = scope;
 
         var draft = await service.StartAsync(_business.Id, _owner);
@@ -152,7 +149,7 @@ public class LiveEndToEndConversationTest
     {
         Skip.IfNot(_ai.IsConfigured, "No AI provider configured.");
 
-        var (service, _, scope) = CreateService();
+        var (service, scope) = CreateService();
         using var _s = scope;
 
         var draft = await service.StartAsync(_business.Id, _owner);

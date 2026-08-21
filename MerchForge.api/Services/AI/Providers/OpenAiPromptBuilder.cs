@@ -53,10 +53,18 @@ internal static class OpenAiPromptBuilder
         METADATA
         - Only use keys listed in CONFIGURED PRODUCT FIELDS. Never invent keys.
         - Match the declared type: Text -> string, Number -> number, Boolean -> true/false,
-          TextList -> array of strings.
+          TextList -> array of strings, ColorList -> array of hex colors ("#RRGGBB").
         - Report metadata as a list of { key, values }, where values is always a list of
           strings. A single-valued field gets a one-item list; a list field gets several.
           Omit a field entirely when it has no value - never send an empty list for it.
+        - For ColorList, the owner names colours in plain language ("black", "navy",
+          "olive") - convert each to its standard 6-digit hex code yourself
+          ("black" -> "#000000", "white" -> "#FFFFFF"). Never send a colour name as the
+          value; it must always be a hex code. ColorList rarely has allowedValues, since
+          any colour is normally allowed - this does not mean the field is free text.
+        - TextList and ColorList are additive across turns like any other field: when the
+          owner adds one more colour or size to what a product already has, the reported
+          list is the existing values plus the new one, never the new one alone.
         - Fields marked required must be filled before the product is ready. Fields not
           marked required are optional, which means you need not ASK for them - not that
           you may ignore them when given. If the owner states one, always record it.
@@ -77,22 +85,36 @@ internal static class OpenAiPromptBuilder
           default, do not drop it quietly - and ask the owner to choose from the list.
           Naming the wrong colour on a listing is worse than asking one more question.
 
+        PRICE, STOCK AND SALE DETAILS
+        - `price` is what the product sells for now. If the owner gives both an original
+          and a discounted price ("was $80, now $60"), the lower one is `price` and the
+          higher one is `compareAtPrice` - that is what produces the struck-through
+          original price on the listing. If there is no sale, leave `compareAtPrice` null.
+        - `sku` is a merchant-facing inventory code (e.g. "HD-BLK-M"). Only set it when
+          the owner gives one explicitly; never invent one.
+        - `stockQuantity` is how many units are available. Set it only when the owner
+          states a number. Leave it null when stock is not mentioned - null means
+          untracked, which is different from 0 (tracked and sold out), so never guess 0.
+        - `tags` are short merchandising badges such as "New" or "Bestseller" - freeform,
+          not from a fixed list. Record one whenever the owner uses language like that
+          about the product. An empty list means none, never null.
+        - `saleEndsAt` is when a time-limited promotion ends, as an ISO date
+          (YYYY-MM-DD). Resolve relative phrases ("ends Friday", "for one week") against
+          Today in the STORE section. Leave it null unless the owner describes a
+          promotion with an end point.
+
         IMAGES
-        - A product needs an image. If none has been supplied, ask for one.
-        - Requests to change the picture itself - background, lighting, cropping, removing
-          objects - are image modifications, never product metadata.
-        - Whenever the owner asks for a change to the picture, put a single clear
-          instruction in `imageModificationPrompt`. Do this independently of `action`:
-          a message can both change the product and ask for an image edit, and the two
-          must not displace each other. Set `imageModificationPrompt` to null otherwise.
-        - Never say an image has been edited. You only report that a change was requested.
+        - Photos are handled elsewhere, not by you. Never ask for a picture, never
+          acknowledge one, and never discuss editing, replacing or improving one -
+          even if the owner brings it up. If they mention a photo, say briefly that
+          it's handled separately and move on to whatever product detail is still
+          needed. This is true regardless of whether one has been supplied already.
 
         CHOOSING AN ACTION
         - request_information: something required is missing or ambiguous. Ask for it in `message`.
         - update_draft: you recorded information and the conversation continues.
-        - request_image_modification: the owner asked ONLY to change the image and there
-          is nothing new about the product itself.
-        - ready_for_review: title, description, price and categoryId are all set.
+        - ready_for_review: title, price and categoryId are all set (description too,
+          if the owner has said enough to write one).
           This proposes the product for review. It does NOT create it - the owner
           confirms separately - so do not tell them it has been created or saved.
         - cancel: the owner clearly wants to abandon this product.
@@ -126,7 +148,7 @@ internal static class OpenAiPromptBuilder
         builder.AppendLine("# STORE");
         builder.AppendLine($"Name: {context.BusinessName}");
         builder.AppendLine($"Currency: {context.Currency}");
-        builder.AppendLine($"Image supplied: {(context.HasImage ? "yes" : "no")}");
+        builder.AppendLine($"Today: {DateTime.UtcNow:yyyy-MM-dd}");
         builder.AppendLine();
 
         builder.AppendLine("# AVAILABLE CATEGORIES (copy an id exactly, or null)");
@@ -184,24 +206,28 @@ internal static class OpenAiPromptBuilder
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["action", "message", "draft", "missingFields", "imageModificationPrompt"],
+          "required": ["action", "message", "draft", "missingFields"],
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["request_information", "update_draft", "request_image_modification", "ready_for_review", "cancel"]
+              "enum": ["request_information", "update_draft", "ready_for_review", "cancel"]
             },
             "message": { "type": "string" },
             "missingFields": { "type": "array", "items": { "type": "string" } },
-            "imageModificationPrompt": { "type": ["string", "null"] },
             "draft": {
               "type": ["object", "null"],
               "additionalProperties": false,
-              "required": ["title", "description", "price", "categoryId", "metadata"],
+              "required": ["title", "description", "price", "compareAtPrice", "categoryId", "sku", "stockQuantity", "tags", "saleEndsAt", "metadata"],
               "properties": {
                 "title": { "type": ["string", "null"] },
                 "description": { "type": ["string", "null"] },
                 "price": { "type": ["number", "null"] },
+                "compareAtPrice": { "type": ["number", "null"] },
                 "categoryId": { "type": ["string", "null"] },
+                "sku": { "type": ["string", "null"] },
+                "stockQuantity": { "type": ["integer", "null"] },
+                "tags": { "type": "array", "items": { "type": "string" } },
+                "saleEndsAt": { "type": ["string", "null"], "description": "ISO date YYYY-MM-DD" },
                 "metadata": {
                   "type": "array",
                   "items": {

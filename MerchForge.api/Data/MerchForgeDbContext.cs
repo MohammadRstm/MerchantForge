@@ -24,6 +24,8 @@ namespace MerchForge.api.Data
 
         public DbSet<Product> Products => Set<Product>();
 
+        public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+
         public DbSet<ProductDraft> ProductDrafts => Set<ProductDraft>();
 
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

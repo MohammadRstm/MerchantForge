@@ -17,7 +17,19 @@ public class StorefrontProductDetailResponse
 
     public decimal Price { get; set; }
 
+    public decimal? CompareAtPrice { get; set; }
+
     public string? ImageUrl { get; set; }
+
+    public List<StorefrontProductImageResponse> Images { get; set; } = [];
+
+    public string? Sku { get; set; }
+
+    public int? StockQuantity { get; set; }
+
+    public List<string> Tags { get; set; } = [];
+
+    public DateTime? SaleEndsAt { get; set; }
 
     public StorefrontProductCategoryResponse Category { get; set; } = new();
 

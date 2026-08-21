@@ -4,6 +4,7 @@ using MerchForge.api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MerchForge.api.Migrations
 {
     [DbContext(typeof(MerchForgeDbContext))]
-    partial class MerchForgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820233847_AddFixedProductMerchandisingFields")]
+    partial class AddFixedProductMerchandisingFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -192,7 +195,7 @@ namespace MerchForge.api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("BusinessUserRoles", (string)null);
+                    b.ToTable("BusinessUserRoles");
 
                     b.HasData(
                         new
@@ -460,7 +463,7 @@ namespace MerchForge.api.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
-                    b.ToTable("Invitations", (string)null);
+                    b.ToTable("Invitations");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.PlanFeature", b =>
@@ -527,9 +530,7 @@ namespace MerchForge.api.Migrations
 
                     b.PrimitiveCollection<string>("Tags")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("json")
-                        .HasDefaultValueSql("(JSON_ARRAY())");
+                        .HasColumnType("json");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -1081,55 +1082,6 @@ namespace MerchForge.api.Migrations
                     b.ToTable("product_drafts", (string)null);
                 });
 
-            modelBuilder.Entity("MerchForge.api.Models.ProductImage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("AltText")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("Height")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsMain")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<Guid?>("MainImageProductId")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("char(36)")
-                        .HasComputedColumnSql("(CASE WHEN `IsMain` = 1 THEN `ProductId` ELSE NULL END)", true);
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<int?>("Width")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MainImageProductId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_product_images_OneMainPerProduct");
-
-                    b.HasIndex("ProductId", "DisplayOrder");
-
-                    b.ToTable("product_images", (string)null);
-                });
-
             modelBuilder.Entity("MerchForge.api.Models.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1321,7 +1273,7 @@ namespace MerchForge.api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SystemRoles", (string)null);
+                    b.ToTable("SystemRoles");
 
                     b.HasData(
                         new
@@ -1485,17 +1437,6 @@ namespace MerchForge.api.Migrations
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("MerchForge.api.Models.ProductImage", b =>
-                {
-                    b.HasOne("MerchForge.api.Models.Product", "Product")
-                        .WithMany("Images")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-                });
-
             modelBuilder.Entity("MerchForge.api.Models.RefreshToken", b =>
                 {
                     b.HasOne("MerchForge.api.Models.User", "User")
@@ -1566,11 +1507,6 @@ namespace MerchForge.api.Migrations
             modelBuilder.Entity("MerchForge.api.Models.Feature", b =>
                 {
                     b.Navigation("PlanFeatures");
-                });
-
-            modelBuilder.Entity("MerchForge.api.Models.Product", b =>
-                {
-                    b.Navigation("Images");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.SubscriptionPlan", b =>

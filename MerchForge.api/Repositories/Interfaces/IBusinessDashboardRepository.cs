@@ -86,6 +86,17 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Replaces a product's entire image gallery and persists it, along with any
+        /// other pending changes already made to the tracked product. product.Images
+        /// must already be loaded (GetTrackedProductAsync does this) so the existing
+        /// rows are known and can be removed.
+        /// </summary>
+        Task ReplaceProductImagesAsync(
+            Product product,
+            List<ProductImage> newImages,
+            CancellationToken cancellationToken = default);
+
         Task DeleteProductAsync(
             Product product,
             CancellationToken cancellationToken = default);

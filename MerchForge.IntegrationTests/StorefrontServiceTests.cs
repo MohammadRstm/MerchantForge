@@ -68,6 +68,40 @@ public class StorefrontServiceTests : IClassFixture<CatalogDatabaseFixture>, IAs
             new DateTime(2026, 2, 4, 0, 0, 0, DateTimeKind.Utc));
     }
 
+    /// <summary>
+    /// Seeds a product with a real, multi-image gallery inserted deliberately out of
+    /// DisplayOrder, to prove reads sort by DisplayOrder rather than insertion order.
+    /// Local to each test that needs it rather than shared setup, since several
+    /// existing tests assert exact product counts for _fashionBusiness.
+    /// </summary>
+    private async Task<Product> SeedGalleryProductAsync()
+    {
+        await using var seed = _fixture.CreateContext();
+
+        var product = new Product
+        {
+            Id = Guid.NewGuid(),
+            BusinessId = _fashionBusiness.Id,
+            CategoryId = CatalogDatabaseFixture.ShirtsCategoryId,
+            Title = "Gallery Shirt",
+            Description = "A shirt with a gallery.",
+            Price = 45m,
+            ImageUrl = "/img/first.png",
+            CreatedAt = new DateTime(2026, 2, 6, 0, 0, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2026, 2, 6, 0, 0, 0, DateTimeKind.Utc),
+        };
+        seed.Products.Add(product);
+
+        seed.ProductImages.AddRange(
+            new ProductImage { Id = Guid.NewGuid(), ProductId = product.Id, Url = "/img/third.png", IsMain = false, DisplayOrder = 2 },
+            new ProductImage { Id = Guid.NewGuid(), ProductId = product.Id, Url = "/img/first.png", IsMain = true, DisplayOrder = 0, Width = 800, Height = 600 },
+            new ProductImage { Id = Guid.NewGuid(), ProductId = product.Id, Url = "/img/second.png", IsMain = false, DisplayOrder = 1 });
+
+        await seed.SaveChangesAsync();
+
+        return product;
+    }
+
     public Task DisposeAsync() => Task.CompletedTask;
 
     private StorefrontService CreateService(out MerchForgeDbContextScope scope)
@@ -374,6 +408,23 @@ public class StorefrontServiceTests : IClassFixture<CatalogDatabaseFixture>, IAs
     }
 
     [Fact]
+    public async Task GetProducts_includes_each_products_images_sorted_by_display_order()
+    {
+        var galleryProduct = await SeedGalleryProductAsync();
+
+        var service = CreateService(out var scope);
+        using var _ = scope;
+
+        var page = await service.GetProductsAsync(_fashionBusiness.Id, new StorefrontProductsQueryRequest());
+
+        var listed = page.Items.Single(p => p.Id == galleryProduct.Id);
+        listed.Images.Select(i => i.Url).Should().Equal("/img/first.png", "/img/second.png", "/img/third.png");
+
+        // Products seeded without a gallery still return an empty array, not null.
+        page.Items.Single(p => p.Id == _sneakers.Id).Images.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetProducts_throws_for_an_unknown_business()
     {
         var service = CreateService(out var scope);
@@ -398,6 +449,28 @@ public class StorefrontServiceTests : IClassFixture<CatalogDatabaseFixture>, IAs
         product.Description.Should().NotBeNullOrWhiteSpace();
         product.Category.Slug.Should().Be("shoes");
         product.Metadata.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetProduct_returns_all_images_sorted_by_display_order()
+    {
+        var galleryProduct = await SeedGalleryProductAsync();
+
+        var service = CreateService(out var scope);
+        using var _ = scope;
+
+        var detail = await service.GetProductAsync(_fashionBusiness.Id, galleryProduct.Id);
+
+        detail.ImageUrl.Should().Be("/img/first.png");
+        detail.Images.Should().HaveCount(3);
+        // Equal, not BeEquivalentTo: order matters here, not just membership.
+        detail.Images.Select(i => i.Url).Should().Equal("/img/first.png", "/img/second.png", "/img/third.png");
+        detail.Images.Select(i => i.DisplayOrder).Should().Equal(0, 1, 2);
+        detail.Images.Should().ContainSingle(i => i.IsMain).Which.Url.Should().Be("/img/first.png");
+
+        var mainImage = detail.Images.Single(i => i.IsMain);
+        mainImage.Width.Should().Be(800);
+        mainImage.Height.Should().Be(600);
     }
 
     [Fact]
@@ -454,6 +527,22 @@ public class StorefrontServiceTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         // Rival Sneakers is in the same category, but a different business.
         related.Should().NotContain(p => p.Id == _otherBusinessShoe.Id);
+    }
+
+    [Fact]
+    public async Task GetRelatedProducts_includes_images_sorted_by_display_order()
+    {
+        // Same category as _tee (Shirts), so it comes back as a related sibling.
+        var galleryProduct = await SeedGalleryProductAsync();
+
+        var service = CreateService(out var scope);
+        using var _ = scope;
+
+        var related = await service.GetRelatedProductsAsync(_fashionBusiness.Id, _tee.Id, 4);
+
+        var listed = related.Should().ContainSingle().Which;
+        listed.Id.Should().Be(galleryProduct.Id);
+        listed.Images.Select(i => i.Url).Should().Equal("/img/first.png", "/img/second.png", "/img/third.png");
     }
 
     [Fact]

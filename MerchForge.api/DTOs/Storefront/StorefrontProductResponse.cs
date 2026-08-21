@@ -22,7 +22,25 @@ public class StorefrontProductResponse
 
     public decimal Price { get; set; }
 
+    /// <summary>Pre-discount price for a struck-through sale display. Null when not on sale.</summary>
+    public decimal? CompareAtPrice { get; set; }
+
+    /// <summary>The main image's URL, kept in sync with Images — for consumers that only need one image.</summary>
     public string? ImageUrl { get; set; }
+
+    /// <summary>The full gallery, ordered for display. One entry has IsMain = true.</summary>
+    public List<StorefrontProductImageResponse> Images { get; set; } = [];
+
+    public string? Sku { get; set; }
+
+    /// <summary>Null means inventory isn't tracked for this product; 0 means tracked and out of stock.</summary>
+    public int? StockQuantity { get; set; }
+
+    /// <summary>Freeform merchandising badges, e.g. "New", "Bestseller". Never null; empty when none.</summary>
+    public List<string> Tags { get; set; } = [];
+
+    /// <summary>When a time-limited sale on this product ends, for a countdown display. Null if none.</summary>
+    public DateTime? SaleEndsAt { get; set; }
 
     public StorefrontProductCategoryResponse Category { get; set; } = new();
 

@@ -151,7 +151,9 @@ namespace MerchForge.api.Repositories.Implementations
                 Title = p.Title,
                 Category = p.Category.Name,
                 Price = p.Price,
+                CompareAtPrice = p.CompareAtPrice,
                 ImageUrl = p.ImageUrl,
+                StockQuantity = p.StockQuantity,
                 CreatedAt = p.CreatedAt,
             });
 
@@ -247,9 +249,27 @@ namespace MerchForge.api.Repositories.Implementations
                     Title = p.Title,
                     Description = p.Description,
                     Price = p.Price,
+                    CompareAtPrice = p.CompareAtPrice,
                     CategoryId = p.CategoryId,
                     CategoryName = p.Category.Name,
                     ImageUrl = p.ImageUrl,
+                    Images = p.Images
+                        .OrderBy(i => i.DisplayOrder)
+                        .Select(i => new ProductImageResponse
+                        {
+                            Id = i.Id,
+                            Url = i.Url,
+                            IsMain = i.IsMain,
+                            Width = i.Width,
+                            Height = i.Height,
+                            AltText = i.AltText,
+                            DisplayOrder = i.DisplayOrder,
+                        })
+                        .ToList(),
+                    Sku = p.Sku,
+                    StockQuantity = p.StockQuantity,
+                    Tags = p.Tags,
+                    SaleEndsAt = p.SaleEndsAt,
                     Metadata = p.Metadata,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt,
@@ -325,7 +345,11 @@ namespace MerchForge.api.Repositories.Implementations
             Guid productId,
             CancellationToken cancellationToken = default)
         {
+            // Images included and tracked: UpdateProductAsync does a full
+            // Images.Clear()-then-rebuild, which needs the existing rows loaded to
+            // know what to delete.
             return await _db.Products
+                .Include(p => p.Images)
                 .FirstOrDefaultAsync(
                     p => p.Id == productId && p.BusinessId == businessId,
                     cancellationToken);
@@ -333,6 +357,31 @@ namespace MerchForge.api.Repositories.Implementations
 
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task ReplaceProductImagesAsync(
+            Product product,
+            List<ProductImage> newImages,
+            CancellationToken cancellationToken = default)
+        {
+            // Explicit Remove/Add rather than mutating product.Images in place
+            // (Clear() + Add()). A freshly-constructed ProductImage already carries a
+            // real, client-generated Guid — attaching it purely via navigation fixup
+            // leaves EF's change tracker to guess whether that's a new row or an
+            // existing one it just hasn't seen yet, and it guesses existing, producing
+            // an UPDATE for a row that was never inserted. Going through the DbSet
+            // directly is unambiguous: Added means INSERT, Removed means DELETE.
+            _db.ProductImages.RemoveRange(product.Images);
+
+            foreach (var image in newImages)
+            {
+                image.ProductId = product.Id;
+                _db.ProductImages.Add(image);
+            }
+
+            // Also flushes whatever scalar changes the caller already made to
+            // `product` before calling this — one transaction, one round trip.
             await _db.SaveChangesAsync(cancellationToken);
         }
 

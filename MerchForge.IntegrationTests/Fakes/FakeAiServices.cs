@@ -76,29 +76,6 @@ public class FakeAiTranscriptionService : IAiTranscriptionService
     }
 }
 
-public class FakeProductImageEditor : IProductImageEditor
-{
-    public bool IsAvailable { get; set; } = true;
-
-    public Exception? Failure { get; set; }
-
-    public string EditedUrl { get; set; } = "/uploads/products/edited.png";
-
-    public Task<string> EditAsync(
-        Guid businessId,
-        string sourceImageUrl,
-        string modificationPrompt,
-        CancellationToken cancellationToken = default)
-    {
-        if (Failure is not null)
-        {
-            throw Failure;
-        }
-
-        return Task.FromResult(EditedUrl);
-    }
-}
-
 /// <summary>Skips disk entirely; the real upload path is covered by the product CRUD tests.</summary>
 public class FakeProductImageService : IProductImageService
 {
@@ -107,6 +84,13 @@ public class FakeProductImageService : IProductImageService
     public Task<string> SaveAsync(
         Guid businessId,
         IFormFile file,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(SavedUrl);
+
+    public Task<string> SaveAsync(
+        Guid businessId,
+        byte[] bytes,
+        string contentType,
         CancellationToken cancellationToken = default)
         => Task.FromResult(SavedUrl);
 }

@@ -55,6 +55,41 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             var extension = await ResolveVerifiedExtensionAsync(file, cancellationToken);
 
+            await using var stream = file.OpenReadStream();
+
+            return await WriteAsync(businessId, stream, extension, cancellationToken);
+        }
+
+        public async Task<string> SaveAsync(
+            Guid businessId,
+            byte[] bytes,
+            string contentType,
+            CancellationToken cancellationToken = default)
+        {
+            if (bytes.Length == 0)
+            {
+                throw new InvalidProductImageException("The image is empty.");
+            }
+
+            if (bytes.Length > _options.MaxBytes)
+            {
+                var maxMb = _options.MaxBytes / (1024 * 1024);
+                throw new InvalidProductImageException($"Images must be {maxMb} MB or smaller.");
+            }
+
+            var extension = ResolveVerifiedExtension(contentType, bytes);
+
+            using var stream = new MemoryStream(bytes, writable: false);
+
+            return await WriteAsync(businessId, stream, extension, cancellationToken);
+        }
+
+        private async Task<string> WriteAsync(
+            Guid businessId,
+            Stream content,
+            string extension,
+            CancellationToken cancellationToken)
+        {
             // Images are grouped per business so one business's uploads are never
             // interleaved with another's on disk.
             var relativeDirectory = Path.Combine(_options.RelativePath, businessId.ToString());
@@ -62,15 +97,15 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             Directory.CreateDirectory(absoluteDirectory);
 
-            // Filename is generated server-side and never derived from the client's,
+            // Filename is generated server-side and never derived from client input,
             // which would otherwise allow path traversal (../../appsettings.json) or
             // overwriting another business's file.
             var fileName = $"{Guid.NewGuid():N}{extension}";
             var absolutePath = Path.Combine(absoluteDirectory, fileName);
 
-            await using (var stream = new FileStream(absolutePath, FileMode.CreateNew))
+            await using (var destination = new FileStream(absolutePath, FileMode.CreateNew))
             {
-                await file.CopyToAsync(stream, cancellationToken);
+                await content.CopyToAsync(destination, cancellationToken);
             }
 
             // Forward slashes: this becomes a URL, not a filesystem path.
@@ -112,6 +147,48 @@ namespace MerchForge.api.Services.BusinessDashboard
                 }
             }
 
+            if (!MatchesSignature(candidate, header))
+            {
+                // Deliberately does not echo the declared type back — the mismatch is
+                // the whole finding, and restating the client's claim invites confusion.
+                throw new InvalidProductImageException(
+                    "The uploaded file isn't a valid image of the type it claims to be.");
+            }
+
+            return candidate.Extension;
+        }
+
+        private static string ResolveVerifiedExtension(string contentType, byte[] bytes)
+        {
+            var declared = contentType?.ToLowerInvariant() ?? string.Empty;
+
+            var candidate = AllowedImages.FirstOrDefault(a => a.ContentType == declared);
+
+            if (candidate.ContentType is null)
+            {
+                throw new InvalidProductImageException("Images must be JPEG, PNG, GIF or WEBP.");
+            }
+
+            if (bytes.Length < 4)
+            {
+                throw new InvalidProductImageException("The image isn't a valid image.");
+            }
+
+            var header = bytes.Length >= 12 ? bytes[..12] : bytes;
+
+            if (!MatchesSignature(candidate, header))
+            {
+                throw new InvalidProductImageException(
+                    "The image isn't a valid image of the type it claims to be.");
+            }
+
+            return candidate.Extension;
+        }
+
+        private static bool MatchesSignature(
+            (string ContentType, string Extension, byte[][] Signatures) candidate,
+            byte[] header)
+        {
             var matches = candidate.Signatures.Any(signature =>
                 header.Length >= signature.Length &&
                 header.Take(signature.Length).SequenceEqual(signature));
@@ -124,15 +201,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                     && header[10] == 0x42 && header[11] == 0x50;
             }
 
-            if (!matches)
-            {
-                // Deliberately does not echo the declared type back — the mismatch is
-                // the whole finding, and restating the client's claim invites confusion.
-                throw new InvalidProductImageException(
-                    "The uploaded file isn't a valid image of the type it claims to be.");
-            }
-
-            return candidate.Extension;
+            return matches;
         }
     }
 }

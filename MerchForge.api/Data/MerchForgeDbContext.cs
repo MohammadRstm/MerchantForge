@@ -39,6 +39,7 @@ namespace MerchForge.api.Data
         public DbSet<FeatureCreditPackage> FeatureCreditPackages => Set<FeatureCreditPackage>();
         public DbSet<BusinessFeatureCredit> BusinessFeatureCredits => Set<BusinessFeatureCredit>();
         public DbSet<FeatureCreditTransaction> FeatureCreditTransactions => Set<FeatureCreditTransaction>();
+        public DbSet<ImageEditJob> ImageEditJobs => Set<ImageEditJob>();
 
         public DbSet<Invitation> Invitations => Set<Invitation>();
 

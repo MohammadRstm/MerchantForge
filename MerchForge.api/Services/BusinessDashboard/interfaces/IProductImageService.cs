@@ -11,5 +11,17 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid businessId,
             IFormFile file,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Same validation and storage as the upload path, for bytes that didn't come
+        /// through a form upload - an AI-edited image, say. contentType is trusted
+        /// here rather than re-derived, since the caller already knows what it asked
+        /// the provider to return; the byte-signature check still applies.
+        /// </summary>
+        Task<string> SaveAsync(
+            Guid businessId,
+            byte[] bytes,
+            string contentType,
+            CancellationToken cancellationToken = default);
     }
 }

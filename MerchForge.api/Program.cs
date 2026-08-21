@@ -21,6 +21,8 @@ using MerchForge.api.Services.Dashboard;
 using MerchForge.api.Services.Dashboard.interfaces;
 using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
+using MerchForge.api.Services.ImageEditing;
+using MerchForge.api.Services.ImageEditing.Interfaces;
 using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Invitation.interfaces;
 using MerchForge.api.Services.AI;
@@ -255,12 +257,28 @@ else
     builder.Services.AddScoped<IAiTranscriptionService, UnavailableAiTranscriptionService>();
 }
 
-// No image editing backend yet. The interface and workflow exist so one can be
-// added without touching the orchestration.
-builder.Services.AddScoped<IProductImageEditor, UnavailableProductImageEditor>();
-
 builder.Services.AddScoped<IAiInteractionLogger, AiInteractionLogger>();
 builder.Services.AddScoped<IProductAiService, ProductAiService>();
+
+// AI image editing - the second, independent AI feature. Same "fail clean without a
+// key" reasoning as above, and a separate provider (Gemini) from the conversation
+// model above, so it is configured and switched on its own.
+builder.Services
+    .AddOptions<GeminiOptions>()
+    .Bind(builder.Configuration.GetSection(GeminiOptions.SectionName));
+
+var geminiOptions = builder.Configuration.GetSection(GeminiOptions.SectionName).Get<GeminiOptions>() ?? new GeminiOptions();
+
+if (geminiOptions.IsConfigured)
+{
+    builder.Services.AddHttpClient<IProductImageEditingClient, GeminiImageEditingClient>();
+}
+else
+{
+    builder.Services.AddScoped<IProductImageEditingClient, UnavailableProductImageEditingClient>();
+}
+
+builder.Services.AddScoped<IImageEditingService, ImageEditingService>();
 
 // Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();
@@ -344,6 +362,16 @@ builder.Services.AddAuthorization(options =>
                 ));
         });
 
+    options.AddPolicy(
+        AuthorizationPolicies.AiImageEditing,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                     FeatureKeys.AiImageEditing
+                ));
+        });
+
     // add more policies as more services are added
 });
 
@@ -368,6 +396,7 @@ builder.Services.AddScoped<IStorefrontRepository, StorefrontRepository>();
 builder.Services.AddScoped<IDomainRepository, DomainRepository>();
 builder.Services.AddScoped<IProductDraftRepository, ProductDraftRepository>();
 builder.Services.AddScoped<IFeatureCreditRepository, FeatureCreditRepository>();
+builder.Services.AddScoped<IImageEditJobRepository, ImageEditJobRepository>();
 
 // build app
 var app = builder.Build();

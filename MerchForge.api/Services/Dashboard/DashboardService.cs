@@ -1,9 +1,11 @@
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Exceptions.Dashboard;
+using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Dashboard.interfaces;
+using MerchForge.api.Services.Onboarding.interfaces;
 
 namespace MerchForge.api.Services.Dashboard
 {
@@ -13,13 +15,16 @@ namespace MerchForge.api.Services.Dashboard
 
         private readonly IDashboardRepository _dashboardRepository;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
+        private readonly IDomainService _domainService;
 
         public DashboardService(
             IDashboardRepository dashboardRepository,
-            IRefreshTokenRepository refreshTokenRepository)
+            IRefreshTokenRepository refreshTokenRepository,
+            IDomainService domainService)
         {
             _dashboardRepository = dashboardRepository;
             _refreshTokenRepository = refreshTokenRepository;
+            _domainService = domainService;
         }
 
         public async Task<DashboardStatsResponse> GetPlatformStatsAsync(CancellationToken cancellationToken = default)
@@ -109,6 +114,57 @@ namespace MerchForge.api.Services.Dashboard
                 Page = query.Page,
                 PageSize = query.PageSize,
                 TotalCount = totalCount,
+            };
+        }
+
+        // ---- website templates ----
+
+        public async Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default)
+        {
+            return await _dashboardRepository.GetWebsiteTemplatesAsync(cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateResponse> CreateWebsiteTemplateAsync(
+            CreateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await _domainService.EnsureDomainExistsAsync(request.BusinessDomainId, cancellationToken);
+
+            if (await _dashboardRepository.WebsiteTemplateNameExistsAsync(request.Name, cancellationToken))
+            {
+                throw new WebsiteTemplateNameAlreadyExistsException();
+            }
+
+            var template = new WebsiteTemplate
+            {
+                Id = Guid.NewGuid(),
+                BusinessDomainId = request.BusinessDomainId,
+                Name = request.Name,
+                Label = request.Label,
+                VideoPreviewUrl = request.VideoPreviewUrl,
+                DisplayOrder = request.DisplayOrder,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+
+            await _dashboardRepository.CreateWebsiteTemplateAsync(template, cancellationToken);
+
+            var domains = await _domainService.GetDomainsAsync(cancellationToken);
+            var domainName = domains.FirstOrDefault(d => d.Id == template.BusinessDomainId)?.Name ?? string.Empty;
+
+            return new WebsiteTemplateResponse
+            {
+                Id = template.Id,
+                BusinessDomainId = template.BusinessDomainId,
+                DomainName = domainName,
+                Name = template.Name,
+                Label = template.Label,
+                VideoPreviewUrl = template.VideoPreviewUrl,
+                IsActive = template.IsActive,
+                DisplayOrder = template.DisplayOrder,
+                BusinessesUsingIt = 0,
+                CreatedAt = template.CreatedAt,
             };
         }
     }

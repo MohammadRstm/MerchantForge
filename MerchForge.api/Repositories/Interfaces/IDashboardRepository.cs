@@ -1,5 +1,6 @@
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.Models;
 
 namespace MerchForge.api.Repositories.Interfaces
 {
@@ -31,6 +32,16 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<(List<DashboardBusinessResponse> Items, int TotalCount)> GetBusinessesAsync(
             BusinessesQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        // ---- website templates ----
+
+        Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);
+
+        Task<bool> WebsiteTemplateNameExistsAsync(string name, CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplate> CreateWebsiteTemplateAsync(
+            WebsiteTemplate template,
             CancellationToken cancellationToken = default);
     }
 }

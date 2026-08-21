@@ -43,6 +43,17 @@ public class Business
     public string? ContactPhone { get; set; }
 
     /// <summary>
+    /// The storefront template this business chose, if any. Null means the business
+    /// has no website yet -- that's the whole signal the "choose a template" button
+    /// gates on, so there is deliberately no separate HasWebsite flag that could
+    /// drift out of sync with it.
+    /// </summary>
+    public Guid? WebsiteTemplateId { get; set; }
+
+    /// <summary>When the template was chosen. Null exactly when WebsiteTemplateId is null.</summary>
+    public DateTime? WebsiteTemplateChosenAt { get; set; }
+
+    /// <summary>
     /// Which product metadata fields this business's products use, snapshotted from
     /// the domain's ProductAttributeDefinition catalogue at onboarding:
     ///
@@ -72,6 +83,8 @@ public class Business
     public User Owner { get; set; } = null!;
 
     public BusinessDomain? BusinessDomain { get; set; }
+
+    public WebsiteTemplate? WebsiteTemplate { get; set; }
 
     public ICollection<BusinessUser> Members { get; set; }
         = new List<BusinessUser>();

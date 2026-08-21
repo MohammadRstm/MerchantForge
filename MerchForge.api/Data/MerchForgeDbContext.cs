@@ -19,6 +19,8 @@ namespace MerchForge.api.Data
 
         public DbSet<Category> Categories => Set<Category>();
 
+        public DbSet<WebsiteTemplate> WebsiteTemplates => Set<WebsiteTemplate>();
+
         public DbSet<ProductAttributeDefinition> ProductAttributeDefinitions
             => Set<ProductAttributeDefinition>();
 

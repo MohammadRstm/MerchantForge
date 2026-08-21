@@ -48,5 +48,16 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid businessId,
             Guid productId,
             CancellationToken cancellationToken = default);
+
+        // ---- website template ----
+
+        Task<BusinessWebsiteTemplateStatusResponse> GetWebsiteTemplateStatusAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<ChosenWebsiteTemplateResponse> ChooseWebsiteTemplateAsync(
+            Guid businessId,
+            ChooseWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default);
     }
 }

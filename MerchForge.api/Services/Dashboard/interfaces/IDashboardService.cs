@@ -19,5 +19,13 @@ namespace MerchForge.api.Services.Dashboard.interfaces
         Task<PagedResult<DashboardBusinessResponse>> GetBusinessesAsync(
             BusinessesQueryRequest query,
             CancellationToken cancellationToken = default);
+
+        // ---- website templates ----
+
+        Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateResponse> CreateWebsiteTemplateAsync(
+            CreateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default);
     }
 }

@@ -19,6 +19,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<ProductsQueryRequest> _productsQueryValidator;
         private readonly IValidator<SaveProductRequest> _saveProductValidator;
         private readonly IValidator<CreateBusinessMemberRequest> _createMemberValidator;
+        private readonly IValidator<ChooseWebsiteTemplateRequest> _chooseWebsiteTemplateValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -26,7 +27,8 @@ namespace MerchForge.api.Controllers
             IProductImageService productImageService,
             IValidator<ProductsQueryRequest> productsQueryValidator,
             IValidator<SaveProductRequest> saveProductValidator,
-            IValidator<CreateBusinessMemberRequest> createMemberValidator)
+            IValidator<CreateBusinessMemberRequest> createMemberValidator,
+            IValidator<ChooseWebsiteTemplateRequest> chooseWebsiteTemplateValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
@@ -34,6 +36,7 @@ namespace MerchForge.api.Controllers
             _productsQueryValidator = productsQueryValidator;
             _saveProductValidator = saveProductValidator;
             _createMemberValidator = createMemberValidator;
+            _chooseWebsiteTemplateValidator = chooseWebsiteTemplateValidator;
         }
 
         [HttpGet("stats")]
@@ -188,6 +191,36 @@ namespace MerchForge.api.Controllers
             var imageUrl = await _productImageService.SaveAsync(businessId, file, cancellationToken);
 
             return Ok(new ProductImageUploadResponse { ImageUrl = imageUrl });
+        }
+
+        // ---- website template ----
+
+        /// <summary>
+        /// What the "choose a website template" section needs: the business's domain,
+        /// whichever template it already chose (if any), and the domain's available
+        /// templates otherwise.
+        /// </summary>
+        [HttpGet("website-template")]
+        public async Task<ActionResult<BusinessWebsiteTemplateStatusResponse>> GetWebsiteTemplateStatus(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetWebsiteTemplateStatusAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-template")]
+        public async Task<ActionResult<ChosenWebsiteTemplateResponse>> ChooseWebsiteTemplate(
+            Guid businessId,
+            [FromBody] ChooseWebsiteTemplateRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _chooseWebsiteTemplateValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessDashboardService.ChooseWebsiteTemplateAsync(businessId, request, cancellationToken);
+
+            return Ok(response);
         }
     }
 }

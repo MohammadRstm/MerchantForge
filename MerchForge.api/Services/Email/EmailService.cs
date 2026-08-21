@@ -86,6 +86,101 @@ public class EmailService : IEmailService
         }
     }
 
+    public async Task SendWebsiteTemplateChosenNotificationAsync(
+        string adminEmail,
+        string businessName,
+        string templateLabel,
+        string templateName,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var message = new MimeMessage();
+
+            message.From.Add(
+                new MailboxAddress(
+                    _options.FromName,
+                    _options.FromEmail));
+
+            message.To.Add(
+                MailboxAddress.Parse(adminEmail));
+
+            message.Subject = $"{businessName} chose a website template";
+
+            var body = BuildWebsiteTemplateChosenEmail(businessName, templateLabel, templateName);
+
+            message.Body = new BodyBuilder
+            {
+                HtmlBody = body
+            }.ToMessageBody();
+
+            using var smtpClient = new SmtpClient();
+
+            await smtpClient.ConnectAsync(
+                _options.Host,
+                _options.Port,
+                SecureSocketOptions.StartTls,
+                cancellationToken);
+
+            await smtpClient.AuthenticateAsync(
+                _options.Username,
+                _options.Password,
+                cancellationToken);
+
+            await smtpClient.SendAsync(
+                message,
+                cancellationToken);
+
+            await smtpClient.DisconnectAsync(
+                true,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send website-template-chosen notification to {Email}. SMTP Host: {Host}, Port: {Port}",
+                adminEmail,
+                _options.Host,
+                _options.Port);
+            throw new EmailDeliveryException();
+        }
+    }
+
+    private static string BuildWebsiteTemplateChosenEmail(
+        string businessName,
+        string templateLabel,
+        string templateName)
+    {
+        return $"""
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h2>A business chose a website template</h2>
+
+                <p>
+                    <strong>{businessName}</strong> has chosen the
+                    <strong>{templateLabel}</strong> template
+                    (<code>{templateName}</code>).
+                </p>
+
+                <p>
+                    No action is required unless this template still needs to be
+                    deployed for them.
+                </p>
+
+                <p>
+                    — MerchForge
+                </p>
+            </body>
+            </html>
+            """;
+    }
+
     private static string BuildBusinessOwnerInvitationEmail(
         string invitationLink,
         DateTime expiresAt)

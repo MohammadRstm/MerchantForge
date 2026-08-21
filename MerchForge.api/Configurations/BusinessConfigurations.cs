@@ -27,6 +27,13 @@ public class BusinessConfigurations : IEntityTypeConfiguration<Business>
             .HasForeignKey(x => x.BusinessDomainId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Restrict: a SuperAdmin retiring a template must not cascade into wiping
+        // out which template the businesses already using it are on.
+        builder.HasOne(x => x.WebsiteTemplate)
+            .WithMany(x => x.Businesses)
+            .HasForeignKey(x => x.WebsiteTemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Storefront configuration
         builder.Property(x => x.Description)
             .HasMaxLength(1000);

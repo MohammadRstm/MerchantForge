@@ -4,6 +4,7 @@ using MerchForge.api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MerchForge.api.Migrations
 {
     [DbContext(typeof(MerchForgeDbContext))]
-    partial class MerchForgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260821020205_RenameGarmentSizeXxlTo2xl")]
+    partial class RenameGarmentSizeXxlTo2xl
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -79,19 +82,11 @@ namespace MerchForge.api.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<DateTime?>("WebsiteTemplateChosenAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<Guid?>("WebsiteTemplateId")
-                        .HasColumnType("char(36)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("BusinessDomainId");
 
                     b.HasIndex("OwnerUserId");
-
-                    b.HasIndex("WebsiteTemplateId");
 
                     b.ToTable("businesses", (string)null);
                 });
@@ -1348,78 +1343,6 @@ namespace MerchForge.api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("MerchForge.api.Models.WebsiteTemplate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<Guid>("BusinessDomainId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("VideoPreviewUrl")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BusinessDomainId");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("website_templates", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("e1000000-0000-4000-8000-000000000001"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000001"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Label = "Vineta Fashion",
-                            Name = "fashion-template-01",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            VideoPreviewUrl = "/videos/templates/coming-soon.mp4"
-                        },
-                        new
-                        {
-                            Id = new Guid("e1000000-0000-4000-8000-000000000002"),
-                            BusinessDomainId = new Guid("d1000000-0000-4000-8000-000000000003"),
-                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Label = "Vineta Electronics",
-                            Name = "electronic-template-01",
-                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            VideoPreviewUrl = "/videos/templates/coming-soon.mp4"
-                        });
-                });
-
             modelBuilder.Entity("MerchForge.api.Models.Business", b =>
                 {
                     b.HasOne("MerchForge.api.Models.BusinessDomain", "BusinessDomain")
@@ -1433,16 +1356,9 @@ namespace MerchForge.api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("MerchForge.api.Models.WebsiteTemplate", "WebsiteTemplate")
-                        .WithMany("Businesses")
-                        .HasForeignKey("WebsiteTemplateId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("BusinessDomain");
 
                     b.Navigation("Owner");
-
-                    b.Navigation("WebsiteTemplate");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.BusinessUser", b =>
@@ -1619,17 +1535,6 @@ namespace MerchForge.api.Migrations
                         .HasForeignKey("UserRoleId");
                 });
 
-            modelBuilder.Entity("MerchForge.api.Models.WebsiteTemplate", b =>
-                {
-                    b.HasOne("MerchForge.api.Models.BusinessDomain", "BusinessDomain")
-                        .WithMany()
-                        .HasForeignKey("BusinessDomainId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("BusinessDomain");
-                });
-
             modelBuilder.Entity("MerchForge.api.Models.Business", b =>
                 {
                     b.Navigation("CustomCategories");
@@ -1687,11 +1592,6 @@ namespace MerchForge.api.Migrations
             modelBuilder.Entity("MerchForge.api.Models.UserRole", b =>
                 {
                     b.Navigation("Users");
-                });
-
-            modelBuilder.Entity("MerchForge.api.Models.WebsiteTemplate", b =>
-                {
-                    b.Navigation("Businesses");
                 });
 #pragma warning restore 612, 618
         }

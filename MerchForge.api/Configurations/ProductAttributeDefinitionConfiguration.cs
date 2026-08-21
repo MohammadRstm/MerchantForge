@@ -36,7 +36,7 @@ public class ProductAttributeDefinitionConfiguration
 
     // Closed sets where a free-form value would be meaningless to filter or display
     // consistently across a catalog.
-    private static readonly string[] GarmentSizes = ["XS", "S", "M", "L", "XL", "XXL"];
+    private static readonly string[] GarmentSizes = ["XS", "S", "M", "L", "XL", "2XL"];
 
     public void Configure(EntityTypeBuilder<ProductAttributeDefinition> builder)
     {

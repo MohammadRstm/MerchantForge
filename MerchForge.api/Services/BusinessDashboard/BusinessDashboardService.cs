@@ -1,8 +1,10 @@
 ﻿using System.Text.Json;
+using Hangfire;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Exceptions.Storefront;
+using MerchForge.api.Jobs.Email;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Common;
@@ -15,13 +17,16 @@ namespace MerchForge.api.Services.BusinessDashboard
 
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly IBackgroundJobClient _backgroundJobClient;
 
         public BusinessDashboardService(
             IBusinessDashboardRepository businessDashboardRepository,
-            ISubscriptionRepository subscriptionRepository)
+            ISubscriptionRepository subscriptionRepository,
+            IBackgroundJobClient backgroundJobClient)
         {
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
+            _backgroundJobClient = backgroundJobClient;
         }
 
         public async Task<BusinessDashboardStatsResponse> GetStatsAsync(
@@ -250,6 +255,90 @@ namespace MerchForge.api.Services.BusinessDashboard
             // wrong if the same URL was ever reused, and orphaned files are a cleanup
             // concern rather than a correctness one.
             await _businessDashboardRepository.DeleteProductAsync(product, cancellationToken);
+        }
+
+        // ---- website template ----
+
+        public async Task<BusinessWebsiteTemplateStatusResponse> GetWebsiteTemplateStatusAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var info = await _businessDashboardRepository.GetBusinessWebsiteTemplateInfoAsync(businessId, cancellationToken)
+                ?? throw new BusinessNotFoundException();
+
+            if (info.BusinessDomainId is null)
+            {
+                throw new BusinessHasNoDomainException();
+            }
+
+            var chosen = info.WebsiteTemplateId is null
+                ? null
+                : new ChosenWebsiteTemplateResponse
+                {
+                    Id = info.WebsiteTemplateId.Value,
+                    Name = info.WebsiteTemplateName!,
+                    Label = info.WebsiteTemplateLabel!,
+                    VideoPreviewUrl = info.WebsiteTemplateVideoPreviewUrl!,
+                    ChosenAt = info.WebsiteTemplateChosenAt!.Value,
+                };
+
+            // No point fetching the available list once a template is already chosen
+            // — the dashboard has nothing to render it for.
+            var available = chosen is null
+                ? await _businessDashboardRepository.GetActiveWebsiteTemplatesByDomainAsync(info.BusinessDomainId.Value, cancellationToken)
+                : [];
+
+            return new BusinessWebsiteTemplateStatusResponse
+            {
+                BusinessDomainId = info.BusinessDomainId.Value,
+                DomainName = info.DomainName!,
+                Chosen = chosen,
+                Available = available,
+            };
+        }
+
+        public async Task<ChosenWebsiteTemplateResponse> ChooseWebsiteTemplateAsync(
+            Guid businessId,
+            ChooseWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var info = await _businessDashboardRepository.GetBusinessWebsiteTemplateInfoAsync(businessId, cancellationToken)
+                ?? throw new BusinessNotFoundException();
+
+            if (info.BusinessDomainId is null)
+            {
+                throw new BusinessHasNoDomainException();
+            }
+
+            if (info.WebsiteTemplateId is not null)
+            {
+                throw new WebsiteTemplateAlreadyChosenException();
+            }
+
+            var template = await _businessDashboardRepository.GetActiveWebsiteTemplateInDomainAsync(
+                request.WebsiteTemplateId, info.BusinessDomainId.Value, cancellationToken)
+                ?? throw new WebsiteTemplateWrongDomainException();
+
+            var chosen = await _businessDashboardRepository.ChooseWebsiteTemplateAsync(
+                businessId, template.Id, cancellationToken);
+
+            if (!chosen)
+            {
+                // Lost a race with another request choosing at the same instant.
+                throw new WebsiteTemplateAlreadyChosenException();
+            }
+
+            _backgroundJobClient.Enqueue<NotifyAdminOfWebsiteTemplateChoiceJob>(
+                job => job.ExecuteAsync(businessId, template.Id));
+
+            return new ChosenWebsiteTemplateResponse
+            {
+                Id = template.Id,
+                Name = template.Name,
+                Label = template.Label,
+                VideoPreviewUrl = template.VideoPreviewUrl,
+                ChosenAt = DateTime.UtcNow,
+            };
         }
 
         private async Task EnsureCategoryIsUsableAsync(

@@ -100,5 +100,32 @@ namespace MerchForge.api.Repositories.Interfaces
         Task DeleteProductAsync(
             Product product,
             CancellationToken cancellationToken = default);
+
+        // ---- website template ----
+
+        /// <summary>Null when the business doesn't exist. WebsiteTemplate* fields are null when no template has been chosen.</summary>
+        Task<(Guid? BusinessDomainId, string? DomainName, Guid? WebsiteTemplateId, string? WebsiteTemplateName,
+            string? WebsiteTemplateLabel, string? WebsiteTemplateVideoPreviewUrl, DateTime? WebsiteTemplateChosenAt)?>
+            GetBusinessWebsiteTemplateInfoAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+        Task<List<WebsiteTemplateOptionResponse>> GetActiveWebsiteTemplatesByDomainAsync(
+            Guid businessDomainId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Null unless an active template with this id exists in this domain — a business may only choose one of its own domain's templates.</summary>
+        Task<WebsiteTemplateOptionResponse?> GetActiveWebsiteTemplateInDomainAsync(
+            Guid websiteTemplateId,
+            Guid businessDomainId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Sets the business's chosen template, but only if it doesn't already have
+        /// one -- returns false (no-op) on a business that already chose, rather than
+        /// overwriting it, so a duplicate request can never silently switch templates.
+        /// </summary>
+        Task<bool> ChooseWebsiteTemplateAsync(
+            Guid businessId,
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
     }
 }

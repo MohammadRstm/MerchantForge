@@ -392,5 +392,89 @@ namespace MerchForge.api.Repositories.Implementations
             _db.Products.Remove(product);
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        // ---- website template ----
+
+        public async Task<(Guid? BusinessDomainId, string? DomainName, Guid? WebsiteTemplateId, string? WebsiteTemplateName,
+            string? WebsiteTemplateLabel, string? WebsiteTemplateVideoPreviewUrl, DateTime? WebsiteTemplateChosenAt)?>
+            GetBusinessWebsiteTemplateInfoAsync(Guid businessId, CancellationToken cancellationToken = default)
+        {
+            var info = await _db.Businesses
+                .Where(b => b.Id == businessId)
+                .Select(b => new
+                {
+                    b.BusinessDomainId,
+                    DomainName = b.BusinessDomain != null ? b.BusinessDomain.Name : null,
+                    b.WebsiteTemplateId,
+                    WebsiteTemplateName = b.WebsiteTemplate != null ? b.WebsiteTemplate.Name : null,
+                    WebsiteTemplateLabel = b.WebsiteTemplate != null ? b.WebsiteTemplate.Label : null,
+                    WebsiteTemplateVideoPreviewUrl = b.WebsiteTemplate != null ? b.WebsiteTemplate.VideoPreviewUrl : null,
+                    b.WebsiteTemplateChosenAt,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return info is null
+                ? null
+                : (info.BusinessDomainId, info.DomainName, info.WebsiteTemplateId, info.WebsiteTemplateName,
+                    info.WebsiteTemplateLabel, info.WebsiteTemplateVideoPreviewUrl, info.WebsiteTemplateChosenAt);
+        }
+
+        public async Task<List<WebsiteTemplateOptionResponse>> GetActiveWebsiteTemplatesByDomainAsync(
+            Guid businessDomainId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplates
+                .AsNoTracking()
+                .Where(t => t.BusinessDomainId == businessDomainId && t.IsActive)
+                .OrderBy(t => t.DisplayOrder)
+                .ThenBy(t => t.Label)
+                .Select(t => new WebsiteTemplateOptionResponse
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    Label = t.Label,
+                    VideoPreviewUrl = t.VideoPreviewUrl,
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateOptionResponse?> GetActiveWebsiteTemplateInDomainAsync(
+            Guid websiteTemplateId,
+            Guid businessDomainId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplates
+                .AsNoTracking()
+                .Where(t => t.Id == websiteTemplateId && t.BusinessDomainId == businessDomainId && t.IsActive)
+                .Select(t => new WebsiteTemplateOptionResponse
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    Label = t.Label,
+                    VideoPreviewUrl = t.VideoPreviewUrl,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<bool> ChooseWebsiteTemplateAsync(
+            Guid businessId,
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default)
+        {
+            // A conditional UPDATE (via ExecuteUpdateAsync's WHERE) rather than
+            // load-then-save: two concurrent requests choosing at once cannot both
+            // succeed this way, so there's no race where the second silently
+            // overwrites the first.
+            var rows = await _db.Businesses
+                .Where(b => b.Id == businessId && b.WebsiteTemplateId == null)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(b => b.WebsiteTemplateId, websiteTemplateId)
+                        .SetProperty(b => b.WebsiteTemplateChosenAt, DateTime.UtcNow)
+                        .SetProperty(b => b.UpdatedAt, DateTime.UtcNow),
+                    cancellationToken);
+
+            return rows > 0;
+        }
     }
 }

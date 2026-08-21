@@ -2,6 +2,7 @@ using MerchForge.api.Data;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
+using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -239,6 +240,45 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToListAsync(cancellationToken);
 
             return (items, totalCount);
+        }
+
+        // ---- website templates ----
+
+        public async Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplates
+                .AsNoTracking()
+                .OrderBy(t => t.BusinessDomain.Name)
+                .ThenBy(t => t.DisplayOrder)
+                .Select(t => new WebsiteTemplateResponse
+                {
+                    Id = t.Id,
+                    BusinessDomainId = t.BusinessDomainId,
+                    DomainName = t.BusinessDomain.Name,
+                    Name = t.Name,
+                    Label = t.Label,
+                    VideoPreviewUrl = t.VideoPreviewUrl,
+                    IsActive = t.IsActive,
+                    DisplayOrder = t.DisplayOrder,
+                    BusinessesUsingIt = t.Businesses.Count,
+                    CreatedAt = t.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<bool> WebsiteTemplateNameExistsAsync(string name, CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplates.AnyAsync(t => t.Name == name, cancellationToken);
+        }
+
+        public async Task<WebsiteTemplate> CreateWebsiteTemplateAsync(
+            WebsiteTemplate template,
+            CancellationToken cancellationToken = default)
+        {
+            _db.WebsiteTemplates.Add(template);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return template;
         }
     }
 }

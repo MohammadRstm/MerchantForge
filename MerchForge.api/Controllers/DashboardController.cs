@@ -17,15 +17,18 @@ namespace MerchForge.api.Controllers
         private readonly IDashboardService _dashboardService;
         private readonly IValidator<UsersQueryRequest> _usersQueryValidator;
         private readonly IValidator<BusinessesQueryRequest> _businessesQueryValidator;
+        private readonly IValidator<CreateWebsiteTemplateRequest> _createWebsiteTemplateValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
             IValidator<UsersQueryRequest> usersQueryValidator,
-            IValidator<BusinessesQueryRequest> businessesQueryValidator)
+            IValidator<BusinessesQueryRequest> businessesQueryValidator,
+            IValidator<CreateWebsiteTemplateRequest> createWebsiteTemplateValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
             _businessesQueryValidator = businessesQueryValidator;
+            _createWebsiteTemplateValidator = createWebsiteTemplateValidator;
         }
 
         [HttpGet("stats")]
@@ -77,6 +80,29 @@ namespace MerchForge.api.Controllers
             await _businessesQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
 
             var response = await _dashboardService.GetBusinessesAsync(query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- website templates ----
+
+        [HttpGet("website-templates")]
+        public async Task<ActionResult<List<WebsiteTemplateResponse>>> GetWebsiteTemplates(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetWebsiteTemplatesAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates")]
+        public async Task<ActionResult<WebsiteTemplateResponse>> CreateWebsiteTemplate(
+            [FromBody] CreateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createWebsiteTemplateValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.CreateWebsiteTemplateAsync(request, cancellationToken);
 
             return Ok(response);
         }

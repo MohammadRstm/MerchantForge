@@ -253,7 +253,12 @@ namespace MerchForge.api.Services.ProductAi
                 Title = state!.Title!,
                 Description = state.Description,
                 Price = state.Price!.Value,
+                CompareAtPrice = state.CompareAtPrice,
                 CategoryId = state.CategoryId!.Value,
+                Sku = state.Sku,
+                StockQuantity = state.StockQuantity,
+                Tags = state.Tags,
+                SaleEndsAt = state.SaleEndsAt,
                 // The missing-fields check above already guarantees this is non-null —
                 // a draft can't reach here without one. The AI flow only ever produces
                 // a single image today, so it's the product's one and only (main) image.
@@ -714,8 +719,13 @@ namespace MerchForge.api.Services.ProductAi
                     Title = state.Title,
                     Description = state.Description,
                     Price = state.Price,
+                    CompareAtPrice = state.CompareAtPrice,
                     CategoryId = state.CategoryId,
                     CategoryName = categoryName,
+                    Sku = state.Sku,
+                    StockQuantity = state.StockQuantity,
+                    Tags = state.Tags,
+                    SaleEndsAt = state.SaleEndsAt,
                     Metadata = state.Metadata is null
                         ? null
                         : JsonSerializer.SerializeToDocument(state.Metadata),

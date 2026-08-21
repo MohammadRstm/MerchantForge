@@ -125,12 +125,22 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         string? description = null,
         decimal? price = null,
         Guid? categoryId = null,
-        string? metadataJson = null) => new()
+        string? metadataJson = null,
+        decimal? compareAtPrice = null,
+        string? sku = null,
+        int? stockQuantity = null,
+        List<string>? tags = null,
+        DateTime? saleEndsAt = null) => new()
         {
             Title = title,
             Description = description,
             Price = price,
+            CompareAtPrice = compareAtPrice,
             CategoryId = categoryId,
+            Sku = sku,
+            StockQuantity = stockQuantity,
+            Tags = tags ?? [],
+            SaleEndsAt = saleEndsAt,
             Metadata = metadataJson is null
                 ? null
                 : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(metadataJson),
@@ -976,6 +986,44 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             .Should().Equal(["M", "L"], "the valid sizes are kept rather than the whole turn being lost");
 
         after.Messages.Last().Text.Should().Contain("XXXXL");
+    }
+
+    [Fact]
+    public async Task Scenario61_fixed_attributes_beyond_the_basics_reach_the_created_product()
+    {
+        using var h = CreateHarness();
+        var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
+
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Nice photo."));
+        await h.Service.AttachImageAsync(_fashion.Id, _ownerA, d.Id, Png());
+
+        var saleEndsAt = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "All set - here it is.",
+            Draft("Hoodie", "A hoodie.", 45m, Shirts, CompleteMetadata,
+                compareAtPrice: 60m,
+                sku: "HD-BLK-M",
+                stockQuantity: 12,
+                tags: ["New", "Bestseller"],
+                saleEndsAt: saleEndsAt)));
+        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "that's everything, it was $60 now $45");
+
+        // Visible in the chat's own draft preview before confirmation, same as every
+        // other field - this is what a "product so far" preview showing tags or stock
+        // is actually backed by.
+        after.Draft!.CompareAtPrice.Should().Be(60m);
+        after.Draft.Sku.Should().Be("HD-BLK-M");
+        after.Draft.StockQuantity.Should().Be(12);
+        after.Draft.Tags.Should().BeEquivalentTo(["New", "Bestseller"]);
+        after.Draft.SaleEndsAt.Should().Be(saleEndsAt);
+
+        var product = await h.Service.ConfirmAsync(_fashion.Id, _ownerA, d.Id);
+
+        product.CompareAtPrice.Should().Be(60m);
+        product.Sku.Should().Be("HD-BLK-M");
+        product.StockQuantity.Should().Be(12);
+        product.Tags.Should().BeEquivalentTo(["New", "Bestseller"]);
+        product.SaleEndsAt.Should().Be(saleEndsAt);
     }
 
     [Fact]

@@ -77,6 +77,24 @@ internal static class OpenAiPromptBuilder
           default, do not drop it quietly - and ask the owner to choose from the list.
           Naming the wrong colour on a listing is worse than asking one more question.
 
+        PRICE, STOCK AND SALE DETAILS
+        - `price` is what the product sells for now. If the owner gives both an original
+          and a discounted price ("was $80, now $60"), the lower one is `price` and the
+          higher one is `compareAtPrice` - that is what produces the struck-through
+          original price on the listing. If there is no sale, leave `compareAtPrice` null.
+        - `sku` is a merchant-facing inventory code (e.g. "HD-BLK-M"). Only set it when
+          the owner gives one explicitly; never invent one.
+        - `stockQuantity` is how many units are available. Set it only when the owner
+          states a number. Leave it null when stock is not mentioned - null means
+          untracked, which is different from 0 (tracked and sold out), so never guess 0.
+        - `tags` are short merchandising badges such as "New" or "Bestseller" - freeform,
+          not from a fixed list. Record one whenever the owner uses language like that
+          about the product. An empty list means none, never null.
+        - `saleEndsAt` is when a time-limited promotion ends, as an ISO date
+          (YYYY-MM-DD). Resolve relative phrases ("ends Friday", "for one week") against
+          Today in the STORE section. Leave it null unless the owner describes a
+          promotion with an end point.
+
         IMAGES
         - Photos are handled elsewhere, not by you. Never ask for a picture, never
           acknowledge one, and never discuss editing, replacing or improving one -
@@ -122,6 +140,7 @@ internal static class OpenAiPromptBuilder
         builder.AppendLine("# STORE");
         builder.AppendLine($"Name: {context.BusinessName}");
         builder.AppendLine($"Currency: {context.Currency}");
+        builder.AppendLine($"Today: {DateTime.UtcNow:yyyy-MM-dd}");
         builder.AppendLine();
 
         builder.AppendLine("# AVAILABLE CATEGORIES (copy an id exactly, or null)");
@@ -190,12 +209,17 @@ internal static class OpenAiPromptBuilder
             "draft": {
               "type": ["object", "null"],
               "additionalProperties": false,
-              "required": ["title", "description", "price", "categoryId", "metadata"],
+              "required": ["title", "description", "price", "compareAtPrice", "categoryId", "sku", "stockQuantity", "tags", "saleEndsAt", "metadata"],
               "properties": {
                 "title": { "type": ["string", "null"] },
                 "description": { "type": ["string", "null"] },
                 "price": { "type": ["number", "null"] },
+                "compareAtPrice": { "type": ["number", "null"] },
                 "categoryId": { "type": ["string", "null"] },
+                "sku": { "type": ["string", "null"] },
+                "stockQuantity": { "type": ["integer", "null"] },
+                "tags": { "type": "array", "items": { "type": "string" } },
+                "saleEndsAt": { "type": ["string", "null"], "description": "ISO date YYYY-MM-DD" },
                 "metadata": {
                   "type": "array",
                   "items": {

@@ -169,13 +169,19 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         }
 
         Guid? categoryId = Guid.TryParse(raw.CategoryId, out var parsed) ? parsed : null;
+        DateTime? saleEndsAt = DateTime.TryParse(raw.SaleEndsAt, out var parsedDate) ? parsedDate : null;
 
         return new ProductAiDraft
         {
             Title = raw.Title,
             Description = raw.Description,
             Price = raw.Price,
+            CompareAtPrice = raw.CompareAtPrice,
             CategoryId = categoryId,
+            Sku = raw.Sku,
+            StockQuantity = raw.StockQuantity,
+            Tags = raw.Tags ?? [],
+            SaleEndsAt = saleEndsAt,
             Metadata = MapMetadata(raw.Metadata, context),
         };
     }
@@ -261,7 +267,12 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
         public string? Title { get; set; }
         public string? Description { get; set; }
         public decimal? Price { get; set; }
+        public decimal? CompareAtPrice { get; set; }
         public string? CategoryId { get; set; }
+        public string? Sku { get; set; }
+        public int? StockQuantity { get; set; }
+        public List<string>? Tags { get; set; }
+        public string? SaleEndsAt { get; set; }
         public List<RawMetadataEntry>? Metadata { get; set; }
     }
 }

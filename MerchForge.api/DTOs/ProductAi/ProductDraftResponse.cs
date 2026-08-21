@@ -59,10 +59,24 @@ public class ProductDraftProductResponse
 
     public decimal? Price { get; set; }
 
+    /// <summary>Pre-discount price for a struck-through sale display. Null when not on sale.</summary>
+    public decimal? CompareAtPrice { get; set; }
+
     public Guid? CategoryId { get; set; }
 
     /// <summary>Resolved for display, so the preview shows a name rather than a guid.</summary>
     public string? CategoryName { get; set; }
+
+    public string? Sku { get; set; }
+
+    /// <summary>Null means inventory isn't tracked for this product; 0 means tracked and out of stock.</summary>
+    public int? StockQuantity { get; set; }
+
+    /// <summary>Freeform merchandising badges, e.g. "New", "Bestseller".</summary>
+    public List<string> Tags { get; set; } = [];
+
+    /// <summary>When a time-limited sale on this product ends. Null for no promotion deadline.</summary>
+    public DateTime? SaleEndsAt { get; set; }
 
     public JsonDocument? Metadata { get; set; }
 }

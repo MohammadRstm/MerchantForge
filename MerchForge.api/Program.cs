@@ -215,6 +215,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+builder.Services.AddScoped<IFeatureCreditService, FeatureCreditService>();
 
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -366,6 +367,7 @@ builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardReposi
 builder.Services.AddScoped<IStorefrontRepository, StorefrontRepository>();
 builder.Services.AddScoped<IDomainRepository, DomainRepository>();
 builder.Services.AddScoped<IProductDraftRepository, ProductDraftRepository>();
+builder.Services.AddScoped<IFeatureCreditRepository, FeatureCreditRepository>();
 
 // build app
 var app = builder.Build();

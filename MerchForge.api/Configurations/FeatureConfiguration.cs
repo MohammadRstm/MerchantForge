@@ -1,4 +1,5 @@
-﻿using MerchForge.api.Models;
+﻿using MerchForge.api.Enums;
+using MerchForge.api.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -7,6 +8,10 @@ namespace MerchForge.api.Configurations;
 public class FeatureConfiguration
     : IEntityTypeConfiguration<Feature>
 {
+    /// <summary>Fixed so FeatureCreditPackageConfiguration's seed rows can reference it by id.</summary>
+    internal static readonly Guid AiProductGenerationId =
+        Guid.Parse("f0000000-0000-4000-8000-000000000001");
+
     public void Configure(EntityTypeBuilder<Feature> builder)
     {
         builder.ToTable("features");
@@ -30,10 +35,25 @@ public class FeatureConfiguration
         builder.Property(x => x.IsActive)
             .IsRequired();
 
+        builder.Property(x => x.SupportsCreditPurchase)
+            .IsRequired();
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 
         builder.Property(x => x.UpdatedAt)
             .IsRequired();
+
+        builder.HasData(new Feature
+        {
+            Id = AiProductGenerationId,
+            Key = FeatureKeys.AiProductGeneration,
+            Name = "AI Product Creation",
+            Description = "Draft a product through conversation instead of filling in the form by hand.",
+            IsActive = true,
+            SupportsCreditPurchase = true,
+            CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
+            UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
+        });
     }
 }

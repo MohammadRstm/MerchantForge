@@ -8,6 +8,7 @@ using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Services.AI.Contracts;
 using MerchForge.api.Services.BusinessDashboard;
 using MerchForge.api.Services.ProductAi;
+using MerchForge.api.Services.Subscription;
 using MerchForge.IntegrationTests.Fakes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -79,6 +80,10 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var dashboardRepository = new BusinessDashboardRepository(db);
         var dashboardService = new BusinessDashboardService(dashboardRepository, new SubscriptionRepository(db), new FakeBackgroundJobClient());
 
+        var featureCreditRepo = new FeatureCreditRepository(db);
+        var subscriptionService = new SubscriptionService(new SubscriptionRepository(db), featureCreditRepo);
+        var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService);
+
         return new Harness
         {
             Db = db,
@@ -92,7 +97,8 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
                 ai,
                 transcription,
                 new FakeProductImageService(),
-                logger),
+                logger,
+                featureCreditService),
         };
     }
 

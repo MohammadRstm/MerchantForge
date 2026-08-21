@@ -36,7 +36,6 @@ public class ProductAttributeDefinitionConfiguration
 
     // Closed sets where a free-form value would be meaningless to filter or display
     // consistently across a catalog.
-    private static readonly string[] GarmentColors = ["Black", "White", "Red", "Blue", "Green"];
     private static readonly string[] GarmentSizes = ["XS", "S", "M", "L", "XL", "XXL"];
 
     public void Configure(EntityTypeBuilder<ProductAttributeDefinition> builder)
@@ -99,7 +98,7 @@ public class ProductAttributeDefinitionConfiguration
 
         builder.HasData(
             // ---- Fashion ----
-            Seed("a1000000-0000-4000-8000-000000000001", fashion, "colors", "Colors", ProductAttributeValueType.TextList, 1, isRequired: true, allowedValues: GarmentColors),
+            Seed("a1000000-0000-4000-8000-000000000001", fashion, "colors", "Colors", ProductAttributeValueType.ColorList, 1, isRequired: true),
             Seed("a1000000-0000-4000-8000-000000000002", fashion, "sizes", "Sizes", ProductAttributeValueType.TextList, 2, isRequired: true, allowedValues: GarmentSizes),
             Seed("a1000000-0000-4000-8000-000000000003", fashion, "material", "Material", ProductAttributeValueType.Text, 3),
             Seed("a1000000-0000-4000-8000-000000000004", fashion, "fit", "Fit", ProductAttributeValueType.Text, 4),
@@ -130,7 +129,7 @@ public class ProductAttributeDefinitionConfiguration
             Seed("a3000000-0000-4000-8000-000000000004", electronics, "ram", "RAM", ProductAttributeValueType.Text, 4),
             Seed("a3000000-0000-4000-8000-000000000005", electronics, "screenSize", "Screen size", ProductAttributeValueType.Text, 5),
             Seed("a3000000-0000-4000-8000-000000000006", electronics, "batteryCapacity", "Battery capacity", ProductAttributeValueType.Text, 6),
-            Seed("a3000000-0000-4000-8000-000000000007", electronics, "colors", "Colors", ProductAttributeValueType.TextList, 7),
+            Seed("a3000000-0000-4000-8000-000000000007", electronics, "colors", "Colors", ProductAttributeValueType.ColorList, 7),
             Seed("a3000000-0000-4000-8000-000000000008", electronics, "connectivity", "Connectivity", ProductAttributeValueType.TextList, 8),
             Seed("a3000000-0000-4000-8000-000000000009", electronics, "operatingSystem", "Operating system", ProductAttributeValueType.Text, 9),
             Seed("a3000000-0000-4000-8000-00000000000a", electronics, "warrantyMonths", "Warranty (months)", ProductAttributeValueType.Number, 10));

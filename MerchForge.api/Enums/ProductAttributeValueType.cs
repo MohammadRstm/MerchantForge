@@ -16,6 +16,9 @@ public enum ProductAttributeValueType
     /// <summary>Yes/no. JSON boolean. e.g. spicy: true</summary>
     Boolean,
 
-    /// <summary>Multiple text values. JSON array of strings. e.g. colors: ["Black","White"]</summary>
-    TextList
+    /// <summary>Multiple text values. JSON array of strings. e.g. sizes: ["S","M","L"]</summary>
+    TextList,
+
+    /// <summary>Multiple hex colors, picked via a color wheel. JSON array of "#RRGGBB" strings. e.g. colors: ["#FF0000","#000000"]</summary>
+    ColorList
 }

@@ -13,7 +13,7 @@ namespace MerchForge.api.Services.BusinessDashboard;
 /// What is rejected is a key the business never opted into, or a value of the wrong
 /// type, since either would produce metadata no product form can render back.
 /// </summary>
-public static class ProductMetadataBuilder
+public static partial class ProductMetadataBuilder
 {
     /// <summary>One configured field's constraints, as snapshotted on the business.</summary>
     public readonly record struct FieldRule(
@@ -215,10 +215,48 @@ public static class ProductMetadataBuilder
                     return items.Count == 0 ? null : items;
                 }
 
+            case ProductAttributeValueType.ColorList:
+                {
+                    if (value.ValueKind != JsonValueKind.Array)
+                    {
+                        throw Mismatch(key, "a list of hex colors");
+                    }
+
+                    var colors = new List<string>();
+
+                    foreach (var item in value.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.String)
+                        {
+                            throw Mismatch(key, "a list of hex colors");
+                        }
+
+                        var text = item.GetString()?.Trim();
+
+                        if (string.IsNullOrEmpty(text))
+                        {
+                            continue;
+                        }
+
+                        if (!HexColor().IsMatch(text))
+                        {
+                            throw new InvalidProductMetadataException(
+                                $"'{text}' isn't a valid hex color for '{key}'. Expected a format like #RRGGBB.");
+                        }
+
+                        colors.Add(text.ToUpperInvariant());
+                    }
+
+                    return colors.Count == 0 ? null : colors;
+                }
+
             default:
                 return null;
         }
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^#[0-9A-Fa-f]{6}$")]
+    private static partial System.Text.RegularExpressions.Regex HexColor();
 
     private static InvalidProductMetadataException Mismatch(string key, string expected) =>
         new($"'{key}' must be {expected}.");

@@ -24,6 +24,7 @@ namespace MerchForge.api.Controllers
     [Route("api/businesses/{businessId:guid}/dashboard/product-drafts")]
     [ApiController]
     [Authorize(Policy = AuthorizationPolicies.BusinessOwner)]
+    [Authorize(Policy = AuthorizationPolicies.AiProductGeneration)]
     public class ProductDraftsController : ControllerBase
     {
         private readonly IProductAiService _productAiService;

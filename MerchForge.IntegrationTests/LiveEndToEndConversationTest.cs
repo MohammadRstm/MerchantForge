@@ -5,6 +5,7 @@ using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Services.BusinessDashboard;
 using MerchForge.api.Services.ProductAi;
+using MerchForge.api.Services.Subscription;
 using MerchForge.IntegrationTests.Fakes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -64,6 +65,10 @@ public class LiveEndToEndConversationTest
         var repo = new BusinessDashboardRepository(context);
         var dashboard = new BusinessDashboardService(repo, new SubscriptionRepository(context), new FakeBackgroundJobClient());
 
+        var featureCreditRepo = new FeatureCreditRepository(context);
+        var subscriptionService = new SubscriptionService(new SubscriptionRepository(context), featureCreditRepo);
+        var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService);
+
         // Everything real except file storage, which has no provider behind it yet.
         var service = new ProductAiService(
             new ProductDraftRepository(context),
@@ -72,7 +77,8 @@ public class LiveEndToEndConversationTest
             _ai.CreateClient(),
             new FakeAiTranscriptionService(),
             new FakeProductImageService(),
-            new RecordingAiInteractionLogger());
+            new RecordingAiInteractionLogger(),
+            featureCreditService);
 
         return (service, context);
     }

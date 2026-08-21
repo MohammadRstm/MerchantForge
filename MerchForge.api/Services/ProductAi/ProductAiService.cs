@@ -12,6 +12,7 @@ using MerchForge.api.Services.AI.Interfaces;
 using MerchForge.api.Services.BusinessDashboard;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.ProductAi.Interfaces;
+using MerchForge.api.Services.Subscription.interfaces;
 
 namespace MerchForge.api.Services.ProductAi
 {
@@ -31,6 +32,7 @@ namespace MerchForge.api.Services.ProductAi
         private readonly IAiTranscriptionService _transcription;
         private readonly IProductImageService _imageService;
         private readonly IAiInteractionLogger _aiLogger;
+        private readonly IFeatureCreditService _featureCreditService;
 
         public ProductAiService(
             IProductDraftRepository draftRepository,
@@ -39,7 +41,8 @@ namespace MerchForge.api.Services.ProductAi
             IProductAiConversationClient conversationClient,
             IAiTranscriptionService transcription,
             IProductImageService imageService,
-            IAiInteractionLogger aiLogger)
+            IAiInteractionLogger aiLogger,
+            IFeatureCreditService featureCreditService)
         {
             _draftRepository = draftRepository;
             _dashboardRepository = dashboardRepository;
@@ -48,6 +51,7 @@ namespace MerchForge.api.Services.ProductAi
             _transcription = transcription;
             _imageService = imageService;
             _aiLogger = aiLogger;
+            _featureCreditService = featureCreditService;
         }
 
         // ---- lifecycle ----
@@ -407,6 +411,21 @@ namespace MerchForge.api.Services.ProductAi
                 stopwatch.ElapsedMilliseconds,
                 result.PromptTokens,
                 result.CompletionTokens);
+
+            // Charged after a successful call, never before: a failed provider call
+            // already short-circuits above without reaching here, so the owner is
+            // never billed for a turn that produced nothing. Authorization was already
+            // checked before this request reached the service - this is metering the
+            // use that already happened, not gating it, so a false result (credits ran
+            // out in the narrow window between the two) is logged rather than turned
+            // into an error the owner can't do anything about at this point.
+            var creditSpent = await _featureCreditService.TryConsumeAsync(
+                draft.BusinessId, FeatureKeys.AiProductGeneration, draft.Id.ToString(), cancellationToken);
+
+            if (!creditSpent)
+            {
+                _aiLogger.LogValidationRejected(scope, "ai_credits_exhausted");
+            }
 
             await ApplyDecisionAsync(draft, decision, scope, cancellationToken);
 

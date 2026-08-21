@@ -9,7 +9,20 @@ public class ProductConfiguration
 {
     public void Configure(EntityTypeBuilder<Product> builder)
     {
-        builder.ToTable("products");
+        builder.ToTable("products", t =>
+        {
+            // Defense in depth, same reasoning as the json_valid check below: a sale
+            // price that isn't actually a discount is a data error, not just a display
+            // oddity, so it's worth rejecting at the database rather than trusting
+            // every write path to remember the rule.
+            t.HasCheckConstraint(
+                "CK_products_CompareAtPrice_GreaterThanPrice",
+                "`CompareAtPrice` IS NULL OR `CompareAtPrice` > `Price`");
+
+            t.HasCheckConstraint(
+                "CK_products_StockQuantity_NonNegative",
+                "`StockQuantity` IS NULL OR `StockQuantity` >= 0");
+        });
 
         builder.HasKey(x => x.Id);
 
@@ -24,8 +37,24 @@ public class ProductConfiguration
             .HasPrecision(10, 2)
             .IsRequired();
 
+        builder.Property(x => x.CompareAtPrice)
+            .HasPrecision(10, 2);
+
         builder.Property(x => x.ImageUrl)
             .HasMaxLength(500);
+
+        builder.Property(x => x.Sku)
+            .HasMaxLength(100);
+
+        // A real json column, same treatment as Metadata below: stored as a typed
+        // List<string> in C#, but json on the wire so it stays queryable/inspectable
+        // like every other JSON column here rather than a delimited string. The
+        // database-level default matters, not just the C# one: without it, adding
+        // this NOT NULL column to a table that already has rows has nothing valid to
+        // backfill them with.
+        builder.Property(x => x.Tags)
+            .HasColumnType("json")
+            .HasDefaultValueSql("(JSON_ARRAY())");
 
         // A real json column. On MariaDB this resolves to LONGTEXT with an automatic
         // CHECK (json_valid(Metadata)), so invalid JSON is rejected by the database
@@ -51,5 +80,11 @@ public class ProductConfiguration
         // Storefront product lists are always business-scoped and usually
         // category-filtered; this composite covers both.
         builder.HasIndex(x => new { x.BusinessId, x.CategoryId });
+
+        // Sku must be unique within a business, not platform-wide — two different
+        // merchants numbering their own catalogs "SKU-001" is not a conflict. MySQL/
+        // MariaDB unique indexes treat NULL as distinct from every other NULL, so any
+        // number of products with no Sku set coexist without tripping this.
+        builder.HasIndex(x => new { x.BusinessId, x.Sku }).IsUnique();
     }
 }

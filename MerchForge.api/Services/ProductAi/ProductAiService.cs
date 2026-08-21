@@ -257,7 +257,10 @@ namespace MerchForge.api.Services.ProductAi
                 Description = state.Description!,
                 Price = state.Price!.Value,
                 CategoryId = state.CategoryId!.Value,
-                ImageUrl = draft.OriginalImageUrl,
+                // The missing-fields check above already guarantees this is non-null —
+                // a draft can't reach here without one. The AI flow only ever produces
+                // a single image today, so it's the product's one and only (main) image.
+                Images = [new ProductImageRequest { Url = draft.OriginalImageUrl!, IsMain = true }],
                 Metadata = state.Metadata,
             };
 

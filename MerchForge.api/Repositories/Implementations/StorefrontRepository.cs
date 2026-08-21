@@ -130,7 +130,25 @@ namespace MerchForge.api.Repositories.Implementations
                     Id = p.Id,
                     Title = p.Title,
                     Price = p.Price,
+                    CompareAtPrice = p.CompareAtPrice,
                     ImageUrl = p.ImageUrl,
+                    Images = p.Images
+                        .OrderBy(i => i.DisplayOrder)
+                        .Select(i => new StorefrontProductImageResponse
+                        {
+                            Id = i.Id,
+                            Url = i.Url,
+                            IsMain = i.IsMain,
+                            Width = i.Width,
+                            Height = i.Height,
+                            AltText = i.AltText,
+                            DisplayOrder = i.DisplayOrder,
+                        })
+                        .ToList(),
+                    Sku = p.Sku,
+                    StockQuantity = p.StockQuantity,
+                    Tags = p.Tags,
+                    SaleEndsAt = p.SaleEndsAt,
                     Category = new StorefrontProductCategoryResponse
                     {
                         Id = p.Category.Id,
@@ -161,7 +179,25 @@ namespace MerchForge.api.Repositories.Implementations
                     Title = p.Title,
                     Description = p.Description,
                     Price = p.Price,
+                    CompareAtPrice = p.CompareAtPrice,
                     ImageUrl = p.ImageUrl,
+                    Images = p.Images
+                        .OrderBy(i => i.DisplayOrder)
+                        .Select(i => new StorefrontProductImageResponse
+                        {
+                            Id = i.Id,
+                            Url = i.Url,
+                            IsMain = i.IsMain,
+                            Width = i.Width,
+                            Height = i.Height,
+                            AltText = i.AltText,
+                            DisplayOrder = i.DisplayOrder,
+                        })
+                        .ToList(),
+                    Sku = p.Sku,
+                    StockQuantity = p.StockQuantity,
+                    Tags = p.Tags,
+                    SaleEndsAt = p.SaleEndsAt,
                     Category = new StorefrontProductCategoryResponse
                     {
                         Id = p.Category.Id,
@@ -219,7 +255,25 @@ namespace MerchForge.api.Repositories.Implementations
                     Id = p.Id,
                     Title = p.Title,
                     Price = p.Price,
+                    CompareAtPrice = p.CompareAtPrice,
                     ImageUrl = p.ImageUrl,
+                    Images = p.Images
+                        .OrderBy(i => i.DisplayOrder)
+                        .Select(i => new StorefrontProductImageResponse
+                        {
+                            Id = i.Id,
+                            Url = i.Url,
+                            IsMain = i.IsMain,
+                            Width = i.Width,
+                            Height = i.Height,
+                            AltText = i.AltText,
+                            DisplayOrder = i.DisplayOrder,
+                        })
+                        .ToList(),
+                    Sku = p.Sku,
+                    StockQuantity = p.StockQuantity,
+                    Tags = p.Tags,
+                    SaleEndsAt = p.SaleEndsAt,
                     Category = new StorefrontProductCategoryResponse
                     {
                         Id = p.Category.Id,

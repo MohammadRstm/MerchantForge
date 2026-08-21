@@ -4,6 +4,7 @@ using MerchForge.api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MerchForge.api.Migrations
 {
     [DbContext(typeof(MerchForgeDbContext))]
-    partial class MerchForgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820235425_AddProductImages")]
+    partial class AddProductImages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -192,7 +195,7 @@ namespace MerchForge.api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("BusinessUserRoles", (string)null);
+                    b.ToTable("BusinessUserRoles");
 
                     b.HasData(
                         new
@@ -460,7 +463,7 @@ namespace MerchForge.api.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique();
 
-                    b.ToTable("Invitations", (string)null);
+                    b.ToTable("Invitations");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.PlanFeature", b =>
@@ -1321,7 +1324,7 @@ namespace MerchForge.api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SystemRoles", (string)null);
+                    b.ToTable("SystemRoles");
 
                     b.HasData(
                         new

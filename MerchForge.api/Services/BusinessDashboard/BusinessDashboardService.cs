@@ -171,6 +171,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             await EnsureCategoryIsUsableAsync(businessId, request.CategoryId, cancellationToken);
 
             var now = DateTime.UtcNow;
+            var images = BuildProductImages(request.Images);
 
             var product = new Models.Product
             {
@@ -180,7 +181,16 @@ namespace MerchForge.api.Services.BusinessDashboard
                 Title = request.Title.Trim(),
                 Description = request.Description.Trim(),
                 Price = request.Price,
-                ImageUrl = NormalizeImageUrl(request.ImageUrl),
+                CompareAtPrice = request.CompareAtPrice,
+                // Kept in sync with Images so consumers that only read ImageUrl (the
+                // dashboard list, existing storefront card rendering) keep working
+                // without needing to switch to the gallery first.
+                ImageUrl = images.First(i => i.IsMain).Url,
+                Images = images,
+                Sku = NormalizeSku(request.Sku),
+                StockQuantity = request.StockQuantity,
+                Tags = NormalizeTags(request.Tags),
+                SaleEndsAt = request.SaleEndsAt,
                 Metadata = ProductMetadataBuilder.Build(formData.MetadataShape, request.Metadata),
                 CreatedAt = now,
                 UpdatedAt = now,
@@ -205,15 +215,25 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             await EnsureCategoryIsUsableAsync(businessId, request.CategoryId, cancellationToken);
 
+            var images = BuildProductImages(request.Images);
+
             product.Title = request.Title.Trim();
             product.Description = request.Description.Trim();
             product.Price = request.Price;
+            product.CompareAtPrice = request.CompareAtPrice;
             product.CategoryId = request.CategoryId;
-            product.ImageUrl = NormalizeImageUrl(request.ImageUrl);
+            product.ImageUrl = images.First(i => i.IsMain).Url;
+            product.Sku = NormalizeSku(request.Sku);
+            product.StockQuantity = request.StockQuantity;
+            product.Tags = NormalizeTags(request.Tags);
+            product.SaleEndsAt = request.SaleEndsAt;
             product.Metadata = ProductMetadataBuilder.Build(formData.MetadataShape, request.Metadata);
             product.UpdatedAt = DateTime.UtcNow;
 
-            await _businessDashboardRepository.SaveChangesAsync(cancellationToken);
+            // Full replace, not a merge — same "one DTO, no partial patch" contract as
+            // every other field here. This also persists every other change made to
+            // `product` above, in the same SaveChanges call.
+            await _businessDashboardRepository.ReplaceProductImagesAsync(product, images, cancellationToken);
 
             return await GetProductAsync(businessId, productId, cancellationToken);
         }
@@ -249,11 +269,52 @@ namespace MerchForge.api.Services.BusinessDashboard
         }
 
         /// <summary>
-        /// Blank and whitespace-only image URLs are stored as null so "no image" has
-        /// one representation rather than three.
+        /// Turns the submitted image list into real ProductImage rows. The validator
+        /// already guarantees 1-5 images with exactly one IsMain, so First(IsMain) at
+        /// the call site is always safe — no separate null-checking needed there.
+        /// DisplayOrder is just submission order: the merchant controls gallery order
+        /// by however they arrange images in the form, not by a separate field.
         /// </summary>
-        private static string? NormalizeImageUrl(string? imageUrl) =>
-            string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl.Trim();
+        private static List<Models.ProductImage> BuildProductImages(List<ProductImageRequest> images)
+        {
+            var now = DateTime.UtcNow;
+
+            return images
+                .Select((image, index) => new Models.ProductImage
+                {
+                    Id = Guid.NewGuid(),
+                    Url = image.Url.Trim(),
+                    IsMain = image.IsMain,
+                    Width = image.Width,
+                    Height = image.Height,
+                    AltText = string.IsNullOrWhiteSpace(image.AltText) ? null : image.AltText.Trim(),
+                    DisplayOrder = index,
+                    CreatedAt = now,
+                })
+                .ToList();
+        }
+
+        /// <summary>
+        /// Blank and whitespace-only SKUs are stored as null, same reasoning as
+        /// NormalizeImageUrl — and it matters more here, since the unique index treats
+        /// every null as distinct but would happily reject a second empty string.
+        /// </summary>
+        private static string? NormalizeSku(string? sku) =>
+            string.IsNullOrWhiteSpace(sku) ? null : sku.Trim();
+
+        /// <summary>
+        /// Trims each tag and drops blanks/duplicates. A null request means "no tags
+        /// submitted", which normalizes to the same empty list as an explicitly empty
+        /// one — Product.Tags is never null.
+        /// </summary>
+        private static List<string> NormalizeTags(List<string>? tags) =>
+            tags is null
+                ? []
+                : tags
+                    .Select(t => t.Trim())
+                    .Where(t => t.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
         private static List<ProductFormFieldResponse> ReadMetadataFields(JsonDocument? metadataShape)
         {

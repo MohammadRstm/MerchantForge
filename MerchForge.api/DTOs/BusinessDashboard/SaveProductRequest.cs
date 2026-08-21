@@ -15,14 +15,29 @@ public class SaveProductRequest
 
     public decimal Price { get; set; }
 
+    /// <summary>Pre-discount price for a struck-through sale display. Null when not on sale.</summary>
+    public decimal? CompareAtPrice { get; set; }
+
     public Guid CategoryId { get; set; }
 
     /// <summary>
-    /// Relative URL returned by the image upload endpoint, or null for no image.
-    /// The file itself is uploaded separately so the form can show a preview before
-    /// the product is saved.
+    /// 1 to 5 images, each already uploaded via the image-upload endpoint (that's a
+    /// separate request so the form can preview a file before the product is saved).
+    /// Exactly one must be flagged as the main image. Order in this list becomes
+    /// gallery display order.
     /// </summary>
-    public string? ImageUrl { get; set; }
+    public List<ProductImageRequest> Images { get; set; } = [];
+
+    public string? Sku { get; set; }
+
+    /// <summary>Null means inventory isn't tracked for this product; 0 means tracked and out of stock.</summary>
+    public int? StockQuantity { get; set; }
+
+    /// <summary>Freeform merchandising badges, e.g. "New", "Bestseller".</summary>
+    public List<string>? Tags { get; set; }
+
+    /// <summary>When a time-limited sale on this product ends. Null for no promotion deadline.</summary>
+    public DateTime? SaleEndsAt { get; set; }
 
     /// <summary>
     /// Optional domain-specific fields, keyed by the attribute keys the business

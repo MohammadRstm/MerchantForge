@@ -62,14 +62,17 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
         Guid categoryId,
         string title = "Test Product",
         decimal price = 10m,
-        string? imageUrl = null,
+        string imageUrl = "/uploads/products/test/default.png",
         Dictionary<string, JsonElement>? metadata = null) => new()
         {
             Title = title,
             Description = "A description.",
             Price = price,
             CategoryId = categoryId,
-            ImageUrl = imageUrl,
+            // At least one image, exactly one main, is a hard requirement now — the
+            // validator enforces it at the controller layer, but these tests call the
+            // service directly, so the request itself has to already satisfy it.
+            Images = [new ProductImageRequest { Url = imageUrl, IsMain = true }],
             Metadata = metadata,
         };
 
@@ -297,6 +300,53 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
         updated.CategoryName.Should().Be("Shirts");
         updated.Metadata.Should().BeNull("submitting no metadata clears it");
         updated.UpdatedAt.Should().BeOnOrAfter(created.CreatedAt);
+    }
+
+    [Fact]
+    public async Task Creates_a_product_with_a_multi_image_gallery_and_syncs_the_main_image()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        var request = new SaveProductRequest
+        {
+            Title = "Gallery Product",
+            Description = "A description.",
+            Price = 20m,
+            CategoryId = CatalogDatabaseFixture.ShoesCategoryId,
+            Images =
+            [
+                new ProductImageRequest { Url = "/uploads/products/x/main.png", IsMain = true, Width = 800, Height = 600 },
+                new ProductImageRequest { Url = "/uploads/products/x/alt.png", IsMain = false },
+            ],
+        };
+
+        var created = await service.CreateProductAsync(_business.Id, request);
+
+        created.ImageUrl.Should().Be("/uploads/products/x/main.png", "ImageUrl tracks whichever image is IsMain");
+        created.Images.Should().HaveCount(2);
+        created.Images.Should().ContainSingle(i => i.IsMain).Which.Url.Should().Be("/uploads/products/x/main.png");
+        created.Images.First(i => i.IsMain).Width.Should().Be(800);
+        created.Images.Should().ContainSingle(i => !i.IsMain).Which.Url.Should().Be("/uploads/products/x/alt.png");
+    }
+
+    [Fact]
+    public async Task Updating_a_product_fully_replaces_its_image_gallery()
+    {
+        var service = CreateService(out var db);
+        await using var _ = db;
+
+        var created = await service.CreateProductAsync(
+            _business.Id,
+            Request(CatalogDatabaseFixture.ShoesCategoryId, imageUrl: "/uploads/products/x/original.png"));
+
+        var updated = await service.UpdateProductAsync(
+            _business.Id,
+            created.Id,
+            Request(CatalogDatabaseFixture.ShoesCategoryId, imageUrl: "/uploads/products/x/replacement.png"));
+
+        updated.ImageUrl.Should().Be("/uploads/products/x/replacement.png");
+        updated.Images.Should().ContainSingle().Which.Url.Should().Be("/uploads/products/x/replacement.png");
     }
 
     [Fact]

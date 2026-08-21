@@ -16,12 +16,26 @@ public class BusinessProductDetailResponse
 
     public decimal Price { get; set; }
 
+    public decimal? CompareAtPrice { get; set; }
+
     /// <summary>The id, not the name: this populates a select in the edit form.</summary>
     public Guid CategoryId { get; set; }
 
     public string CategoryName { get; set; } = string.Empty;
 
+    /// <summary>The main image's URL, kept in sync with Images — for consumers that only need one image.</summary>
     public string? ImageUrl { get; set; }
+
+    /// <summary>The full gallery, ordered for display. One entry has IsMain = true.</summary>
+    public List<ProductImageResponse> Images { get; set; } = [];
+
+    public string? Sku { get; set; }
+
+    public int? StockQuantity { get; set; }
+
+    public List<string> Tags { get; set; } = [];
+
+    public DateTime? SaleEndsAt { get; set; }
 
     public JsonDocument? Metadata { get; set; }
 

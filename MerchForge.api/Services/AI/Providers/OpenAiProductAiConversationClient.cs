@@ -230,7 +230,7 @@ public class OpenAiProductAiConversationClient : IProductAiConversationClient
 
             JsonElement? mapped = valueType switch
             {
-                "TextList" => ToElement(values),
+                "TextList" or "ColorList" => ToElement(values),
                 "Number" => decimal.TryParse(values[0], out var number) ? ToElement(number) : null,
                 "Boolean" => bool.TryParse(values[0], out var flag) ? ToElement(flag) : null,
                 _ => ToElement(values[0]),

@@ -988,6 +988,45 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         after.Messages.Last().Text.Should().Contain("XXXXL");
     }
 
+    /// <summary>
+    /// ColorList has no allowedValues in practice - any colour is normally fine - so
+    /// the closed-set check above never fires for it. What has to hold instead is the
+    /// value shape: ProductMetadataBuilder requires hex codes and throws on anything
+    /// else, so a colour name reaching ConfirmAsync would crash product creation
+    /// instead of failing gracefully. This is caught here, the same turn it's proposed.
+    /// </summary>
+    [Fact]
+    public async Task Scenario62_a_color_name_is_stripped_from_a_hex_only_field()
+    {
+        await using (var db = _fixture.CreateContext())
+        {
+            var fashion = await db.Businesses.FirstAsync(b => b.Id == _fashion.Id);
+            fashion.MetadataShape = JsonDocument.Parse("""
+                {"fields":[
+                  {"key":"colors","label":"Colors","valueType":"ColorList","isRequired":true,"allowedValues":[]},
+                  {"key":"sizes","label":"Sizes","valueType":"TextList","isRequired":true,
+                   "allowedValues":["XS","S","M","L","XL","XXL"]}
+                ]}
+                """);
+            await db.SaveChangesAsync();
+        }
+
+        using var h = CreateHarness();
+        var d = await h.Service.StartAsync(_fashion.Id, _ownerA);
+
+        h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.",
+            Draft("Hoodie", "A hoodie.", 40m, Shirts,
+                """{"colors":["#000000","white"],"sizes":["M"]}""")));
+
+        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black and white");
+
+        after.Draft!.Metadata!.RootElement.GetProperty("colors")
+            .EnumerateArray().Select(e => e.GetString())
+            .Should().Equal(["#000000"], "the hex value survives; the colour name does not");
+
+        after.Messages.Last().Text.Should().Contain("white").And.Contain("hex");
+    }
+
     [Fact]
     public async Task Scenario61_fixed_attributes_beyond_the_basics_reach_the_created_product()
     {

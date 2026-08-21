@@ -53,10 +53,18 @@ internal static class OpenAiPromptBuilder
         METADATA
         - Only use keys listed in CONFIGURED PRODUCT FIELDS. Never invent keys.
         - Match the declared type: Text -> string, Number -> number, Boolean -> true/false,
-          TextList -> array of strings.
+          TextList -> array of strings, ColorList -> array of hex colors ("#RRGGBB").
         - Report metadata as a list of { key, values }, where values is always a list of
           strings. A single-valued field gets a one-item list; a list field gets several.
           Omit a field entirely when it has no value - never send an empty list for it.
+        - For ColorList, the owner names colours in plain language ("black", "navy",
+          "olive") - convert each to its standard 6-digit hex code yourself
+          ("black" -> "#000000", "white" -> "#FFFFFF"). Never send a colour name as the
+          value; it must always be a hex code. ColorList rarely has allowedValues, since
+          any colour is normally allowed - this does not mean the field is free text.
+        - TextList and ColorList are additive across turns like any other field: when the
+          owner adds one more colour or size to what a product already has, the reported
+          list is the existing values plus the new one, never the new one alone.
         - Fields marked required must be filled before the product is ready. Fields not
           marked required are optional, which means you need not ASK for them - not that
           you may ignore them when given. If the owner states one, always record it.

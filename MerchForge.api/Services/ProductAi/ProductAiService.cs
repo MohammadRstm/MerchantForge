@@ -15,7 +15,7 @@ using MerchForge.api.Services.ProductAi.Interfaces;
 
 namespace MerchForge.api.Services.ProductAi
 {
-    public class ProductAiService : IProductAiService
+    public partial class ProductAiService : IProductAiService
     {
         /// <summary>
         /// How many past turns go to the agent. The structured draft already carries
@@ -512,9 +512,19 @@ namespace MerchForge.api.Services.ProductAi
         }
 
 
+        [System.Text.RegularExpressions.GeneratedRegex("^#[0-9A-Fa-f]{6}$")]
+        private static partial System.Text.RegularExpressions.Regex HexColorPattern();
+
         /// <summary>
         /// Removes metadata values the business does not permit, returning a message
         /// for each field that lost something.
+        ///
+        /// Two independent reasons a value gets removed: it's outside a closed
+        /// allowedValues set, or - for ColorList, which normally has no allowedValues
+        /// at all - it isn't a hex code. Both are checked here, before confirmation,
+        /// rather than left to fail at product creation: ProductMetadataBuilder
+        /// rejects a non-hex ColorList value with a hard exception, and a colour
+        /// name reaching that far would surface as a crash instead of a chat message.
         ///
         /// Removal rather than rejection of the whole turn: the rest of what the owner
         /// said is still good, and losing it because one value was wrong would be worse
@@ -534,22 +544,37 @@ namespace MerchForge.api.Services.ProductAi
 
             foreach (var key in state.Metadata.Keys.ToList())
             {
-                if (!rules.TryGetValue(key, out var rule) || rule.AllowedValues.Count == 0)
+                if (!rules.TryGetValue(key, out var rule))
                 {
                     continue;
                 }
+
+                Func<string, bool>? isAllowed = rule.AllowedValues.Count > 0
+                    ? v => rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase)
+                    : rule.ValueType == ProductAttributeValueType.ColorList
+                        ? v => HexColorPattern().IsMatch(v)
+                        : null;
+
+                if (isAllowed is null)
+                {
+                    continue;
+                }
+
+                var expectation = rule.AllowedValues.Count > 0
+                    ? $"Please choose from: {string.Join(", ", rule.AllowedValues)}."
+                    : "Colors must be hex codes, like #RRGGBB.";
 
                 var value = state.Metadata[key];
 
                 var offending = value.ValueKind switch
                 {
-                    JsonValueKind.String => rule.AllowedValues.Contains(value.GetString()!, StringComparer.OrdinalIgnoreCase)
+                    JsonValueKind.String => isAllowed(value.GetString()!)
                         ? []
                         : new List<string> { value.GetString()! },
                     JsonValueKind.Array => value.EnumerateArray()
                         .Where(e => e.ValueKind == JsonValueKind.String)
                         .Select(e => e.GetString()!)
-                        .Where(v => !rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase))
+                        .Where(v => !isAllowed(v))
                         .ToList(),
                     _ => [],
                 };
@@ -565,7 +590,7 @@ namespace MerchForge.api.Services.ProductAi
                     var kept = value.EnumerateArray()
                         .Where(e => e.ValueKind == JsonValueKind.String)
                         .Select(e => e.GetString()!)
-                        .Where(v => rule.AllowedValues.Contains(v, StringComparer.OrdinalIgnoreCase))
+                        .Where(isAllowed)
                         .ToList();
 
                     if (kept.Count > 0)
@@ -583,8 +608,7 @@ namespace MerchForge.api.Services.ProductAi
                 }
 
                 messages.Add(
-                    $"{string.Join(" and ", offending)} isn't available for {key}. "
-                    + $"Please choose from: {string.Join(", ", rule.AllowedValues)}.");
+                    $"{string.Join(" and ", offending)} isn't available for {key}. {expectation}");
             }
 
             return messages;

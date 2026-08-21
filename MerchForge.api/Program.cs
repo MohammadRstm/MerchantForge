@@ -404,6 +404,15 @@ app.UseStaticFiles(new StaticFileOptions
         // scripts/embedded content regardless of what the file actually contains.
         context.Context.Response.Headers.XContentTypeOptions = "nosniff";
         context.Context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; img-src 'self'";
+
+        // Without an explicit directive here, browsers fall back to heuristic
+        // caching off Last-Modified and can keep serving a stale image for a long
+        // time without ever contacting the server again -- even across normal
+        // reloads. A merchant replacing a product photo would see the old one
+        // indefinitely. "no-cache" still lets the browser cache the bytes, it just
+        // forces a conditional revalidation (If-None-Match/If-Modified-Since) on
+        // every request, so an unchanged file is still served instantly via 304.
+        context.Context.Response.Headers.CacheControl = "no-cache";
     }
 });
 

@@ -84,6 +84,41 @@ namespace MerchForge.api.Services.BusinessDashboard
             return await WriteAsync(businessId, stream, extension, cancellationToken);
         }
 
+        public async Task<(byte[] Bytes, string ContentType)> ReadAsync(
+            Guid businessId,
+            string url,
+            CancellationToken cancellationToken = default)
+        {
+            var relativeDirectory = Path.Combine(_options.RelativePath, businessId.ToString())
+                .Replace('\\', '/');
+            var expectedPrefix = $"/{relativeDirectory}/";
+
+            // Ownership is the url starting with exactly this business's own upload
+            // folder - a filename from anywhere else, or one containing ".." to climb
+            // out of it, is rejected the same way a nonexistent file is.
+            if (string.IsNullOrWhiteSpace(url)
+                || !url.StartsWith(expectedPrefix, StringComparison.Ordinal)
+                || url.Contains(".."))
+            {
+                throw new InvalidProductImageException("That image does not belong to this business.");
+            }
+
+            var absolutePath = Path.Combine(WebRootPath, url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+
+            if (!File.Exists(absolutePath))
+            {
+                throw new InvalidProductImageException("That image could not be found.");
+            }
+
+            var bytes = await File.ReadAllBytesAsync(absolutePath, cancellationToken);
+
+            var extension = Path.GetExtension(absolutePath).ToLowerInvariant();
+            var contentType = AllowedImages.FirstOrDefault(a => a.Extension == extension).ContentType
+                ?? "application/octet-stream";
+
+            return (bytes, contentType);
+        }
+
         private async Task<string> WriteAsync(
             Guid businessId,
             Stream content,

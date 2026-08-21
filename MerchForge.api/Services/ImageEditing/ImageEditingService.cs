@@ -21,6 +21,7 @@ public class ImageEditingService : IImageEditingService
     private readonly IImageEditJobRepository _jobRepository;
     private readonly IProductImageService _imageService;
     private readonly IProductImageEditingClient _editingClient;
+    private readonly IAiTranscriptionService _transcription;
     private readonly IFeatureCreditService _featureCreditService;
     private readonly ILogger<ImageEditingService> _logger;
 
@@ -28,12 +29,14 @@ public class ImageEditingService : IImageEditingService
         IImageEditJobRepository jobRepository,
         IProductImageService imageService,
         IProductImageEditingClient editingClient,
+        IAiTranscriptionService transcription,
         IFeatureCreditService featureCreditService,
         ILogger<ImageEditingService> logger)
     {
         _jobRepository = jobRepository;
         _imageService = imageService;
         _editingClient = editingClient;
+        _transcription = transcription;
         _featureCreditService = featureCreditService;
         _logger = logger;
     }
@@ -41,44 +44,32 @@ public class ImageEditingService : IImageEditingService
     public async Task<ImageEditJobResponse> EditAsync(
         Guid businessId,
         Guid userId,
-        List<IFormFile> images,
-        string prompt,
+        List<string> imageUrls,
+        string? prompt,
+        IFormFile? audioPrompt,
         CancellationToken cancellationToken = default)
     {
-        if (images.Count == 0)
+        if (imageUrls.Count == 0)
         {
-            throw new InvalidImageEditRequestException("Attach at least one image.");
+            throw new InvalidImageEditRequestException("Select at least one image to edit.");
         }
 
-        if (images.Count > MaxImages)
+        if (imageUrls.Count > MaxImages)
         {
-            throw new InvalidImageEditRequestException($"Attach {MaxImages} images or fewer.");
+            throw new InvalidImageEditRequestException($"Select {MaxImages} images or fewer.");
         }
 
-        if (string.IsNullOrWhiteSpace(prompt))
+        var resolvedPrompt = await ResolvePromptAsync(prompt, audioPrompt, cancellationToken);
+
+        // Read back rather than trusted as-sent: these are urls the frontend already
+        // holds from a prior upload, and ReadAsync is what confirms they actually
+        // belong to this business before anything is sent to a third party.
+        var inputs = new List<ImageEditInput>(imageUrls.Count);
+
+        foreach (var url in imageUrls)
         {
-            throw new InvalidImageEditRequestException("Describe what you want changed.");
-        }
-
-        var inputs = new List<ImageEditInput>(images.Count);
-        var storedInputUrls = new List<string>(images.Count);
-
-        foreach (var image in images)
-        {
-            // Validated and stored through the same path a manual product-image
-            // upload uses, so a malformed or disguised file is rejected the same way
-            // either time, and the input is kept for audit alongside the result.
-            var url = await _imageService.SaveAsync(businessId, image, cancellationToken);
-            storedInputUrls.Add(url);
-
-            using var buffer = new MemoryStream();
-
-            await using (var stream = image.OpenReadStream())
-            {
-                await stream.CopyToAsync(buffer, cancellationToken);
-            }
-
-            inputs.Add(new ImageEditInput(buffer.ToArray(), image.ContentType ?? "image/jpeg"));
+            var (bytes, contentType) = await _imageService.ReadAsync(businessId, url, cancellationToken);
+            inputs.Add(new ImageEditInput(bytes, contentType));
         }
 
         var jobId = Guid.NewGuid();
@@ -87,15 +78,12 @@ public class ImageEditingService : IImageEditingService
 
         try
         {
-            result = await _editingClient.EditAsync(inputs, prompt, cancellationToken);
+            result = await _editingClient.EditAsync(inputs, resolvedPrompt, cancellationToken);
         }
         catch (Exception ex)
         {
-            // The inputs are already validated and stored - only the provider call
-            // failed - so that much is worth keeping on the job for audit even though
-            // the request as a whole is about to fail.
             await _jobRepository.CreateAsync(
-                BuildJob(jobId, businessId, userId, prompt, storedInputUrls, outputUrl: null, error: ex.Message),
+                BuildJob(jobId, businessId, userId, resolvedPrompt, imageUrls, outputUrl: null, error: ex.Message),
                 cancellationToken);
 
             throw;
@@ -121,7 +109,7 @@ public class ImageEditingService : IImageEditingService
                 jobId, businessId);
         }
 
-        var job = BuildJob(jobId, businessId, userId, prompt, storedInputUrls, outputUrl, error: null);
+        var job = BuildJob(jobId, businessId, userId, resolvedPrompt, imageUrls, outputUrl, error: null);
 
         await _jobRepository.CreateAsync(job, cancellationToken);
 
@@ -137,6 +125,42 @@ public class ImageEditingService : IImageEditingService
             ?? throw new ImageEditJobNotFoundException();
 
         return ToResponse(job);
+    }
+
+    private async Task<string> ResolvePromptAsync(
+        string? prompt,
+        IFormFile? audioPrompt,
+        CancellationToken cancellationToken)
+    {
+        if (audioPrompt is not null)
+        {
+            if (audioPrompt.Length == 0)
+            {
+                throw new InvalidImageEditRequestException("The voice message was empty.");
+            }
+
+            await using var stream = audioPrompt.OpenReadStream();
+
+            var transcript = await _transcription.TranscribeAsync(
+                stream,
+                audioPrompt.FileName,
+                audioPrompt.ContentType ?? "application/octet-stream",
+                cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(transcript))
+            {
+                throw new InvalidImageEditRequestException("The voice message could not be understood.");
+            }
+
+            return transcript;
+        }
+
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            throw new InvalidImageEditRequestException("Describe what you want changed.");
+        }
+
+        return prompt;
     }
 
     private static ImageEditJob BuildJob(

@@ -93,6 +93,16 @@ public class FakeProductImageService : IProductImageService
         string contentType,
         CancellationToken cancellationToken = default)
         => Task.FromResult(SavedUrl);
+
+    public byte[] ReadBytes { get; set; } = [1, 2, 3, 4];
+
+    public string ReadContentType { get; set; } = "image/png";
+
+    public Task<(byte[] Bytes, string ContentType)> ReadAsync(
+        Guid businessId,
+        string url,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult((ReadBytes, ReadContentType));
 }
 
 /// <summary>Records what was logged so tests can assert on it without a logging framework.</summary>

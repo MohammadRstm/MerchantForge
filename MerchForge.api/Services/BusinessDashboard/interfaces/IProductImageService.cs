@@ -23,5 +23,16 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             byte[] bytes,
             string contentType,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Reads back the bytes of a previously-stored image, verifying first that
+        /// the url actually belongs to this business - a caller passing another
+        /// business's image url, or an arbitrary path, gets the same rejection as one
+        /// that doesn't exist. Throws InvalidProductImageException on either.
+        /// </summary>
+        Task<(byte[] Bytes, string ContentType)> ReadAsync(
+            Guid businessId,
+            string url,
+            CancellationToken cancellationToken = default);
     }
 }

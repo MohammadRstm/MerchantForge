@@ -32,16 +32,24 @@ namespace MerchForge.api.Controllers
                 ? id
                 : Guid.Empty;
 
+        /// <summary>
+        /// imageUrls reference images already uploaded via the same product-image
+        /// upload endpoint the manual form uses - this never accepts raw file bytes
+        /// for the images themselves, only which of the owner's own uploads to edit.
+        /// The instruction is either prompt (typed) or audioPrompt (spoken); send
+        /// exactly one.
+        /// </summary>
         [HttpPost]
         [RequestSizeLimit(26 * 1024 * 1024)]
         public async Task<ActionResult<ImageEditJobResponse>> Edit(
             Guid businessId,
-            [FromForm] List<IFormFile> images,
-            [FromForm] string prompt,
+            [FromForm] List<string> imageUrls,
+            [FromForm] string? prompt,
+            IFormFile? audioPrompt,
             CancellationToken cancellationToken)
         {
             var response = await _imageEditingService.EditAsync(
-                businessId, CurrentUserId, images, prompt, cancellationToken);
+                businessId, CurrentUserId, imageUrls, prompt, audioPrompt, cancellationToken);
 
             return CreatedAtAction(nameof(Get), new { businessId, jobId = response.Id }, response);
         }

@@ -313,10 +313,10 @@ the declared type, is **not** checked here — the validator has no access to th
 business's metadata shape, so that check happens in the service via
 `ProductMetadataBuilder.Build`, as documented above.
 
-`ProductsQueryRequestValidator` extends the shared `PagedQueryValidator<T>` (see
-[../services/services.md](../services/services.md)) and additionally bounds `Search`
-(max 255), `Category` (max 100), and requires `SortBy` to be a valid
-`ProductSortField` enum value.
+`ProductsQueryRequestValidator` extends the shared `PagedQueryValidator<T>`
+(`Validators/Common/PagedQueryValidator.cs`, used by every paged list endpoint
+across the backend) and additionally bounds `Search` (max 255), `Category` (max
+100), and requires `SortBy` to be a valid `ProductSortField` enum value.
 
 ## Business/product relationships
 

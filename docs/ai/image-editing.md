@@ -34,7 +34,7 @@ policies, both required:
 
 Same authorization shape as AI product creation — `BusinessOwner` plus the
 `Feature.AiImageEditing` policy, satisfied by plan bundling or a positive credit
-balance. See [authentication.md](../authentication.md#feature-authorization).
+balance. See [authentication.md](../authentication.md#3-feature-access--featurehandler--featurerequirement).
 
 ## Data model: `ImageEditJob`
 

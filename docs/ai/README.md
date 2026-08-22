@@ -13,7 +13,7 @@ Both features are:
 - **Gated by ASP.NET Core policy-based authorization** (`Feature.AiProductGeneration` /
   `Feature.AiImageEditing`), which is satisfied either by the business's subscription
   plan bundling the feature, or by the business holding a positive credit balance for
-  it. See [authentication.md](../authentication.md#feature-authorization).
+  it. See [authentication.md](../authentication.md#3-feature-access--featurehandler--featurerequirement).
 - **Metered per successful call.** One credit is spent per model call that actually
   reaches the provider and succeeds — never before the call, and never for a call that
   fails. See [AI Feature Credits](#credit-metering) below.

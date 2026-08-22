@@ -37,7 +37,7 @@ class-level policies, both of which must pass:
 - `Feature.AiProductGeneration` — the business must have the `ai.product_generation`
   feature, either via its subscription plan or a positive credit balance (see
   [ai/README.md](README.md#credit-metering) and
-  [authentication.md](../authentication.md#feature-authorization)).
+  [authentication.md](../authentication.md#3-feature-access--featurehandler--featurerequirement)).
 
 Because `businessId` is authorization-checked from the route before any handler runs,
 it is never "trusted input from the client" inside the service — every draft lookup

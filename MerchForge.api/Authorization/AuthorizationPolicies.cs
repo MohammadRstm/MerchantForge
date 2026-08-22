@@ -17,5 +17,6 @@
         public const string Telegram = "Feature.Telegram";
         public const string WhatsApp = "Feature.WhatsApp";
         public const string AiProductGeneration = "Feature.AiProductGeneration";
+        public const string AiImageEditing = "Feature.AiImageEditing";
     }
 }

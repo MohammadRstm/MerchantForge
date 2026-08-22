@@ -6,5 +6,6 @@
         public const string Telegram = "telegram";
         public const string WhatsApp = "whatsapp";
         public const string AiProductGeneration = "ai.product_generation";
+        public const string AiImageEditing = "ai.image_editing";
     }
 }

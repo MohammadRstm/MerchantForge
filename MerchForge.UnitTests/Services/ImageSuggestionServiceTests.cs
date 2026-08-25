@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.Enums;
@@ -135,6 +136,43 @@ public class ImageSuggestionServiceTests
 
         result.CategoryId.Should().Be(categoryId);
         result.CategoryName.Should().Be("Shoes");
+    }
+
+    [Fact]
+    public async Task Drops_a_metadata_key_whose_value_is_an_explicit_json_null()
+    {
+        var metadata = new Dictionary<string, JsonElement>
+        {
+            ["sizes"] = JsonSerializer.SerializeToElement<string?>(null),
+        };
+
+        _suggestionClient
+            .Setup(c => c.SuggestAsync(It.IsAny<ImageEditInput>(), It.IsAny<ProductAiContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProductAiDraft { Title = "A mug", Tags = [], Metadata = metadata });
+
+        var result = await _service.SuggestAsync(BusinessId, UserId, ImageUrl);
+
+        result.Metadata.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Keeps_a_metadata_key_with_a_real_value_alongside_one_that_was_null()
+    {
+        var metadata = new Dictionary<string, JsonElement>
+        {
+            ["sizes"] = JsonSerializer.SerializeToElement<string?>(null),
+            ["colors"] = JsonSerializer.SerializeToElement(new[] { "#FF0000" }),
+        };
+
+        _suggestionClient
+            .Setup(c => c.SuggestAsync(It.IsAny<ImageEditInput>(), It.IsAny<ProductAiContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProductAiDraft { Title = "A mug", Tags = [], Metadata = metadata });
+
+        var result = await _service.SuggestAsync(BusinessId, UserId, ImageUrl);
+
+        result.Metadata.Should().NotBeNull();
+        result.Metadata!.RootElement.TryGetProperty("sizes", out _).Should().BeFalse();
+        result.Metadata!.RootElement.TryGetProperty("colors", out _).Should().BeTrue();
     }
 
     [Fact]

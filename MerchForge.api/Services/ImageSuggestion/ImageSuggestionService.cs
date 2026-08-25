@@ -123,6 +123,26 @@ public class ImageSuggestionService : IImageSuggestionService
         var formData = await _dashboardRepository.GetProductFormDataAsync(businessId, cancellationToken);
         ProductAiService.StripDisallowedMetadata(draft, formData?.MetadataShape);
 
+        // The model sometimes includes a key with an explicit JSON null instead of
+        // omitting it entirely - both mean the same thing ("couldn't determine
+        // this from the photo"), so both are treated as not-filled rather than
+        // letting a literal null read as a real, applicable value.
+        if (draft.Metadata is not null)
+        {
+            foreach (var key in draft.Metadata.Keys.ToList())
+            {
+                if (draft.Metadata[key].ValueKind == JsonValueKind.Null)
+                {
+                    draft.Metadata.Remove(key);
+                }
+            }
+
+            if (draft.Metadata.Count == 0)
+            {
+                draft.Metadata = null;
+            }
+        }
+
         return new ProductDraftProductResponse
         {
             Title = draft.Title,

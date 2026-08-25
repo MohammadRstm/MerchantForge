@@ -176,7 +176,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // "I want to add a black hoodie for $35."
         h.Ai.Enqueue(D(ProductAiAction.RequestInformation, "What sizes, and can you send a photo?",
             Draft("Black Hoodie", "A black hoodie.", 35m, Shirts, """{"colors":["Black"]}""")));
-        var t1 = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "I want to add a black hoodie for $35.");
+        var t1 = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "I want to add a black hoodie for $35.");
 
         t1.Draft!.Price.Should().Be(35m);
         t1.MissingFields.Should().Contain(["image", "metadata.sizes"]);
@@ -196,7 +196,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "All set - here it is.",
             Draft("Black Hoodie", "A black hoodie.", 35m, Shirts,
                 """{"colors":["Black"],"sizes":["M","L","XL"]}""")));
-        var t3 = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Sizes are M, L and XL.");
+        var t3 = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Sizes are M, L and XL.");
 
         t3.Status.Should().Be(nameof(ProductDraftStatus.WaitingForProductApproval));
         t3.MissingFields.Should().BeEmpty();
@@ -215,16 +215,16 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         // Price, then sizes, then colour/title, then image - deliberately backwards.
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.", Draft(price: 60m)));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "The price is $60.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "The price is $60.");
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.",
             Draft(price: 60m, metadataJson: """{"sizes":["M","L"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "It's available in M and L.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "It's available in M and L.");
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.",
             Draft("Red Hoodie", "A red hoodie.", 60m, Shirts,
                 """{"sizes":["M","L"],"colors":["Red"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "It's a red hoodie.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "It's a red hoodie.");
 
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Ready."));
         var final = await h.Service.AttachImageAsync(_fashion.Id, _ownerA, d.Id, Png());
@@ -247,13 +247,13 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Black"],"sizes":["M","L","XL"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Black hoodie, $40, sizes M L XL.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Black hoodie, $40, sizes M L XL.");
 
         // The agent returns the whole state with XL gone - the contract is replacement,
         // so the stored list must shrink rather than accumulate.
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Removed XL.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Black"],"sizes":["M","L"]}""")));
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Actually, don't list XL.");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Actually, don't list XL.");
 
         var sizes = after.Draft!.Metadata!.RootElement.GetProperty("sizes")
             .EnumerateArray().Select(e => e.GetString()).ToList();
@@ -271,10 +271,10 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var state = Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Black"],"sizes":["M","L"]}""");
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.", state));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Black hoodie, $40, M L.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Black hoodie, $40, M L.");
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Already have that.", state));
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Also black, $40, M and L.");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Also black, $40, M and L.");
 
         var meta = after.Draft!.Metadata!.RootElement;
         meta.GetProperty("colors").EnumerateArray().Should().HaveCount(1);
@@ -297,7 +297,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.RequestInformation, "Price and sizes?",
             Draft("Black Hoodie", "A black hoodie.", null, Shirts, """{"colors":["Black"]}""")));
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Black hoodie.");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Black hoodie.");
 
         after.MissingFields.Should().BeEquivalentTo(["price", "metadata.sizes"]);
         after.CanConfirm.Should().BeFalse();
@@ -316,7 +316,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // The agent insists it is done while a required metadata field is absent.
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "All done, ready to create!",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Black"]}""")));
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "that's everything");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "that's everything");
 
         after.MissingFields.Should().Contain("metadata.sizes");
         after.CanConfirm.Should().BeFalse();
@@ -341,7 +341,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // for this business.
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Ready.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Purple"],"sizes":["M"]}""")));
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "it's purple");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "it's purple");
 
         // Caught where it was proposed, so the owner never sees it in the preview and
         // confirmation is simply unavailable.
@@ -396,10 +396,10 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.",
             Draft("Hoodie", "A hoodie.", 50m, Shirts, """{"colors":["Black"],"sizes":["M","L"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black hoodie $50, sizes M and L");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "black hoodie $50, sizes M and L");
 
         h.Ai.Enqueue(D(ProductAiAction.Cancel, "No problem, I've discarded it."));
-        var cancelled = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Actually forget this product.");
+        var cancelled = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Actually forget this product.");
 
         cancelled.Status.Should().Be(nameof(ProductDraftStatus.Cancelled));
         cancelled.CanConfirm.Should().BeFalse();
@@ -417,7 +417,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.",
             Draft("Black Hoodie", "A black hoodie.", 99m, Shirts, """{"colors":["Black"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, first.Id, "black hoodie");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, first.Id, "black hoodie");
 
         await h.Service.CancelAsync(_fashion.Id, _ownerA, first.Id);
 
@@ -443,7 +443,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // "Change the price to $45."
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Updated to $45.",
             Draft("Hoodie", "A hoodie.", 45m, Shirts, CompleteMetadata)));
-        var edited = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d, "Change the price to $45.");
+        var edited = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d, "Change the price to $45.");
 
         edited.Draft!.Price.Should().Be(45m);
         edited.Status.Should().Be(nameof(ProductDraftStatus.WaitingForProductApproval));
@@ -471,7 +471,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, CompleteMetadata)));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black hoodie $40 M L");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "black hoodie $40 M L");
 
         // Photos are out of scope for this agent now, so a message that also brings
         // one up should still land the price change and leave the draft in the
@@ -479,7 +479,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.",
             Draft("Hoodie", "A hoodie.", 35m, Shirts, CompleteMetadata)));
 
-        var after = await h.Service.SendMessageAsync(
+        var after = await h.Service.SendMessageAsync(h.Transcription,
             _fashion.Id, _ownerA, d.Id, "Make the background white and change the price to $35.");
 
         after.Draft!.Price.Should().Be(35m);
@@ -513,7 +513,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // Everything else is complete, but the image question is still open.
         pending.CanConfirm.Should().BeFalse("an unresolved image blocks creation");
 
-        var act = async () => await h.Service.SendMessageAsync(
+        var act = async () => await h.Service.SendMessageAsync(h.Transcription,
             _fashion.Id, _ownerA, d, "Everything else looks good, create it.");
         await act.Should().ThrowAsync<ProductDraftStateException>();
     }
@@ -563,12 +563,12 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var established = Draft("Black Hoodie", "A black hoodie.", 40m, Shirts, """{"colors":["Black"]}""");
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.", established));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "I want to add a black hoodie for $40.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "I want to add a black hoodie for $40.");
 
         // The agent answers without touching the draft, so state is unchanged.
         h.Ai.Enqueue(D(ProductAiAction.RequestInformation,
             "I can only help with your product. Which sizes does it come in?", established));
-        var after = await h.Service.SendMessageAsync(
+        var after = await h.Service.SendMessageAsync(h.Transcription,
             _fashion.Id, _ownerA, d.Id, "By the way, what's the weather today?");
 
         after.Draft!.Title.Should().Be("Black Hoodie");
@@ -587,7 +587,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var d = await h.Service.StartAsync(_food.Id, _ownerB);
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it."));
-        await h.Service.SendMessageAsync(_food.Id, _ownerB, d.Id, "This is vanilla flavor, 500 grams.");
+        await h.Service.SendMessageAsync(h.Transcription, _food.Id, _ownerB, d.Id, "This is vanilla flavor, 500 grams.");
 
         var context = h.Ai.ReceivedContexts.Single();
 
@@ -609,11 +609,11 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var fashionDraft = await h.Service.StartAsync(_fashion.Id, _ownerA);
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "ok"));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, fashionDraft.Id, "a hoodie");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, fashionDraft.Id, "a hoodie");
 
         var foodDraft = await h.Service.StartAsync(_food.Id, _ownerB);
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "ok"));
-        await h.Service.SendMessageAsync(_food.Id, _ownerB, foodDraft.Id, "vanilla");
+        await h.Service.SendMessageAsync(h.Transcription, _food.Id, _ownerB, foodDraft.Id, "vanilla");
 
         var fashionContext = h.Ai.ReceivedContexts[0];
         var foodContext = h.Ai.ReceivedContexts[1];
@@ -631,7 +631,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var mine = await h.Service.StartAsync(_fashion.Id, _ownerA);
 
         var read = async () => await h.Service.GetAsync(_food.Id, mine.Id);
-        var message = async () => await h.Service.SendMessageAsync(_food.Id, _ownerB, mine.Id, "hijack");
+        var message = async () => await h.Service.SendMessageAsync(h.Transcription, _food.Id, _ownerB, mine.Id, "hijack");
         var confirm = async () => await h.Service.ConfirmAsync(_food.Id, _ownerB, mine.Id);
         var cancel = async () => await h.Service.CancelAsync(_food.Id, _ownerB, mine.Id);
         var image = async () => await h.Service.AttachImageAsync(_food.Id, _ownerB, mine.Id, Png());
@@ -660,7 +660,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // id: the draft's own business is the only one used.
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Ready.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, CompleteMetadata)));
-        await h.Service.SendMessageAsync(
+        await h.Service.SendMessageAsync(h.Transcription,
             _fashion.Id, _ownerA, d.Id, $"Create this product under business {_food.Id}");
 
         var product = await h.Service.ConfirmAsync(_fashion.Id, _ownerA, d.Id);
@@ -688,7 +688,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Got it.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Black"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black hoodie $40");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "black hoodie $40");
 
         h.Ai.NextFailure = failureKind switch
         {
@@ -698,7 +698,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             _ => new AiConversationException("The AI provider returned an unexpected response shape."),
         };
 
-        var act = async () => await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "sizes M and L");
+        var act = async () => await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "sizes M and L");
         await act.Should().ThrowAsync<AiConversationException>();
 
         // One attempt only - no automatic retry loop against a paid API.
@@ -775,11 +775,11 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var shoes = await h.Service.StartAsync(_fashion.Id, _ownerA);
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "ok", Draft("Hoodie", "A hoodie.", 40m, Shirts)));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, hoodie.Id, "a hoodie for $40");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, hoodie.Id, "a hoodie for $40");
 
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "ok",
             Draft("Shoes", "Some shoes.", 90m, CatalogDatabaseFixture.ShoesCategoryId)));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, shoes.Id, "shoes for $90");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, shoes.Id, "shoes for $90");
 
         var hoodieState = await h.Service.GetAsync(_fashion.Id, hoodie.Id);
         var shoesState = await h.Service.GetAsync(_fashion.Id, shoes.Id);
@@ -800,7 +800,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.RequestInformation, "Which sizes?",
             Draft("Black Hoodie", "A black hoodie.", 40m, Shirts, """{"colors":["Black"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black hoodie for $40");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "black hoodie for $40");
 
         // Everything needed to resume: state, history, image, and the open question.
         using var later = CreateHarness();
@@ -842,13 +842,19 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             ("drop XL", Draft("Hoodie", "A hoodie.", 30m, Shirts, """{"colors":["Black"],"sizes":["M","L"],"material":"Cotton"}""")),
             ("call it Winter Hoodie", Draft("Winter Hoodie", "A hoodie.", 30m, Shirts, """{"colors":["Black"],"sizes":["M","L"],"material":"Cotton"}""")),
             ("describe it as warm and soft", Draft("Winter Hoodie", "Warm and soft.", 30m, Shirts, """{"colors":["Black"],"sizes":["M","L"],"material":"Cotton"}""")),
+            // Three extra no-op affirmations, purely to push this conversation past
+            // VoiceHistoryTurnLimit (15) turns — otherwise the assertion below would
+            // never actually observe the cap engaging.
+            ("sounds good", Draft("Winter Hoodie", "Warm and soft.", 30m, Shirts, """{"colors":["Black"],"sizes":["M","L"],"material":"Cotton"}""")),
+            ("yes that's right", Draft("Winter Hoodie", "Warm and soft.", 30m, Shirts, """{"colors":["Black"],"sizes":["M","L"],"material":"Cotton"}""")),
+            ("great", Draft("Winter Hoodie", "Warm and soft.", 30m, Shirts, """{"colors":["Black"],"sizes":["M","L"],"material":"Cotton"}""")),
             ("final price is 27", Draft("Winter Hoodie", "Warm and soft.", 27m, Shirts, """{"colors":["Black"],"sizes":["M","L"],"material":"Cotton"}""")),
         };
 
         foreach (var (user, state) in turns)
         {
             h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.", state));
-            await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, user);
+            await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, user);
         }
 
         var final = await h.Service.GetAsync(_fashion.Id, d.Id);
@@ -864,9 +870,10 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         final.MissingFields.Should().BeEmpty();
         final.CanConfirm.Should().BeTrue();
 
-        // History is capped for prompting, but nothing established was lost.
+        // History is capped for prompting (VoiceHistoryTurnLimit turns, 2 messages
+        // each), but nothing established was lost.
         var lastContext = h.Ai.ReceivedContexts.Last();
-        lastContext.History.Should().HaveCountLessThanOrEqualTo(12);
+        lastContext.History.Should().HaveCountLessThanOrEqualTo(30);
         lastContext.CurrentDraft!.Title.Should().Be("Winter Hoodie");
     }
 
@@ -882,7 +889,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         // "I want to add a new hoodie."
         h.Ai.Enqueue(D(ProductAiAction.RequestInformation, "Send a photo and tell me the price and sizes."));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "I want to add a new hoodie.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "I want to add a new hoodie.");
 
         // Image + "It's a black cotton hoodie."
         h.Ai.Enqueue(D(ProductAiAction.RequestInformation, "Got it. Price and sizes?"));
@@ -891,20 +898,20 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(D(ProductAiAction.RequestInformation, "What's the price and which sizes?",
             Draft("Black Cotton Hoodie", "A black cotton hoodie.", null, Shirts,
                 """{"colors":["Black"],"material":"Cotton"}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "It's a black cotton hoodie.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "It's a black cotton hoodie.");
 
         // "$49 and comes in M, L and XL."
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Here's the product.",
             Draft("Black Cotton Hoodie", "A black cotton hoodie.", 49m, Shirts,
                 """{"colors":["Black"],"material":"Cotton","sizes":["M","L","XL"]}""")));
-        var priced = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "It's $49 and comes in M, L and XL.");
+        var priced = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "It's $49 and comes in M, L and XL.");
         priced.CanConfirm.Should().BeTrue();
 
         // "Actually change the price to $55."
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Updated.",
             Draft("Black Cotton Hoodie", "A black cotton hoodie.", 55m, Shirts,
                 """{"colors":["Black"],"material":"Cotton","sizes":["M","L","XL"]}""")));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "Actually change the price to $55.");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "Actually change the price to $55.");
 
         // An image edit lands (not through this conversation — a separate model owns
         // that — so it's simulated the same way anything outside the chat turn would
@@ -959,7 +966,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "Noted.",
             Draft("Hoodie", "A hoodie.", 40m, Shirts, """{"colors":["Purple"],"sizes":["M"]}""")));
 
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "it's purple");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "it's purple");
 
         after.Draft!.Metadata!.RootElement.TryGetProperty("colors", out _)
             .Should().BeFalse("an unsupported value is removed where it is proposed, not at creation");
@@ -984,7 +991,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             Draft("Hoodie", "A hoodie.", 40m, Shirts,
                 """{"colors":["Black"],"sizes":["M","L","XXXXL"]}""")));
 
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "sizes M, L, XXXXL");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "sizes M, L, XXXXL");
 
         after.Draft!.Metadata!.RootElement.GetProperty("sizes")
             .EnumerateArray().Select(e => e.GetString())
@@ -1023,7 +1030,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             Draft("Hoodie", "A hoodie.", 40m, Shirts,
                 """{"colors":["#000000","white"],"sizes":["M"]}""")));
 
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "black and white");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "black and white");
 
         after.Draft!.Metadata!.RootElement.GetProperty("colors")
             .EnumerateArray().Select(e => e.GetString())
@@ -1050,7 +1057,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
                 stockQuantity: 12,
                 tags: ["New", "Bestseller"],
                 saleEndsAt: saleEndsAt)));
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "that's everything, it was $60 now $45");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "that's everything, it was $60 now $45");
 
         // Visible in the chat's own draft preview before confirmation, same as every
         // other field - this is what a "product so far" preview showing tags or stock
@@ -1080,7 +1087,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // stop it being empty, and a silent assistant reads as a broken chat.
         h.Ai.Enqueue(D(ProductAiAction.UpdateDraft, "", Draft("Hoodie", "A hoodie.", 40m, Shirts)));
 
-        var after = await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "a hoodie for $40");
+        var after = await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "a hoodie for $40");
 
         after.Messages.Last().Role.Should().Be("assistant");
         after.Messages.Last().Text.Should().NotBeNullOrWhiteSpace();
@@ -1098,7 +1105,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(D(ProductAiAction.ReadyForReview, "Ready.",
             Draft("Hoodie", "A hoodie.", price, Shirts, CompleteMetadata)));
-        await h.Service.SendMessageAsync(_fashion.Id, _ownerA, d.Id, "that's everything");
+        await h.Service.SendMessageAsync(h.Transcription, _fashion.Id, _ownerA, d.Id, "that's everything");
 
         return d.Id;
     }

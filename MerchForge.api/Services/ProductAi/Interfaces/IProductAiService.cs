@@ -23,13 +23,6 @@ namespace MerchForge.api.Services.ProductAi.Interfaces
             Guid draftId,
             CancellationToken cancellationToken = default);
 
-        Task<ProductDraftResponse> SendMessageAsync(
-            Guid businessId,
-            Guid userId,
-            Guid draftId,
-            string message,
-            CancellationToken cancellationToken = default);
-
         /// <summary>Transcribes the audio, then continues the conversation with the text.</summary>
         Task<ProductDraftResponse> SendVoiceMessageAsync(
             Guid businessId,

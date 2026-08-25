@@ -1,10 +1,5 @@
 namespace MerchForge.api.DTOs.ProductAi;
 
-public class SendDraftMessageRequest
-{
-    public string Message { get; set; } = string.Empty;
-}
-
 public class ImageApprovalRequest
 {
     /// <summary>

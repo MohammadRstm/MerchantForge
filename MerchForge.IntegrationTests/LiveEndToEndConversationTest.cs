@@ -59,7 +59,7 @@ public class LiveEndToEndConversationTest
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private (ProductAiService Service, IDisposable Scope) CreateService()
+    private (ProductAiService Service, FakeAiTranscriptionService Transcription, IDisposable Scope) CreateService()
     {
         var context = _db.CreateContext();
         var repo = new BusinessDashboardRepository(context);
@@ -69,18 +69,23 @@ public class LiveEndToEndConversationTest
         var subscriptionService = new SubscriptionService(new SubscriptionRepository(context), featureCreditRepo);
         var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService);
 
-        // Everything real except file storage, which has no provider behind it yet.
+        var transcription = new FakeAiTranscriptionService();
+
+        // Everything real except file storage and transcription, neither of which
+        // has a provider behind it yet — the feature is voice-only, but these
+        // tests script the transcript directly so the real conversation model is
+        // driven by exactly the text each scenario intends.
         var service = new ProductAiService(
             new ProductDraftRepository(context),
             repo,
             dashboard,
             _ai.CreateClient(),
-            new FakeAiTranscriptionService(),
+            transcription,
             new FakeProductImageService(),
             new RecordingAiInteractionLogger(),
             featureCreditService);
 
-        return (service, context);
+        return (service, transcription, context);
     }
 
     private static IFormFile Png() =>
@@ -95,7 +100,7 @@ public class LiveEndToEndConversationTest
     {
         Skip.IfNot(_ai.IsConfigured, "No AI provider configured.");
 
-        var (service, scope) = CreateService();
+        var (service, transcription, scope) = CreateService();
         using var _s = scope;
 
         var draft = await service.StartAsync(_business.Id, _owner);
@@ -104,7 +109,7 @@ public class LiveEndToEndConversationTest
         await service.AttachImageAsync(_business.Id, _owner, draft.Id, Png());
 
         var described = await service.SendMessageAsync(
-            _business.Id, _owner, draft.Id,
+            transcription, _business.Id, _owner, draft.Id,
             "It's a black cotton hoodie, put it under Shirts. Forty nine dollars, in medium, large and extra large.");
 
         described.Draft.Should().NotBeNull();
@@ -113,7 +118,7 @@ public class LiveEndToEndConversationTest
 
         // A correction, mid-conversation.
         var corrected = await service.SendMessageAsync(
-            _business.Id, _owner, draft.Id, "Actually change the price to $55.");
+            transcription, _business.Id, _owner, draft.Id, "Actually change the price to $55.");
 
         corrected.Draft!.Price.Should().Be(55m);
         corrected.Draft.Title.Should().NotBeNullOrWhiteSpace("the correction must not wipe the product");
@@ -155,14 +160,14 @@ public class LiveEndToEndConversationTest
     {
         Skip.IfNot(_ai.IsConfigured, "No AI provider configured.");
 
-        var (service, scope) = CreateService();
+        var (service, transcription, scope) = CreateService();
         using var _s = scope;
 
         var draft = await service.StartAsync(_business.Id, _owner);
         await service.AttachImageAsync(_business.Id, _owner, draft.Id, Png());
 
         var after = await service.SendMessageAsync(
-            _business.Id, _owner, draft.Id,
+            transcription, _business.Id, _owner, draft.Id,
             "It's a purple hoodie, forty dollars, size medium, put it under Shirts.");
 
         // Deterministic regardless of which way the model goes: if it asks about the

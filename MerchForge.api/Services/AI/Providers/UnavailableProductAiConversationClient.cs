@@ -21,7 +21,11 @@ public class UnavailableProductAiConversationClient : IProductAiConversationClie
         ProductAiContext context,
         CancellationToken cancellationToken = default)
     {
+        // Deliberately generic: whether the provider is unconfigured or genuinely
+        // down is an operational detail the merchant has no use for and no way to
+        // act on either way — "try again later" is the only honest, actionable
+        // thing to tell them, alongside the fallback that's still available.
         throw new AiConversationException(
-            "AI product creation isn't configured on this server. You can still add the product manually.");
+            "A server error occurred. Please try again later. You can still add the product manually.");
     }
 }

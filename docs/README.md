@@ -1,6 +1,6 @@
 # MerchForge Backend Documentation
 
-`MerchForge.api` is the backend for MerchForge: a multi-tenant platform where a
+`MerchForge.api` is the backend for MerchForge: a multi-tenant platform where aMR-docsV01
 business owner creates a store ("business"), builds a product catalog — manually or
 through an AI chat assistant — and gets a public storefront that independent
 frontend deployments (via a Storefront SDK) can read from. This documentation set

@@ -23,6 +23,8 @@ using MerchForge.api.Services.Email;
 using MerchForge.api.Services.Email.Interfaces;
 using MerchForge.api.Services.ImageEditing;
 using MerchForge.api.Services.ImageEditing.Interfaces;
+using MerchForge.api.Services.ImageSuggestion;
+using MerchForge.api.Services.ImageSuggestion.Interfaces;
 using MerchForge.api.Services.Invitation;
 using MerchForge.api.Services.Invitation.interfaces;
 using MerchForge.api.Services.AI;
@@ -272,13 +274,16 @@ var geminiOptions = builder.Configuration.GetSection(GeminiOptions.SectionName).
 if (geminiOptions.IsConfigured)
 {
     builder.Services.AddHttpClient<IProductImageEditingClient, GeminiImageEditingClient>();
+    builder.Services.AddHttpClient<IProductImageSuggestionClient, GeminiImageSuggestionClient>();
 }
 else
 {
     builder.Services.AddScoped<IProductImageEditingClient, UnavailableProductImageEditingClient>();
+    builder.Services.AddScoped<IProductImageSuggestionClient, UnavailableProductImageSuggestionClient>();
 }
 
 builder.Services.AddScoped<IImageEditingService, ImageEditingService>();
+builder.Services.AddScoped<IImageSuggestionService, ImageSuggestionService>();
 
 // Authorization Services
 builder.Services.AddScoped<IAuthorizationHandler, BusinessRoleHandler>();

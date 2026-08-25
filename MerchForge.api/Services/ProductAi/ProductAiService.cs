@@ -538,8 +538,12 @@ namespace MerchForge.api.Services.ProductAi
         /// Removal rather than rejection of the whole turn: the rest of what the owner
         /// said is still good, and losing it because one value was wrong would be worse
         /// than asking again about that one field.
+        ///
+        /// Internal rather than private: ImageSuggestionService reuses this exact
+        /// validation for the photo-analysis flow, which carries the same
+        /// hallucination risk against the same business-configured field rules.
         /// </summary>
-        private static List<string> StripDisallowedMetadata(
+        internal static List<string> StripDisallowedMetadata(
             ProductAiDraft state,
             JsonDocument? metadataShape)
         {

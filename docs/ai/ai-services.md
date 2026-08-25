@@ -340,8 +340,8 @@ immediately with a message safe to show the owner:
 
 | Class | Implements | Throws |
 |---|---|---|
-| `UnavailableProductAiConversationClient` | `IProductAiConversationClient` | `AiConversationException("AI product creation isn't configured on this server. You can still add the product manually.")` |
-| `UnavailableAiTranscriptionService` | `IAiTranscriptionService` | `AiConversationException("Voice messages aren't configured on this server. Please type your message instead.")` |
+| `UnavailableProductAiConversationClient` | `IProductAiConversationClient` | `AiConversationException("A server error occurred. Please try again later. You can still add the product manually.")` |
+| `UnavailableAiTranscriptionService` | `IAiTranscriptionService` | `AiConversationException("A server error occurred. Please try again later.")` |
 | `UnavailableProductImageEditingClient` | `IProductImageEditingClient` | `ImageEditingException("AI image editing isn't configured on this server.")` |
 
 ## Related documents

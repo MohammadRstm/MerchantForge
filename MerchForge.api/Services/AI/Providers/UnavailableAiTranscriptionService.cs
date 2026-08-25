@@ -11,7 +11,11 @@ public class UnavailableAiTranscriptionService : IAiTranscriptionService
         string contentType,
         CancellationToken cancellationToken = default)
     {
+        // Deliberately generic: whether the provider is unconfigured or genuinely
+        // down is an operational detail the merchant has no use for and no way to
+        // act on either way — "try again later" is the only honest, actionable
+        // thing to tell them.
         throw new AiConversationException(
-            "Voice messages aren't configured on this server. Please type your message instead.");
+            "A server error occurred. Please try again later.");
     }
 }

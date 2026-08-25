@@ -71,8 +71,7 @@ Class-level `[Authorize(Policy = BusinessOwner)]` **and**
 |---|---|---|---|---|---|
 | POST | `/` | — | — | `201 Created` → `ProductDraftResponse` | `BusinessNotFoundException` (404, via `GetProductFormAsync`) |
 | GET | `/{draftId:guid}` | — | — | `200 OK` → `ProductDraftResponse` | `ProductDraftNotFoundException` (404) |
-| POST | `/{draftId:guid}/messages` | `SendDraftMessageRequest { Message }` | `SendDraftMessageRequestValidator` (non-empty, max 2000) | `200 OK` → `ProductDraftResponse` | `ProductDraftNotFoundException` (404), `ProductDraftStateException` (409), `AiConversationException` (500) |
-| POST | `/{draftId:guid}/voice` | multipart `IFormFile file`, `[RequestSizeLimit(26 MB)]` | — | `200 OK` → `ProductDraftResponse` | same as above, plus empty/unintelligible voice → `AiConversationException` (500) |
+| POST | `/{draftId:guid}/voice` | multipart `IFormFile file`, `[RequestSizeLimit(26 MB)]` | — | `200 OK` → `ProductDraftResponse` | `ProductDraftNotFoundException` (404), `ProductDraftStateException` (409), `AiConversationException` (500, incl. empty/unintelligible voice) |
 | POST | `/{draftId:guid}/image` | multipart `IFormFile file`, `[RequestSizeLimit(6 MB)]` | — | `200 OK` → `ProductDraftResponse` | `InvalidProductImageException` (400), plus draft-state errors above |
 | POST | `/{draftId:guid}/image-approval` | `ImageApprovalRequest { Approved }` | — | `200 OK` → `ProductDraftResponse` | `ProductDraftStateException` (409) — in practice always thrown; see [ai/product-generation.md](../ai/product-generation.md#productdraftstatus-lifecycle) |
 | POST | `/{draftId:guid}/confirm` | — | — | `200 OK` → `BusinessProductDetailResponse` | `ProductDraftNotFoundException` (404), `ProductDraftStateException` (409, incl. missing fields), plus anything `CreateProductAsync` can throw |

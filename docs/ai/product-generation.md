@@ -107,9 +107,9 @@ sequenceDiagram
     Service->>Repo: CreateAsync(new ProductDraft)
     Service-->>Owner: ProductDraftResponse (greeting message)
 
-    Owner->>Controller: POST .../{draftId}/messages { message }
-    Controller->>Service: SendMessageAsync(...)
-    Service->>Service: RunTurnAsync — build ProductAiContext
+    Owner->>Controller: POST .../{draftId}/voice { audio }
+    Controller->>Service: SendVoiceMessageAsync(...)
+    Service->>Service: TranscribeAsync, then RunTurnAsync — build ProductAiContext
     Service->>Client: ContinueConversationAsync(context)
     Client->>OpenAI: POST chat/completions (system + user + strict schema)
     OpenAI-->>Client: JSON decision
@@ -142,17 +142,17 @@ route/verb/status-code table.
 |---|---|
 | `POST /` | `StartAsync` |
 | `GET /{draftId}` | `GetAsync` |
-| `POST /{draftId}/messages` | validates `SendDraftMessageRequest` via FluentValidation, then `SendMessageAsync` |
-| `POST /{draftId}/voice` | `SendVoiceMessageAsync` (multipart `IFormFile`, max 26 MB) |
+| `POST /{draftId}/voice` | `SendVoiceMessageAsync` (multipart `IFormFile`, max 26 MB) — the only way to continue a conversation turn |
 | `POST /{draftId}/image` | `AttachImageAsync` (multipart `IFormFile`, max 6 MB) |
 | `POST /{draftId}/image-approval` | `ResolveImageModificationAsync` (currently unreachable in practice — see above) |
 | `POST /{draftId}/confirm` | `ConfirmAsync` — the only action that writes to `products` |
 | `POST /{draftId}/cancel` | `CancelAsync` |
 
-`SendDraftMessageRequest.Message` is validated by
-`Validators/ProductAi/SendDraftMessageRequestValidator.cs`: non-empty, max length
-2000 characters (bounded before it reaches the provider — an unbounded message is
-billed by the token and gains nothing over a long-but-sane one).
+There is deliberately no text-message endpoint. An earlier version of this feature
+accepted typed text via `POST /{draftId}/messages` (`SendMessageAsync`,
+`SendDraftMessageRequest`); both were removed — voice is the only way to continue a
+conversation, since a merchant who is willing to type is equally well served by the
+plain manual form (see [products/product-management.md](../products/product-management.md)).
 
 ## Method documentation — `ProductAiService`
 
@@ -182,18 +182,20 @@ greeting message and no product state yet.
 **External services called**: none (no AI call on start).
 **DB operations**: one insert (`ProductDrafts`).
 
-### `SendMessageAsync` / `SendVoiceMessageAsync`
+### `SendVoiceMessageAsync(Guid businessId, Guid userId, Guid draftId, IFormFile audio, CancellationToken)`
 
-**Purpose**: Continues an existing conversation with a typed or spoken message.
+**Purpose**: Continues an existing conversation with a spoken message — the only way
+to continue a conversation turn; there is no text equivalent.
 
-`SendVoiceMessageAsync` additionally: rejects an empty `IFormFile` with
-`AiConversationException("The voice message was empty.")`; opens the file's read
-stream and calls `IAiTranscriptionService.TranscribeAsync`; rejects a blank/failed
-transcript with `AiConversationException("The voice message could not be
-understood.")`. The orchestration then proceeds identically to a typed message —
-`RunTurnAsync` receives plain text either way and does not know voice was involved.
+**Process**: Rejects an empty `IFormFile` with `AiConversationException("The voice
+message was empty.")`; opens the file's read stream and calls
+`IAiTranscriptionService.TranscribeAsync`; rejects a blank/failed transcript with
+`AiConversationException("The voice message could not be understood.")`. Once
+transcribed, the orchestration proceeds through the same `RunTurnAsync` path
+regardless of what the audio contained — `RunTurnAsync` itself only ever receives
+plain text and has no notion of voice.
 
-Both call `EnsureConversationOpen(draft)` first, which throws
+Calls `EnsureConversationOpen(draft)` first, which throws
 `ProductDraftStateException` if the draft's status is `Completed`, `Cancelled`,
 `Failed`, or `WaitingForImageApproval`.
 
@@ -276,8 +278,8 @@ claim is released.
 
 ### `RunTurnAsync` (private) — the core of one conversation turn
 
-Called by every message-producing public method (`SendMessageAsync`,
-`SendVoiceMessageAsync`, `AttachImageAsync`).
+Called by every message-producing public method (`SendVoiceMessageAsync`,
+`AttachImageAsync`).
 
 **Process**:
 1. Loads the current `ProductFormResponse` (categories + metadata fields) and the
@@ -286,8 +288,10 @@ Called by every message-producing public method (`SendMessageAsync`,
 3. Builds a `ProductAiContext`: `BusinessName`, `Currency` (hardcoded `"USD"` at this
    call site — see [Known limitations](#known-limitations-and-unresolved-behavior)),
    `Categories`, `MetadataFields`, `CurrentDraft` (read from `draft.Draft` via
-   `ProductDraftState.ReadDraft`), `History` (the last `PromptHistoryLimit` = 12
-   messages **excluding** the one just appended — the just-appended message is passed
+   `ProductDraftState.ReadDraft`), `History` (up to `VoiceHistoryTurnLimit` = 15 prior
+   owner turns — computed as `VoiceHistoryTurnLimit * 2 + 1` stored messages via
+   `ToPromptHistory`, since each owner turn is paired with one assistant reply,
+   **excluding** the one just appended — the just-appended message is passed
    separately as `LatestUserMessage` so the agent can distinguish "what was said
    before" from "what to respond to now"), and `LatestUserMessage`.
 4. Logs `LogTurnStarted`, starts a `Stopwatch`.
@@ -453,7 +457,6 @@ Two independent image mechanisms exist in the codebase and should not be confuse
 | Action invalid for the draft's current status (already completed, cancelled, unresolved image approval, etc.) | `ProductDraftStateException` | `Conflict` |
 | AI provider call failed or returned an unparseable decision | `AiConversationException` | `Unexpected` |
 | Empty or unintelligible voice message | `AiConversationException` | `Unexpected` |
-| `Message` empty or over 2000 characters | FluentValidation failure (`SendDraftMessageRequestValidator`) | `Validation` |
 
 See [error-handling.md](../error-handling.md) for how these enum values map to HTTP
 status codes.

@@ -19,11 +19,13 @@ namespace MerchForge.api.Services.ProductAi
     public partial class ProductAiService : IProductAiService
     {
         /// <summary>
-        /// How many past turns go to the agent. The structured draft already carries
-        /// accumulated state, so history only needs to cover recent back-and-forth
-        /// ("the second one", "no, the other colour").
+        /// How many past voice turns go to the agent. The structured draft already
+        /// carries accumulated state, so history only needs to cover recent
+        /// back-and-forth ("the second one", "no, the other colour") — this is a
+        /// count of owner turns, not raw stored messages, since every owner turn is
+        /// paired with one assistant reply.
         /// </summary>
-        private const int PromptHistoryLimit = 12;
+        private const int VoiceHistoryTurnLimit = 15;
 
         private readonly IProductDraftRepository _draftRepository;
         private readonly IBusinessDashboardRepository _dashboardRepository;
@@ -92,20 +94,6 @@ namespace MerchForge.api.Services.ProductAi
             var draft = await LoadDraftAsync(businessId, draftId, cancellationToken);
 
             return await BuildResponseAsync(draft, [], cancellationToken);
-        }
-
-        public async Task<ProductDraftResponse> SendMessageAsync(
-            Guid businessId,
-            Guid userId,
-            Guid draftId,
-            string message,
-            CancellationToken cancellationToken = default)
-        {
-            var draft = await LoadDraftAsync(businessId, draftId, cancellationToken);
-
-            EnsureConversationOpen(draft);
-
-            return await RunTurnAsync(draft, userId, message, "text", cancellationToken);
         }
 
         public async Task<ProductDraftResponse> SendVoiceMessageAsync(
@@ -365,7 +353,9 @@ namespace MerchForge.api.Services.ProductAi
                 CurrentDraft = ProductDraftState.ReadDraft(draft),
                 // Excludes the message just appended, which is passed separately so
                 // the agent can tell "what was said before" from "what to respond to".
-                History = ProductDraftState.ToPromptHistory(draft, PromptHistoryLimit + 1)
+                // Every owner turn is followed by exactly one assistant reply, so
+                // *2 messages covers VoiceHistoryTurnLimit owner turns.
+                History = ProductDraftState.ToPromptHistory(draft, VoiceHistoryTurnLimit * 2 + 1)
                     .SkipLast(1)
                     .ToList(),
                 LatestUserMessage = userMessage,

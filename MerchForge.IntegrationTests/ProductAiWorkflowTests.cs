@@ -148,7 +148,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
             CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "done");
 
         return started.Id;
     }
@@ -191,7 +191,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Got it.",
             new ProductAiDraft { Title = "Shirt", Price = 25m }));
 
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt for $25");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt for $25");
 
         // A separate service instance, as a later request would be.
         using var reloaded = CreateHarness();
@@ -213,10 +213,10 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Got it.",
             new ProductAiDraft { Title = "Shirt", Price = 25m }));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt for $25");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt for $25");
 
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Updated."));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "actually make it $29");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "actually make it $29");
 
         // The second turn must carry the accumulated state, otherwise the agent has
         // no way to know a correction is a correction.
@@ -235,14 +235,14 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Got it.",
             new ProductAiDraft { Title = "Shirt", Description = "Nice shirt.", Price = 25m }));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt for $25");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt for $25");
 
         // The agent returns the whole state with one field changed, which is the
         // contract - so the price moves and nothing else does.
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Updated the price.",
             new ProductAiDraft { Title = "Shirt", Description = "Nice shirt.", Price = 29m }));
 
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "actually make it $29");
+        var result = await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "actually make it $29");
 
         result.Draft!.Price.Should().Be(29m);
         result.Draft.Title.Should().Be("Shirt");
@@ -257,7 +257,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var started = await h.Service.StartAsync(_business.Id, _userId);
 
         h.Ai.Enqueue(Decision(ProductAiAction.RequestInformation, "Which category?"));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt");
 
         var context = h.Ai.ReceivedContexts.Single();
 
@@ -275,10 +275,10 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var started = await h.Service.StartAsync(_business.Id, _userId);
 
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Got it."));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "first");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "first");
 
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Got it."));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "second");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "second");
 
         var context = h.Ai.ReceivedContexts[1];
 
@@ -300,7 +300,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Got it.",
             new ProductAiDraft { Title = "Shirt", Price = 25m }));
 
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt for $25");
+        var result = await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt for $25");
 
         result.CanConfirm.Should().BeFalse();
 
@@ -319,7 +319,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "All set!",
             new ProductAiDraft { Title = "Shirt", Price = 25m }));
 
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+        var result = await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "done");
 
         result.Status.Should().Be(nameof(ProductDraftStatus.WaitingForProductApproval));
         result.CanConfirm.Should().BeFalse("the products table is what is being written, so we decide");
@@ -338,7 +338,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         h.Ai.Enqueue(Decision(ProductAiAction.UpdateDraft, "Got it.",
             new ProductAiDraft { Title = "Shirt" }));
 
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt");
+        var result = await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt");
 
         result.MissingFields.Should().BeEquivalentTo(["price", "category", "image"]);
     }
@@ -362,7 +362,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
                 CategoryId = CatalogDatabaseFixture.PizzaCategoryId,
             }));
 
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt");
+        var result = await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt");
 
         result.Draft!.CategoryId.Should().BeNull("an unusable category is dropped at the point it is proposed");
         result.CanConfirm.Should().BeFalse();
@@ -496,7 +496,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var cancelled = await h.Service.CancelAsync(_business.Id, _userId, started.Id);
         cancelled.Status.Should().Be(nameof(ProductDraftStatus.Cancelled));
 
-        var act = async () => await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "hello?");
+        var act = async () => await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "hello?");
         await act.Should().ThrowAsync<ProductDraftStateException>();
     }
 
@@ -509,7 +509,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(Decision(ProductAiAction.Cancel, "No problem, cancelled."));
 
-        var result = await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "forget it");
+        var result = await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "forget it");
 
         result.Status.Should().Be(nameof(ProductDraftStatus.Cancelled));
         result.CanConfirm.Should().BeFalse();
@@ -550,11 +550,11 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.Enqueue(Decision(ProductAiAction.ReadyForReview, "Ready.",
             CompleteDraft(CatalogDatabaseFixture.ShirtsCategoryId)));
-        await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "done");
+        await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "done");
 
         var rivalUser = Guid.NewGuid();
 
-        var message = async () => await h.Service.SendMessageAsync(_rivalBusiness.Id, rivalUser, started.Id, "mine now");
+        var message = async () => await h.Service.SendMessageAsync(h.Transcription, _rivalBusiness.Id, rivalUser, started.Id, "mine now");
         var confirm = async () => await h.Service.ConfirmAsync(_rivalBusiness.Id, rivalUser, started.Id);
         var cancel = async () => await h.Service.CancelAsync(_rivalBusiness.Id, rivalUser, started.Id);
 
@@ -672,7 +672,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         using var h = CreateHarness();
         var started = await StartWithPendingImageEditAsync(h);
 
-        var act = async () => await h.Service.SendMessageAsync(_business.Id, _userId, started, "something else");
+        var act = async () => await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started, "something else");
 
         await act.Should().ThrowAsync<ProductDraftStateException>();
     }
@@ -710,7 +710,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         h.Ai.NextFailure = new HttpRequestException("provider down");
 
-        var act = async () => await h.Service.SendMessageAsync(_business.Id, _userId, started.Id, "a shirt for $25");
+        var act = async () => await h.Service.SendMessageAsync(h.Transcription, _business.Id, _userId, started.Id, "a shirt for $25");
         await act.Should().ThrowAsync<AiConversationException>();
 
         h.Logger.Events.Should().Contain("failed");

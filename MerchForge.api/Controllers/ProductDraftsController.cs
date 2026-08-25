@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using FluentValidation;
 using MerchForge.api.Authorization;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.ProductAi;
@@ -28,14 +27,11 @@ namespace MerchForge.api.Controllers
     public class ProductDraftsController : ControllerBase
     {
         private readonly IProductAiService _productAiService;
-        private readonly IValidator<SendDraftMessageRequest> _messageValidator;
 
         public ProductDraftsController(
-            IProductAiService productAiService,
-            IValidator<SendDraftMessageRequest> messageValidator)
+            IProductAiService productAiService)
         {
             _productAiService = productAiService;
-            _messageValidator = messageValidator;
         }
 
         /// <summary>
@@ -65,21 +61,6 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _productAiService.GetAsync(businessId, draftId, cancellationToken);
-
-            return Ok(response);
-        }
-
-        [HttpPost("{draftId:guid}/messages")]
-        public async Task<ActionResult<ProductDraftResponse>> SendMessage(
-            Guid businessId,
-            Guid draftId,
-            [FromBody] SendDraftMessageRequest request,
-            CancellationToken cancellationToken)
-        {
-            await _messageValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-            var response = await _productAiService.SendMessageAsync(
-                businessId, CurrentUserId, draftId, request.Message, cancellationToken);
 
             return Ok(response);
         }

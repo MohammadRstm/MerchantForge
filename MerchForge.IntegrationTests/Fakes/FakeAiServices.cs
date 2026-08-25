@@ -1,6 +1,8 @@
+using MerchForge.api.DTOs.ProductAi;
 using MerchForge.api.Services.AI.Contracts;
 using MerchForge.api.Services.AI.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
+using MerchForge.api.Services.ProductAi;
 using Microsoft.AspNetCore.Http;
 
 namespace MerchForge.IntegrationTests.Fakes;
@@ -127,4 +129,38 @@ public class RecordingAiInteractionLogger : IAiInteractionLogger
 
     public void LogValidationRejected(AiInteractionScope scope, string reason)
         => Events.Add($"rejected:{reason}");
+}
+
+/// <summary>
+/// Test-only convenience preserving the old text-message call shape.
+///
+/// The production text-message endpoint/method was removed — the AI
+/// product-creation feature is voice-only now — but most of these tests exist to
+/// exercise ProductAiService's orchestration (state updates, corrections,
+/// validation, transitions), not the transport a message arrived through. This
+/// routes a plain string through the one remaining entry point,
+/// SendVoiceMessageAsync, via a transcription fake that echoes it back verbatim,
+/// so the exact same orchestration is exercised as before.
+/// </summary>
+internal static class ProductAiServiceTestExtensions
+{
+    private static IFormFile FakeVoiceFile() =>
+        new FormFile(new MemoryStream([1, 2, 3, 4]), 0, 4, "file", "voice.webm")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "audio/webm",
+        };
+
+    public static Task<ProductDraftResponse> SendMessageAsync(
+        this ProductAiService service,
+        FakeAiTranscriptionService transcription,
+        Guid businessId,
+        Guid userId,
+        Guid draftId,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        transcription.Transcript = message;
+        return service.SendVoiceMessageAsync(businessId, userId, draftId, FakeVoiceFile(), cancellationToken);
+    }
 }

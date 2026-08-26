@@ -1,6 +1,11 @@
+using Hangfire;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.DTOs.WebsiteTemplateRequests;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Dashboard;
+using MerchForge.api.Exceptions.WebsiteTemplateRequests;
+using MerchForge.api.Jobs.Email;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Common;
@@ -15,16 +20,22 @@ namespace MerchForge.api.Services.Dashboard
 
         private readonly IDashboardRepository _dashboardRepository;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
+        private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
         private readonly IDomainService _domainService;
+        private readonly IBackgroundJobClient _backgroundJobClient;
 
         public DashboardService(
             IDashboardRepository dashboardRepository,
             IRefreshTokenRepository refreshTokenRepository,
-            IDomainService domainService)
+            IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
+            IDomainService domainService,
+            IBackgroundJobClient backgroundJobClient)
         {
             _dashboardRepository = dashboardRepository;
             _refreshTokenRepository = refreshTokenRepository;
+            _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
             _domainService = domainService;
+            _backgroundJobClient = backgroundJobClient;
         }
 
         public async Task<DashboardStatsResponse> GetPlatformStatsAsync(CancellationToken cancellationToken = default)
@@ -142,6 +153,7 @@ namespace MerchForge.api.Services.Dashboard
                 Name = request.Name,
                 Label = request.Label,
                 VideoPreviewUrl = request.VideoPreviewUrl,
+                PreviewWebsiteUrl = string.IsNullOrWhiteSpace(request.PreviewWebsiteUrl) ? null : request.PreviewWebsiteUrl.Trim(),
                 DisplayOrder = request.DisplayOrder,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
@@ -161,11 +173,93 @@ namespace MerchForge.api.Services.Dashboard
                 Name = template.Name,
                 Label = template.Label,
                 VideoPreviewUrl = template.VideoPreviewUrl,
+                PreviewWebsiteUrl = template.PreviewWebsiteUrl,
                 IsActive = template.IsActive,
                 DisplayOrder = template.DisplayOrder,
                 BusinessesUsingIt = 0,
                 CreatedAt = template.CreatedAt,
             };
+        }
+
+        // ---- website template requests ----
+
+        public async Task<PagedResult<WebsiteTemplateRequestSummaryResponse>> GetWebsiteTemplateRequestsAsync(
+            WebsiteTemplateRequestsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var (items, totalCount) = await _websiteTemplateRequestRepository.GetPagedAsync(query, cancellationToken);
+
+            return new PagedResult<WebsiteTemplateRequestSummaryResponse>
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = totalCount,
+            };
+        }
+
+        public async Task<WebsiteTemplateRequestDetailResponse> GetWebsiteTemplateRequestAsync(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _websiteTemplateRequestRepository.GetDetailByIdAsync(websiteTemplateRequestId, cancellationToken)
+                ?? throw new WebsiteTemplateRequestNotFoundException();
+        }
+
+        public async Task<WebsiteTemplateRequestDetailResponse> StartWebsiteTemplateRequestBuildAsync(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken = default)
+        {
+            var request = await _websiteTemplateRequestRepository.GetTrackedByIdAsync(websiteTemplateRequestId, cancellationToken)
+                ?? throw new WebsiteTemplateRequestNotFoundException();
+
+            if (request.Status != WebsiteTemplateRequestStatus.Pending)
+            {
+                throw new WebsiteTemplateRequestInvalidStatusTransitionException();
+            }
+
+            request.Status = WebsiteTemplateRequestStatus.InProgress;
+            request.BuildStartedAt = DateTime.UtcNow;
+
+            await _websiteTemplateRequestRepository.SaveChangesAsync(cancellationToken);
+
+            _backgroundJobClient.Enqueue<NotifyOwnerOfWebsiteBuildStartedJob>(
+                job => job.ExecuteAsync(websiteTemplateRequestId));
+
+            return await GetWebsiteTemplateRequestAsync(websiteTemplateRequestId, cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateRequestDetailResponse> CloseWebsiteTemplateRequestAsync(
+            Guid websiteTemplateRequestId,
+            Guid closedByUserId,
+            CloseWebsiteTemplateRequestRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var websiteTemplateRequest = await _websiteTemplateRequestRepository.GetTrackedByIdAsync(
+                websiteTemplateRequestId, cancellationToken)
+                ?? throw new WebsiteTemplateRequestNotFoundException();
+
+            if (websiteTemplateRequest.Status == WebsiteTemplateRequestStatus.Closed)
+            {
+                throw new WebsiteTemplateRequestInvalidStatusTransitionException();
+            }
+
+            websiteTemplateRequest.Status = WebsiteTemplateRequestStatus.Closed;
+            websiteTemplateRequest.ClosedAt = DateTime.UtcNow;
+            websiteTemplateRequest.ClosedByUserId = closedByUserId;
+            websiteTemplateRequest.FinalWebsiteUrl = request.FinalWebsiteUrl.Trim();
+
+            await _websiteTemplateRequestRepository.SaveChangesAsync(cancellationToken);
+
+            // The template this business is now actually running — set here, on
+            // close, rather than when the request was merely submitted, and free to
+            // overwrite an earlier value from a prior closed request.
+            await _websiteTemplateRequestRepository.SetBusinessActiveWebsiteTemplateAsync(
+                websiteTemplateRequest.BusinessId,
+                websiteTemplateRequest.WebsiteTemplateId,
+                cancellationToken);
+
+            return await GetWebsiteTemplateRequestAsync(websiteTemplateRequestId, cancellationToken);
         }
     }
 }

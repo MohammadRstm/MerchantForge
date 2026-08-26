@@ -11,5 +11,7 @@ public class CreateWebsiteTemplateRequest
 
     public string VideoPreviewUrl { get; set; } = string.Empty;
 
+    public string? PreviewWebsiteUrl { get; set; }
+
     public int DisplayOrder { get; set; }
 }

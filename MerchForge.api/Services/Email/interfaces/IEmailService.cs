@@ -1,4 +1,4 @@
-﻿namespace MerchForge.api.Services.Email.Interfaces;
+namespace MerchForge.api.Services.Email.Interfaces;
 
 public interface IEmailService
 {
@@ -8,10 +8,19 @@ public interface IEmailService
         DateTime expiresAt,
         CancellationToken cancellationToken = default);
 
-    Task SendWebsiteTemplateChosenNotificationAsync(
+    Task SendWebsiteTemplateRequestSubmittedNotificationAsync(
         string adminEmail,
         string businessName,
+        string ownerFullName,
         string templateLabel,
-        string templateName,
+        string domainName,
+        string customizationNotes,
+        string dashboardLink,
+        CancellationToken cancellationToken = default);
+
+    Task SendWebsiteBuildStartedNotificationAsync(
+        string ownerEmail,
+        string businessName,
+        string templateLabel,
         CancellationToken cancellationToken = default);
 }

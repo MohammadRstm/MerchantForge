@@ -34,6 +34,14 @@ public class WebsiteTemplate
     /// </summary>
     public string VideoPreviewUrl { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Link to a live demo of the template, opened in a new tab from the "Preview"
+    /// button on the choose-a-template screen. Nullable for the same reason
+    /// <see cref="VideoPreviewUrl"/> tolerates a placeholder: a template can exist in
+    /// the catalogue before a demo deployment exists for it.
+    /// </summary>
+    public string? PreviewWebsiteUrl { get; set; }
+
     /// <summary>Lets SuperAdmins retire a template without deleting it out from under a business that already chose it.</summary>
     public bool IsActive { get; set; } = true;
 

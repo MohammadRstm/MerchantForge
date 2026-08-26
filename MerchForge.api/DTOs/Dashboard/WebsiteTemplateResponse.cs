@@ -15,6 +15,8 @@ public class WebsiteTemplateResponse
 
     public string VideoPreviewUrl { get; set; } = string.Empty;
 
+    public string? PreviewWebsiteUrl { get; set; }
+
     public bool IsActive { get; set; }
 
     public int DisplayOrder { get; set; }

@@ -117,15 +117,5 @@ namespace MerchForge.api.Repositories.Interfaces
             Guid websiteTemplateId,
             Guid businessDomainId,
             CancellationToken cancellationToken = default);
-
-        /// <summary>
-        /// Sets the business's chosen template, but only if it doesn't already have
-        /// one -- returns false (no-op) on a business that already chose, rather than
-        /// overwriting it, so a duplicate request can never silently switch templates.
-        /// </summary>
-        Task<bool> ChooseWebsiteTemplateAsync(
-            Guid businessId,
-            Guid websiteTemplateId,
-            CancellationToken cancellationToken = default);
     }
 }

@@ -10,4 +10,7 @@ public class WebsiteTemplateOptionResponse
     public string Label { get; set; } = string.Empty;
 
     public string VideoPreviewUrl { get; set; } = string.Empty;
+
+    /// <summary>Opened in a new tab by the "Preview" button. Null until a demo deployment exists.</summary>
+    public string? PreviewWebsiteUrl { get; set; }
 }

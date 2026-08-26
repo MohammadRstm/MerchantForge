@@ -1,5 +1,6 @@
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.DTOs.WebsiteTemplateRequests;
 
 namespace MerchForge.api.Services.Dashboard.interfaces
 {
@@ -26,6 +27,26 @@ namespace MerchForge.api.Services.Dashboard.interfaces
 
         Task<WebsiteTemplateResponse> CreateWebsiteTemplateAsync(
             CreateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default);
+
+        // ---- website template requests ----
+
+        Task<PagedResult<WebsiteTemplateRequestSummaryResponse>> GetWebsiteTemplateRequestsAsync(
+            WebsiteTemplateRequestsQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateRequestDetailResponse> GetWebsiteTemplateRequestAsync(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateRequestDetailResponse> StartWebsiteTemplateRequestBuildAsync(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateRequestDetailResponse> CloseWebsiteTemplateRequestAsync(
+            Guid websiteTemplateRequestId,
+            Guid closedByUserId,
+            CloseWebsiteTemplateRequestRequest request,
             CancellationToken cancellationToken = default);
     }
 }

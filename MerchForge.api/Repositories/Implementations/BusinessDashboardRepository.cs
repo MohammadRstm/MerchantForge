@@ -434,6 +434,7 @@ namespace MerchForge.api.Repositories.Implementations
                     Name = t.Name,
                     Label = t.Label,
                     VideoPreviewUrl = t.VideoPreviewUrl,
+                    PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                 })
                 .ToListAsync(cancellationToken);
         }
@@ -452,29 +453,9 @@ namespace MerchForge.api.Repositories.Implementations
                     Name = t.Name,
                     Label = t.Label,
                     VideoPreviewUrl = t.VideoPreviewUrl,
+                    PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
-        }
-
-        public async Task<bool> ChooseWebsiteTemplateAsync(
-            Guid businessId,
-            Guid websiteTemplateId,
-            CancellationToken cancellationToken = default)
-        {
-            // A conditional UPDATE (via ExecuteUpdateAsync's WHERE) rather than
-            // load-then-save: two concurrent requests choosing at once cannot both
-            // succeed this way, so there's no race where the second silently
-            // overwrites the first.
-            var rows = await _db.Businesses
-                .Where(b => b.Id == businessId && b.WebsiteTemplateId == null)
-                .ExecuteUpdateAsync(
-                    setters => setters
-                        .SetProperty(b => b.WebsiteTemplateId, websiteTemplateId)
-                        .SetProperty(b => b.WebsiteTemplateChosenAt, DateTime.UtcNow)
-                        .SetProperty(b => b.UpdatedAt, DateTime.UtcNow),
-                    cancellationToken);
-
-            return rows > 0;
         }
     }
 }

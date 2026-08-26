@@ -402,6 +402,7 @@ builder.Services.AddScoped<IDomainRepository, DomainRepository>();
 builder.Services.AddScoped<IProductDraftRepository, ProductDraftRepository>();
 builder.Services.AddScoped<IFeatureCreditRepository, FeatureCreditRepository>();
 builder.Services.AddScoped<IImageEditJobRepository, ImageEditJobRepository>();
+builder.Services.AddScoped<IWebsiteTemplateRequestRepository, WebsiteTemplateRequestRepository>();
 
 // build app
 var app = builder.Build();

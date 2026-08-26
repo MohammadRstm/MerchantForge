@@ -43,6 +43,9 @@ public class WebsiteTemplateConfiguration : IEntityTypeConfiguration<WebsiteTemp
             .IsRequired()
             .HasMaxLength(500);
 
+        builder.Property(x => x.PreviewWebsiteUrl)
+            .HasMaxLength(500);
+
         builder.Property(x => x.DisplayOrder)
             .IsRequired();
 

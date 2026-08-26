@@ -258,6 +258,7 @@ namespace MerchForge.api.Repositories.Implementations
                     Name = t.Name,
                     Label = t.Label,
                     VideoPreviewUrl = t.VideoPreviewUrl,
+                    PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                     IsActive = t.IsActive,
                     DisplayOrder = t.DisplayOrder,
                     BusinessesUsingIt = t.Businesses.Count,

@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using FluentValidation;
 using MerchForge.api.Authorization;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
+using MerchForge.api.DTOs.WebsiteTemplateRequests;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,7 +21,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<ProductsQueryRequest> _productsQueryValidator;
         private readonly IValidator<SaveProductRequest> _saveProductValidator;
         private readonly IValidator<CreateBusinessMemberRequest> _createMemberValidator;
-        private readonly IValidator<ChooseWebsiteTemplateRequest> _chooseWebsiteTemplateValidator;
+        private readonly IValidator<CreateWebsiteTemplateRequestRequest> _createWebsiteTemplateRequestValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -28,7 +30,7 @@ namespace MerchForge.api.Controllers
             IValidator<ProductsQueryRequest> productsQueryValidator,
             IValidator<SaveProductRequest> saveProductValidator,
             IValidator<CreateBusinessMemberRequest> createMemberValidator,
-            IValidator<ChooseWebsiteTemplateRequest> chooseWebsiteTemplateValidator)
+            IValidator<CreateWebsiteTemplateRequestRequest> createWebsiteTemplateRequestValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
@@ -36,7 +38,7 @@ namespace MerchForge.api.Controllers
             _productsQueryValidator = productsQueryValidator;
             _saveProductValidator = saveProductValidator;
             _createMemberValidator = createMemberValidator;
-            _chooseWebsiteTemplateValidator = chooseWebsiteTemplateValidator;
+            _createWebsiteTemplateRequestValidator = createWebsiteTemplateRequestValidator;
         }
 
         [HttpGet("stats")]
@@ -193,32 +195,52 @@ namespace MerchForge.api.Controllers
             return Ok(new ProductImageUploadResponse { ImageUrl = imageUrl });
         }
 
-        // ---- website template ----
+        // ---- website template requests ----
 
         /// <summary>
-        /// What the "choose a website template" section needs: the business's domain,
-        /// whichever template it already chose (if any), and the domain's available
-        /// templates otherwise.
+        /// What the template-selection page needs: the business's domain, whether it
+        /// already has an open request, and the domain's available templates otherwise.
         /// </summary>
-        [HttpGet("website-template")]
-        public async Task<ActionResult<BusinessWebsiteTemplateStatusResponse>> GetWebsiteTemplateStatus(
+        [HttpGet("website-template-options")]
+        public async Task<ActionResult<WebsiteTemplateOptionsResponse>> GetWebsiteTemplateOptions(
             Guid businessId,
             CancellationToken cancellationToken)
         {
-            var response = await _businessDashboardService.GetWebsiteTemplateStatusAsync(businessId, cancellationToken);
+            var response = await _businessDashboardService.GetWebsiteTemplateOptionsAsync(businessId, cancellationToken);
 
             return Ok(response);
         }
 
-        [HttpPost("website-template")]
-        public async Task<ActionResult<ChosenWebsiteTemplateResponse>> ChooseWebsiteTemplate(
+        [HttpGet("website-template-requests")]
+        public async Task<ActionResult<List<WebsiteTemplateRequestResponse>>> GetWebsiteTemplateRequests(
             Guid businessId,
-            [FromBody] ChooseWebsiteTemplateRequest request,
             CancellationToken cancellationToken)
         {
-            await _chooseWebsiteTemplateValidator.ValidateAndThrowAsync(request, cancellationToken);
+            var response = await _businessDashboardService.GetWebsiteTemplateRequestsAsync(businessId, cancellationToken);
 
-            var response = await _businessDashboardService.ChooseWebsiteTemplateAsync(businessId, request, cancellationToken);
+            return Ok(response);
+        }
+
+        [HttpPost("website-template-requests")]
+        public async Task<ActionResult<WebsiteTemplateRequestResponse>> CreateWebsiteTemplateRequest(
+            Guid businessId,
+            [FromBody] CreateWebsiteTemplateRequestRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createWebsiteTemplateRequestValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var requestedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(requestedByUserId, out var parsedRequestedByUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _businessDashboardService.CreateWebsiteTemplateRequestAsync(
+                businessId,
+                parsedRequestedByUserId,
+                request,
+                cancellationToken);
 
             return Ok(response);
         }

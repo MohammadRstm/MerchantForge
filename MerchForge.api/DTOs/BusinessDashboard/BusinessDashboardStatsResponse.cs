@@ -10,6 +10,9 @@ public class BusinessDashboardStatsResponse
 
     public DateTime CreatedAt { get; set; }
 
+    /// <summary>The deployed URL of this business's live website. Null until a website template request for it has been closed — the dashboard's "View website" button gates on this.</summary>
+    public string? WebsiteUrl { get; set; }
+
     public int MemberCount { get; set; }
 
     public int ProductCount { get; set; }

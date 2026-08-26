@@ -86,11 +86,14 @@ public class EmailService : IEmailService
         }
     }
 
-    public async Task SendWebsiteTemplateChosenNotificationAsync(
+    public async Task SendWebsiteTemplateRequestSubmittedNotificationAsync(
         string adminEmail,
         string businessName,
+        string ownerFullName,
         string templateLabel,
-        string templateName,
+        string domainName,
+        string customizationNotes,
+        string dashboardLink,
         CancellationToken cancellationToken = default)
     {
         try
@@ -105,9 +108,10 @@ public class EmailService : IEmailService
             message.To.Add(
                 MailboxAddress.Parse(adminEmail));
 
-            message.Subject = $"{businessName} chose a website template";
+            message.Subject = $"New website request from {businessName}";
 
-            var body = BuildWebsiteTemplateChosenEmail(businessName, templateLabel, templateName);
+            var body = BuildWebsiteTemplateRequestSubmittedEmail(
+                businessName, ownerFullName, templateLabel, domainName, customizationNotes, dashboardLink);
 
             message.Body = new BodyBuilder
             {
@@ -143,7 +147,7 @@ public class EmailService : IEmailService
         {
             _logger.LogError(
                 ex,
-                "Failed to send website-template-chosen notification to {Email}. SMTP Host: {Host}, Port: {Port}",
+                "Failed to send website-template-request notification to {Email}. SMTP Host: {Host}, Port: {Port}",
                 adminEmail,
                 _options.Host,
                 _options.Port);
@@ -151,26 +155,238 @@ public class EmailService : IEmailService
         }
     }
 
-    private static string BuildWebsiteTemplateChosenEmail(
+    public async Task SendWebsiteBuildStartedNotificationAsync(
+        string ownerEmail,
         string businessName,
         string templateLabel,
-        string templateName)
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var message = new MimeMessage();
+
+            message.From.Add(
+                new MailboxAddress(
+                    _options.FromName,
+                    _options.FromEmail));
+
+            message.To.Add(
+                MailboxAddress.Parse(ownerEmail));
+
+            message.Subject = "Your MerchForge website build has started";
+
+            var body = BuildWebsiteBuildStartedEmail(businessName, templateLabel);
+
+            message.Body = new BodyBuilder
+            {
+                HtmlBody = body
+            }.ToMessageBody();
+
+            using var smtpClient = new SmtpClient();
+
+            await smtpClient.ConnectAsync(
+                _options.Host,
+                _options.Port,
+                SecureSocketOptions.StartTls,
+                cancellationToken);
+
+            await smtpClient.AuthenticateAsync(
+                _options.Username,
+                _options.Password,
+                cancellationToken);
+
+            await smtpClient.SendAsync(
+                message,
+                cancellationToken);
+
+            await smtpClient.DisconnectAsync(
+                true,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send website-build-started notification to {Email}. SMTP Host: {Host}, Port: {Port}",
+                ownerEmail,
+                _options.Host,
+                _options.Port);
+            throw new EmailDeliveryException();
+        }
+    }
+
+    public async Task SendWebsiteRequestClosedNotificationAsync(
+        string ownerEmail,
+        string businessName,
+        string finalWebsiteUrl,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var message = new MimeMessage();
+
+            message.From.Add(
+                new MailboxAddress(
+                    _options.FromName,
+                    _options.FromEmail));
+
+            message.To.Add(
+                MailboxAddress.Parse(ownerEmail));
+
+            message.Subject = "Your MerchForge website is live";
+
+            var body = BuildWebsiteRequestClosedEmail(businessName, finalWebsiteUrl);
+
+            message.Body = new BodyBuilder
+            {
+                HtmlBody = body
+            }.ToMessageBody();
+
+            using var smtpClient = new SmtpClient();
+
+            await smtpClient.ConnectAsync(
+                _options.Host,
+                _options.Port,
+                SecureSocketOptions.StartTls,
+                cancellationToken);
+
+            await smtpClient.AuthenticateAsync(
+                _options.Username,
+                _options.Password,
+                cancellationToken);
+
+            await smtpClient.SendAsync(
+                message,
+                cancellationToken);
+
+            await smtpClient.DisconnectAsync(
+                true,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send website-request-closed notification to {Email}. SMTP Host: {Host}, Port: {Port}",
+                ownerEmail,
+                _options.Host,
+                _options.Port);
+            throw new EmailDeliveryException();
+        }
+    }
+
+    private static string BuildWebsiteTemplateRequestSubmittedEmail(
+        string businessName,
+        string ownerFullName,
+        string templateLabel,
+        string domainName,
+        string customizationNotes,
+        string dashboardLink)
     {
         return $"""
             <!DOCTYPE html>
             <html>
             <body>
-                <h2>A business chose a website template</h2>
+                <h2>New website request</h2>
 
                 <p>
-                    <strong>{businessName}</strong> has chosen the
-                    <strong>{templateLabel}</strong> template
-                    (<code>{templateName}</code>).
+                    <strong>{businessName}</strong> ({ownerFullName}) has requested a
+                    custom build of the <strong>{templateLabel}</strong> template
+                    ({domainName}).
                 </p>
 
                 <p>
-                    No action is required unless this template still needs to be
-                    deployed for them.
+                    <strong>Customization notes:</strong><br />
+                    {customizationNotes}
+                </p>
+
+                <p>
+                    <a href="{dashboardLink}"
+                       style="
+                           display:inline-block;
+                           padding:12px 20px;
+                           background:#ff9b00;
+                           color:white;
+                           text-decoration:none;
+                           border-radius:6px;
+                       ">
+                        Review in the admin dashboard
+                    </a>
+                </p>
+
+                <p>
+                    — MerchForge
+                </p>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string BuildWebsiteRequestClosedEmail(
+        string businessName,
+        string finalWebsiteUrl)
+    {
+        return $"""
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h2>Your website is live</h2>
+
+                <p>
+                    <strong>{businessName}</strong>'s custom website is built and ready.
+                </p>
+
+                <p>
+                    <a href="{finalWebsiteUrl}"
+                       style="
+                           display:inline-block;
+                           padding:12px 20px;
+                           background:#ff9b00;
+                           color:white;
+                           text-decoration:none;
+                           border-radius:6px;
+                       ">
+                        View your website
+                    </a>
+                </p>
+
+                <p>
+                    {finalWebsiteUrl}
+                </p>
+
+                <p>
+                    — MerchForge
+                </p>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string BuildWebsiteBuildStartedEmail(
+        string businessName,
+        string templateLabel)
+    {
+        return $"""
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h2>Your website build has started</h2>
+
+                <p>
+                    We've started building <strong>{businessName}</strong>'s custom
+                    website based on the <strong>{templateLabel}</strong> template.
+                </p>
+
+                <p>
+                    We'll be in touch once it's ready.
                 </p>
 
                 <p>

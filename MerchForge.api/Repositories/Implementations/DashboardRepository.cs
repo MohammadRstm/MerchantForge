@@ -258,6 +258,7 @@ namespace MerchForge.api.Repositories.Implementations
                     Name = t.Name,
                     Label = t.Label,
                     VideoPreviewUrl = t.VideoPreviewUrl,
+                    PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                     IsActive = t.IsActive,
                     DisplayOrder = t.DisplayOrder,
                     BusinessesUsingIt = t.Businesses.Count,
@@ -279,6 +280,46 @@ namespace MerchForge.api.Repositories.Implementations
             await _db.SaveChangesAsync(cancellationToken);
 
             return template;
+        }
+
+        public async Task<WebsiteTemplateDetailResponse?> GetWebsiteTemplateDetailAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplates
+                .AsNoTracking()
+                .Where(t => t.Id == id)
+                .Select(t => new WebsiteTemplateDetailResponse
+                {
+                    Id = t.Id,
+                    BusinessDomainId = t.BusinessDomainId,
+                    DomainName = t.BusinessDomain.Name,
+                    Name = t.Name,
+                    Label = t.Label,
+                    VideoPreviewUrl = t.VideoPreviewUrl,
+                    PreviewWebsiteUrl = t.PreviewWebsiteUrl,
+                    IsActive = t.IsActive,
+                    DisplayOrder = t.DisplayOrder,
+                    CreatedAt = t.CreatedAt,
+                    Businesses = t.Businesses
+                        .Select(b => new WebsiteTemplateBusinessResponse { Id = b.Id, Name = b.Name })
+                        .ToList(),
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        /// <summary>Loads a tracked entity for an update/deactivate mutation.</summary>
+        public async Task<WebsiteTemplate?> GetTrackedWebsiteTemplateAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplates
+                .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        }
+
+        public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            await _db.SaveChangesAsync(cancellationToken);
         }
     }
 }

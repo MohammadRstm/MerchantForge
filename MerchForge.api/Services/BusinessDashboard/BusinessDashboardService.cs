@@ -2,9 +2,13 @@
 using Hangfire;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
+using MerchForge.api.DTOs.WebsiteTemplateRequests;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Exceptions.Storefront;
+using MerchForge.api.Exceptions.WebsiteTemplateRequests;
 using MerchForge.api.Jobs.Email;
+using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Common;
@@ -17,15 +21,18 @@ namespace MerchForge.api.Services.BusinessDashboard
 
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
         private readonly IBackgroundJobClient _backgroundJobClient;
 
         public BusinessDashboardService(
             IBusinessDashboardRepository businessDashboardRepository,
             ISubscriptionRepository subscriptionRepository,
+            IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
             IBackgroundJobClient backgroundJobClient)
         {
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
+            _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
             _backgroundJobClient = backgroundJobClient;
         }
 
@@ -65,6 +72,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 BusinessId = businessId,
                 BusinessName = summary.Value.Name,
                 CreatedAt = summary.Value.CreatedAt,
+                WebsiteUrl = summary.Value.WebsiteUrl,
 
                 MemberCount = memberCount,
                 ProductCount = productCount,
@@ -257,9 +265,9 @@ namespace MerchForge.api.Services.BusinessDashboard
             await _businessDashboardRepository.DeleteProductAsync(product, cancellationToken);
         }
 
-        // ---- website template ----
+        // ---- website template requests ----
 
-        public async Task<BusinessWebsiteTemplateStatusResponse> GetWebsiteTemplateStatusAsync(
+        public async Task<WebsiteTemplateOptionsResponse> GetWebsiteTemplateOptionsAsync(
             Guid businessId,
             CancellationToken cancellationToken = default)
         {
@@ -271,35 +279,27 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new BusinessHasNoDomainException();
             }
 
-            var chosen = info.WebsiteTemplateId is null
-                ? null
-                : new ChosenWebsiteTemplateResponse
-                {
-                    Id = info.WebsiteTemplateId.Value,
-                    Name = info.WebsiteTemplateName!,
-                    Label = info.WebsiteTemplateLabel!,
-                    VideoPreviewUrl = info.WebsiteTemplateVideoPreviewUrl!,
-                    ChosenAt = info.WebsiteTemplateChosenAt!.Value,
-                };
+            var hasOpenRequest = await _websiteTemplateRequestRepository.HasOpenRequestAsync(businessId, cancellationToken);
 
-            // No point fetching the available list once a template is already chosen
-            // — the dashboard has nothing to render it for.
-            var available = chosen is null
-                ? await _businessDashboardRepository.GetActiveWebsiteTemplatesByDomainAsync(info.BusinessDomainId.Value, cancellationToken)
-                : [];
+            // No point fetching the catalogue while a request is already open — the
+            // page has nothing to render it for.
+            var templates = hasOpenRequest
+                ? []
+                : await _businessDashboardRepository.GetActiveWebsiteTemplatesByDomainAsync(info.BusinessDomainId.Value, cancellationToken);
 
-            return new BusinessWebsiteTemplateStatusResponse
+            return new WebsiteTemplateOptionsResponse
             {
                 BusinessDomainId = info.BusinessDomainId.Value,
                 DomainName = info.DomainName!,
-                Chosen = chosen,
-                Available = available,
+                HasOpenRequest = hasOpenRequest,
+                Templates = templates,
             };
         }
 
-        public async Task<ChosenWebsiteTemplateResponse> ChooseWebsiteTemplateAsync(
+        public async Task<WebsiteTemplateRequestResponse> CreateWebsiteTemplateRequestAsync(
             Guid businessId,
-            ChooseWebsiteTemplateRequest request,
+            Guid requestedByUserId,
+            CreateWebsiteTemplateRequestRequest request,
             CancellationToken cancellationToken = default)
         {
             var info = await _businessDashboardRepository.GetBusinessWebsiteTemplateInfoAsync(businessId, cancellationToken)
@@ -310,35 +310,51 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new BusinessHasNoDomainException();
             }
 
-            if (info.WebsiteTemplateId is not null)
+            if (await _websiteTemplateRequestRepository.HasOpenRequestAsync(businessId, cancellationToken))
             {
-                throw new WebsiteTemplateAlreadyChosenException();
+                throw new WebsiteTemplateRequestAlreadyOpenException();
             }
 
             var template = await _businessDashboardRepository.GetActiveWebsiteTemplateInDomainAsync(
                 request.WebsiteTemplateId, info.BusinessDomainId.Value, cancellationToken)
                 ?? throw new WebsiteTemplateWrongDomainException();
 
-            var chosen = await _businessDashboardRepository.ChooseWebsiteTemplateAsync(
-                businessId, template.Id, cancellationToken);
+            var now = DateTime.UtcNow;
 
-            if (!chosen)
+            var websiteTemplateRequest = new WebsiteTemplateRequest
             {
-                // Lost a race with another request choosing at the same instant.
-                throw new WebsiteTemplateAlreadyChosenException();
-            }
-
-            _backgroundJobClient.Enqueue<NotifyAdminOfWebsiteTemplateChoiceJob>(
-                job => job.ExecuteAsync(businessId, template.Id));
-
-            return new ChosenWebsiteTemplateResponse
-            {
-                Id = template.Id,
-                Name = template.Name,
-                Label = template.Label,
-                VideoPreviewUrl = template.VideoPreviewUrl,
-                ChosenAt = DateTime.UtcNow,
+                Id = Guid.NewGuid(),
+                BusinessId = businessId,
+                RequestedByUserId = requestedByUserId,
+                WebsiteTemplateId = template.Id,
+                CustomizationNotes = request.CustomizationNotes.Trim(),
+                Status = WebsiteTemplateRequestStatus.Pending,
+                CreatedAt = now,
             };
+
+            await _websiteTemplateRequestRepository.CreateAsync(websiteTemplateRequest, cancellationToken);
+
+            _backgroundJobClient.Enqueue<NotifyAdminOfWebsiteTemplateRequestJob>(
+                job => job.ExecuteAsync(websiteTemplateRequest.Id));
+
+            return new WebsiteTemplateRequestResponse
+            {
+                Id = websiteTemplateRequest.Id,
+                WebsiteTemplateId = template.Id,
+                TemplateName = template.Name,
+                TemplateLabel = template.Label,
+                DomainName = info.DomainName!,
+                CustomizationNotes = websiteTemplateRequest.CustomizationNotes,
+                Status = websiteTemplateRequest.Status,
+                CreatedAt = now,
+            };
+        }
+
+        public async Task<List<WebsiteTemplateRequestResponse>> GetWebsiteTemplateRequestsAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _websiteTemplateRequestRepository.GetForBusinessAsync(businessId, cancellationToken);
         }
 
         private async Task EnsureCategoryIsUsableAsync(

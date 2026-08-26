@@ -57,6 +57,9 @@ public class BusinessConfigurations : IEntityTypeConfiguration<Business>
         builder.Property(x => x.ContactPhone)
             .HasMaxLength(50);
 
+        builder.Property(x => x.WebsiteUrl)
+            .HasMaxLength(500);
+
         // Real json column, same as Product.Metadata: MariaDB adds
         // CHECK (json_valid(...)) so a malformed shape is rejected by the database.
         builder.Property(x => x.MetadataShape)

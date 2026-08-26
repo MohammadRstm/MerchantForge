@@ -7,7 +7,7 @@ namespace MerchForge.api.Repositories.Interfaces
 {
     public interface IBusinessDashboardRepository
     {
-        Task<(string Name, DateTime CreatedAt)?> GetBusinessSummaryAsync(
+        Task<(string Name, DateTime CreatedAt, string? WebsiteUrl)?> GetBusinessSummaryAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);
 
@@ -116,16 +116,6 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<WebsiteTemplateOptionResponse?> GetActiveWebsiteTemplateInDomainAsync(
             Guid websiteTemplateId,
             Guid businessDomainId,
-            CancellationToken cancellationToken = default);
-
-        /// <summary>
-        /// Sets the business's chosen template, but only if it doesn't already have
-        /// one -- returns false (no-op) on a business that already chose, rather than
-        /// overwriting it, so a duplicate request can never silently switch templates.
-        /// </summary>
-        Task<bool> ChooseWebsiteTemplateAsync(
-            Guid businessId,
-            Guid websiteTemplateId,
             CancellationToken cancellationToken = default);
     }
 }

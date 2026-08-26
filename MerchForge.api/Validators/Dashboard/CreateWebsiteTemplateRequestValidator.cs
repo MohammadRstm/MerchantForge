@@ -28,6 +28,9 @@ public class CreateWebsiteTemplateRequestValidator : AbstractValidator<CreateWeb
             .NotEmpty()
             .MaximumLength(500);
 
+        RuleFor(x => x.PreviewWebsiteUrl)
+            .MaximumLength(500);
+
         RuleFor(x => x.DisplayOrder)
             .GreaterThanOrEqualTo(0);
     }

@@ -1,5 +1,6 @@
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
+using MerchForge.api.DTOs.WebsiteTemplateRequests;
 
 namespace MerchForge.api.Services.BusinessDashboard.interfaces
 {
@@ -49,15 +50,20 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid productId,
             CancellationToken cancellationToken = default);
 
-        // ---- website template ----
+        // ---- website template requests ----
 
-        Task<BusinessWebsiteTemplateStatusResponse> GetWebsiteTemplateStatusAsync(
+        Task<WebsiteTemplateOptionsResponse> GetWebsiteTemplateOptionsAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);
 
-        Task<ChosenWebsiteTemplateResponse> ChooseWebsiteTemplateAsync(
+        Task<WebsiteTemplateRequestResponse> CreateWebsiteTemplateRequestAsync(
             Guid businessId,
-            ChooseWebsiteTemplateRequest request,
+            Guid requestedByUserId,
+            CreateWebsiteTemplateRequestRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<List<WebsiteTemplateRequestResponse>> GetWebsiteTemplateRequestsAsync(
+            Guid businessId,
             CancellationToken cancellationToken = default);
     }
 }

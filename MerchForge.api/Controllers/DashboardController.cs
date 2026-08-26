@@ -3,6 +3,7 @@ using FluentValidation;
 using MerchForge.api.Authorization;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.DTOs.WebsiteTemplateRequests;
 using MerchForge.api.Services.Dashboard.interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,17 +19,26 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UsersQueryRequest> _usersQueryValidator;
         private readonly IValidator<BusinessesQueryRequest> _businessesQueryValidator;
         private readonly IValidator<CreateWebsiteTemplateRequest> _createWebsiteTemplateValidator;
+        private readonly IValidator<UpdateWebsiteTemplateRequest> _updateWebsiteTemplateValidator;
+        private readonly IValidator<WebsiteTemplateRequestsQueryRequest> _websiteTemplateRequestsQueryValidator;
+        private readonly IValidator<CloseWebsiteTemplateRequestRequest> _closeWebsiteTemplateRequestValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
             IValidator<UsersQueryRequest> usersQueryValidator,
             IValidator<BusinessesQueryRequest> businessesQueryValidator,
-            IValidator<CreateWebsiteTemplateRequest> createWebsiteTemplateValidator)
+            IValidator<CreateWebsiteTemplateRequest> createWebsiteTemplateValidator,
+            IValidator<UpdateWebsiteTemplateRequest> updateWebsiteTemplateValidator,
+            IValidator<WebsiteTemplateRequestsQueryRequest> websiteTemplateRequestsQueryValidator,
+            IValidator<CloseWebsiteTemplateRequestRequest> closeWebsiteTemplateRequestValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
             _businessesQueryValidator = businessesQueryValidator;
+            _updateWebsiteTemplateValidator = updateWebsiteTemplateValidator;
             _createWebsiteTemplateValidator = createWebsiteTemplateValidator;
+            _websiteTemplateRequestsQueryValidator = websiteTemplateRequestsQueryValidator;
+            _closeWebsiteTemplateRequestValidator = closeWebsiteTemplateRequestValidator;
         }
 
         [HttpGet("stats")]
@@ -103,6 +113,109 @@ namespace MerchForge.api.Controllers
             await _createWebsiteTemplateValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var response = await _dashboardService.CreateWebsiteTemplateAsync(request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/video")]
+        [RequestSizeLimit(200 * 1024 * 1024)]
+        public async Task<ActionResult<UploadWebsiteTemplateVideoResponse>> UploadWebsiteTemplateVideo(
+            IFormFile file,
+            CancellationToken cancellationToken)
+        {
+            var videoUrl = await _dashboardService.UploadWebsiteTemplateVideoAsync(file, cancellationToken);
+
+            return Ok(new UploadWebsiteTemplateVideoResponse { VideoUrl = videoUrl });
+        }
+
+        [HttpGet("website-templates/{websiteTemplateId:guid}")]
+        public async Task<ActionResult<WebsiteTemplateDetailResponse>> GetWebsiteTemplate(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetWebsiteTemplateDetailAsync(websiteTemplateId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("website-templates/{websiteTemplateId:guid}")]
+        public async Task<ActionResult<WebsiteTemplateResponse>> UpdateWebsiteTemplate(
+            Guid websiteTemplateId,
+            [FromBody] UpdateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateWebsiteTemplateValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.UpdateWebsiteTemplateAsync(websiteTemplateId, request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/{websiteTemplateId:guid}/deactivate")]
+        public async Task<ActionResult<WebsiteTemplateResponse>> DeactivateWebsiteTemplate(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.DeactivateWebsiteTemplateAsync(websiteTemplateId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- website template requests ----
+
+        [HttpGet("website-template-requests")]
+        public async Task<ActionResult<PagedResult<WebsiteTemplateRequestSummaryResponse>>> GetWebsiteTemplateRequests(
+            [FromQuery] WebsiteTemplateRequestsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _websiteTemplateRequestsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetWebsiteTemplateRequestsAsync(query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("website-template-requests/{websiteTemplateRequestId:guid}")]
+        public async Task<ActionResult<WebsiteTemplateRequestDetailResponse>> GetWebsiteTemplateRequest(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetWebsiteTemplateRequestAsync(websiteTemplateRequestId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-template-requests/{websiteTemplateRequestId:guid}/start-build")]
+        public async Task<ActionResult<WebsiteTemplateRequestDetailResponse>> StartWebsiteTemplateRequestBuild(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.StartWebsiteTemplateRequestBuildAsync(
+                websiteTemplateRequestId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-template-requests/{websiteTemplateRequestId:guid}/close")]
+        public async Task<ActionResult<WebsiteTemplateRequestDetailResponse>> CloseWebsiteTemplateRequest(
+            Guid websiteTemplateRequestId,
+            [FromBody] CloseWebsiteTemplateRequestRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _closeWebsiteTemplateRequestValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var closedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(closedByUserId, out var parsedClosedByUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _dashboardService.CloseWebsiteTemplateRequestAsync(
+                websiteTemplateRequestId,
+                parsedClosedByUserId,
+                request,
+                cancellationToken);
 
             return Ok(response);
         }

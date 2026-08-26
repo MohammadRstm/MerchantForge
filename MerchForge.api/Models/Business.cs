@@ -54,6 +54,13 @@ public class Business
     public DateTime? WebsiteTemplateChosenAt { get; set; }
 
     /// <summary>
+    /// The deployed URL of this business's live website, set when a
+    /// WebsiteTemplateRequest for it is closed. Null exactly when WebsiteTemplateId
+    /// is null -- this is what the dashboard's "View website" button gates on.
+    /// </summary>
+    public string? WebsiteUrl { get; set; }
+
+    /// <summary>
     /// Which product metadata fields this business's products use, snapshotted from
     /// the domain's ProductAttributeDefinition catalogue at onboarding:
     ///
@@ -98,4 +105,7 @@ public class Business
     /// <summary>Custom categories this business created for itself. See Category.BusinessId.</summary>
     public ICollection<Category> CustomCategories { get; set; }
         = new List<Category>();
+
+    public ICollection<WebsiteTemplateRequest> WebsiteTemplateRequests { get; set; }
+        = new List<WebsiteTemplateRequest>();
 }

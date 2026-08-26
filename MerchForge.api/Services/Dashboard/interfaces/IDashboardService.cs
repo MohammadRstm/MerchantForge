@@ -1,5 +1,6 @@
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.DTOs.WebsiteTemplateRequests;
 
 namespace MerchForge.api.Services.Dashboard.interfaces
 {
@@ -26,6 +27,43 @@ namespace MerchForge.api.Services.Dashboard.interfaces
 
         Task<WebsiteTemplateResponse> CreateWebsiteTemplateAsync(
             CreateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<string> UploadWebsiteTemplateVideoAsync(
+            IFormFile file,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateDetailResponse> GetWebsiteTemplateDetailAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateResponse> UpdateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            UpdateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateResponse> DeactivateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        // ---- website template requests ----
+
+        Task<PagedResult<WebsiteTemplateRequestSummaryResponse>> GetWebsiteTemplateRequestsAsync(
+            WebsiteTemplateRequestsQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateRequestDetailResponse> GetWebsiteTemplateRequestAsync(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateRequestDetailResponse> StartWebsiteTemplateRequestBuildAsync(
+            Guid websiteTemplateRequestId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateRequestDetailResponse> CloseWebsiteTemplateRequestAsync(
+            Guid websiteTemplateRequestId,
+            Guid closedByUserId,
+            CloseWebsiteTemplateRequestRequest request,
             CancellationToken cancellationToken = default);
     }
 }

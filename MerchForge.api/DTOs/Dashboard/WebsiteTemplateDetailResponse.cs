@@ -1,7 +1,7 @@
 namespace MerchForge.api.DTOs.Dashboard;
 
-/// <summary>One row in the SuperAdmin's "manage website templates" list.</summary>
-public class WebsiteTemplateResponse
+/// <summary>Everything WebsiteTemplateResponse has, plus the businesses currently using it — shown when a SuperAdmin opens a template.</summary>
+public class WebsiteTemplateDetailResponse
 {
     public Guid Id { get; set; }
 
@@ -21,8 +21,7 @@ public class WebsiteTemplateResponse
 
     public int DisplayOrder { get; set; }
 
-    /// <summary>How many businesses have chosen this template — shown so a SuperAdmin can see the impact before retiring one.</summary>
-    public int BusinessesUsingIt { get; set; }
-
     public DateTime CreatedAt { get; set; }
+
+    public List<WebsiteTemplateBusinessResponse> Businesses { get; set; } = [];
 }

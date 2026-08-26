@@ -328,13 +328,17 @@ namespace MerchForge.api.Services.Dashboard
 
             await _websiteTemplateRequestRepository.SaveChangesAsync(cancellationToken);
 
-            // The template this business is now actually running — set here, on
-            // close, rather than when the request was merely submitted, and free to
-            // overwrite an earlier value from a prior closed request.
+            // The template and URL this business is now actually running — set here,
+            // on close, rather than when the request was merely submitted, and free
+            // to overwrite an earlier value from a prior closed request.
             await _websiteTemplateRequestRepository.SetBusinessActiveWebsiteTemplateAsync(
                 websiteTemplateRequest.BusinessId,
                 websiteTemplateRequest.WebsiteTemplateId,
+                websiteTemplateRequest.FinalWebsiteUrl,
                 cancellationToken);
+
+            _backgroundJobClient.Enqueue<NotifyOwnerOfWebsiteRequestClosedJob>(
+                job => job.ExecuteAsync(websiteTemplateRequestId));
 
             return await GetWebsiteTemplateRequestAsync(websiteTemplateRequestId, cancellationToken);
         }

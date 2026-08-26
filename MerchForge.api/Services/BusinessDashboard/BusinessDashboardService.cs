@@ -72,6 +72,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 BusinessId = businessId,
                 BusinessName = summary.Value.Name,
                 CreatedAt = summary.Value.CreatedAt,
+                WebsiteUrl = summary.Value.WebsiteUrl,
 
                 MemberCount = memberCount,
                 ProductCount = productCount,

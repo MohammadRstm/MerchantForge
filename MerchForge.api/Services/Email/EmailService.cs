@@ -219,6 +219,70 @@ public class EmailService : IEmailService
         }
     }
 
+    public async Task SendWebsiteRequestClosedNotificationAsync(
+        string ownerEmail,
+        string businessName,
+        string finalWebsiteUrl,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var message = new MimeMessage();
+
+            message.From.Add(
+                new MailboxAddress(
+                    _options.FromName,
+                    _options.FromEmail));
+
+            message.To.Add(
+                MailboxAddress.Parse(ownerEmail));
+
+            message.Subject = "Your MerchForge website is live";
+
+            var body = BuildWebsiteRequestClosedEmail(businessName, finalWebsiteUrl);
+
+            message.Body = new BodyBuilder
+            {
+                HtmlBody = body
+            }.ToMessageBody();
+
+            using var smtpClient = new SmtpClient();
+
+            await smtpClient.ConnectAsync(
+                _options.Host,
+                _options.Port,
+                SecureSocketOptions.StartTls,
+                cancellationToken);
+
+            await smtpClient.AuthenticateAsync(
+                _options.Username,
+                _options.Password,
+                cancellationToken);
+
+            await smtpClient.SendAsync(
+                message,
+                cancellationToken);
+
+            await smtpClient.DisconnectAsync(
+                true,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send website-request-closed notification to {Email}. SMTP Host: {Host}, Port: {Port}",
+                ownerEmail,
+                _options.Host,
+                _options.Port);
+            throw new EmailDeliveryException();
+        }
+    }
+
     private static string BuildWebsiteTemplateRequestSubmittedEmail(
         string businessName,
         string ownerFullName,
@@ -256,6 +320,46 @@ public class EmailService : IEmailService
                        ">
                         Review in the admin dashboard
                     </a>
+                </p>
+
+                <p>
+                    — MerchForge
+                </p>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string BuildWebsiteRequestClosedEmail(
+        string businessName,
+        string finalWebsiteUrl)
+    {
+        return $"""
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h2>Your website is live</h2>
+
+                <p>
+                    <strong>{businessName}</strong>'s custom website is built and ready.
+                </p>
+
+                <p>
+                    <a href="{finalWebsiteUrl}"
+                       style="
+                           display:inline-block;
+                           padding:12px 20px;
+                           background:#ff9b00;
+                           color:white;
+                           text-decoration:none;
+                           border-radius:6px;
+                       ">
+                        View your website
+                    </a>
+                </p>
+
+                <p>
+                    {finalWebsiteUrl}
                 </p>
 
                 <p>

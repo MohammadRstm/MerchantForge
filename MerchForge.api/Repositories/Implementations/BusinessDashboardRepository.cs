@@ -18,16 +18,16 @@ namespace MerchForge.api.Repositories.Implementations
             _db = db;
         }
 
-        public async Task<(string Name, DateTime CreatedAt)?> GetBusinessSummaryAsync(
+        public async Task<(string Name, DateTime CreatedAt, string? WebsiteUrl)?> GetBusinessSummaryAsync(
             Guid businessId,
             CancellationToken cancellationToken = default)
         {
             var business = await _db.Businesses
                 .Where(b => b.Id == businessId)
-                .Select(b => new { b.Name, b.CreatedAt })
+                .Select(b => new { b.Name, b.CreatedAt, b.WebsiteUrl })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            return business is null ? null : (business.Name, business.CreatedAt);
+            return business is null ? null : (business.Name, business.CreatedAt, business.WebsiteUrl);
         }
 
         public async Task<int> CountMembersAsync(Guid businessId, CancellationToken cancellationToken = default)

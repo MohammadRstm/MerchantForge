@@ -7,7 +7,7 @@ namespace MerchForge.api.Repositories.Interfaces
 {
     public interface IBusinessDashboardRepository
     {
-        Task<(string Name, DateTime CreatedAt)?> GetBusinessSummaryAsync(
+        Task<(string Name, DateTime CreatedAt, string? WebsiteUrl)?> GetBusinessSummaryAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);
 

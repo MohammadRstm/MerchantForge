@@ -141,6 +141,7 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task SetBusinessActiveWebsiteTemplateAsync(
             Guid businessId,
             Guid websiteTemplateId,
+            string websiteUrl,
             CancellationToken cancellationToken = default)
         {
             await _db.Businesses
@@ -149,6 +150,7 @@ namespace MerchForge.api.Repositories.Implementations
                     setters => setters
                         .SetProperty(b => b.WebsiteTemplateId, websiteTemplateId)
                         .SetProperty(b => b.WebsiteTemplateChosenAt, DateTime.UtcNow)
+                        .SetProperty(b => b.WebsiteUrl, websiteUrl)
                         .SetProperty(b => b.UpdatedAt, DateTime.UtcNow),
                     cancellationToken);
         }

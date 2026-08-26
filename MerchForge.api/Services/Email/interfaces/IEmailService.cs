@@ -23,4 +23,10 @@ public interface IEmailService
         string businessName,
         string templateLabel,
         CancellationToken cancellationToken = default);
+
+    Task SendWebsiteRequestClosedNotificationAsync(
+        string ownerEmail,
+        string businessName,
+        string finalWebsiteUrl,
+        CancellationToken cancellationToken = default);
 }

@@ -25,10 +25,11 @@ namespace MerchForge.api.Repositories.Interfaces
             WebsiteTemplateRequestsQueryRequest query,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Unconditionally sets the business's "currently live on" template — used when a request is closed, so a later close (e.g. after a redesign) is free to overwrite an earlier one.</summary>
+        /// <summary>Unconditionally sets the business's "currently live on" template and site URL — used when a request is closed, so a later close (e.g. after a redesign) is free to overwrite an earlier one.</summary>
         Task SetBusinessActiveWebsiteTemplateAsync(
             Guid businessId,
             Guid websiteTemplateId,
+            string websiteUrl,
             CancellationToken cancellationToken = default);
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);

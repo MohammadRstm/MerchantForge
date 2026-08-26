@@ -226,10 +226,15 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<IProductImageService, ProductImageService>();
+builder.Services.AddScoped<IWebsiteTemplateVideoService, WebsiteTemplateVideoService>();
 
 builder.Services
     .AddOptions<ProductImageOptions>()
     .Bind(builder.Configuration.GetSection(ProductImageOptions.SectionName));
+
+builder.Services
+    .AddOptions<WebsiteTemplateVideoOptions>()
+    .Bind(builder.Configuration.GetSection(WebsiteTemplateVideoOptions.SectionName));
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();
@@ -440,7 +445,7 @@ app.UseStaticFiles(new StaticFileOptions
         // content. nosniff stops content-type guessing and the CSP neutralises
         // scripts/embedded content regardless of what the file actually contains.
         context.Context.Response.Headers.XContentTypeOptions = "nosniff";
-        context.Context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; img-src 'self'";
+        context.Context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; img-src 'self'; media-src 'self'";
 
         // Without an explicit directive here, browsers fall back to heuristic
         // caching off Last-Modified and can keep serving a stale image for a long

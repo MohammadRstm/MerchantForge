@@ -21,6 +21,7 @@ namespace MerchForge.api.Services.Dashboard
         private readonly IDashboardRepository _dashboardRepository;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
+        private readonly IWebsiteTemplateVideoService _websiteTemplateVideoService;
         private readonly IDomainService _domainService;
         private readonly IBackgroundJobClient _backgroundJobClient;
 
@@ -28,12 +29,14 @@ namespace MerchForge.api.Services.Dashboard
             IDashboardRepository dashboardRepository,
             IRefreshTokenRepository refreshTokenRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
+            IWebsiteTemplateVideoService websiteTemplateVideoService,
             IDomainService domainService,
             IBackgroundJobClient backgroundJobClient)
         {
             _dashboardRepository = dashboardRepository;
             _refreshTokenRepository = refreshTokenRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
+            _websiteTemplateVideoService = websiteTemplateVideoService;
             _domainService = domainService;
             _backgroundJobClient = backgroundJobClient;
         }
@@ -178,6 +181,80 @@ namespace MerchForge.api.Services.Dashboard
                 DisplayOrder = template.DisplayOrder,
                 BusinessesUsingIt = 0,
                 CreatedAt = template.CreatedAt,
+            };
+        }
+
+        public async Task<string> UploadWebsiteTemplateVideoAsync(
+            IFormFile file,
+            CancellationToken cancellationToken = default)
+        {
+            return await _websiteTemplateVideoService.SaveAsync(file, cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateDetailResponse> GetWebsiteTemplateDetailAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _dashboardRepository.GetWebsiteTemplateDetailAsync(websiteTemplateId, cancellationToken)
+                ?? throw new WebsiteTemplateNotFoundException();
+        }
+
+        public async Task<WebsiteTemplateResponse> UpdateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            UpdateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var template = await _dashboardRepository.GetTrackedWebsiteTemplateAsync(websiteTemplateId, cancellationToken)
+                ?? throw new WebsiteTemplateNotFoundException();
+
+            template.Label = request.Label;
+            template.VideoPreviewUrl = request.VideoPreviewUrl;
+            template.PreviewWebsiteUrl = string.IsNullOrWhiteSpace(request.PreviewWebsiteUrl) ? null : request.PreviewWebsiteUrl.Trim();
+            template.DisplayOrder = request.DisplayOrder;
+            template.UpdatedAt = DateTime.UtcNow;
+
+            await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+            return await MapToResponseAsync(websiteTemplateId, cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateResponse> DeactivateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default)
+        {
+            var template = await _dashboardRepository.GetTrackedWebsiteTemplateAsync(websiteTemplateId, cancellationToken)
+                ?? throw new WebsiteTemplateNotFoundException();
+
+            // A soft delete: IsActive already exists precisely so retiring a template
+            // never removes it out from under a business that already lives on it.
+            template.IsActive = false;
+            template.UpdatedAt = DateTime.UtcNow;
+
+            await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+            return await MapToResponseAsync(websiteTemplateId, cancellationToken);
+        }
+
+        private async Task<WebsiteTemplateResponse> MapToResponseAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken)
+        {
+            var detail = await _dashboardRepository.GetWebsiteTemplateDetailAsync(websiteTemplateId, cancellationToken)
+                ?? throw new WebsiteTemplateNotFoundException();
+
+            return new WebsiteTemplateResponse
+            {
+                Id = detail.Id,
+                BusinessDomainId = detail.BusinessDomainId,
+                DomainName = detail.DomainName,
+                Name = detail.Name,
+                Label = detail.Label,
+                VideoPreviewUrl = detail.VideoPreviewUrl,
+                PreviewWebsiteUrl = detail.PreviewWebsiteUrl,
+                IsActive = detail.IsActive,
+                DisplayOrder = detail.DisplayOrder,
+                BusinessesUsingIt = detail.Businesses.Count,
+                CreatedAt = detail.CreatedAt,
             };
         }
 

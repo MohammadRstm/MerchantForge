@@ -43,5 +43,16 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<WebsiteTemplate> CreateWebsiteTemplateAsync(
             WebsiteTemplate template,
             CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateDetailResponse?> GetWebsiteTemplateDetailAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Loads a tracked entity for an update/deactivate mutation.</summary>
+        Task<WebsiteTemplate?> GetTrackedWebsiteTemplateAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
+        Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

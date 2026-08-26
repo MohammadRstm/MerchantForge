@@ -19,6 +19,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UsersQueryRequest> _usersQueryValidator;
         private readonly IValidator<BusinessesQueryRequest> _businessesQueryValidator;
         private readonly IValidator<CreateWebsiteTemplateRequest> _createWebsiteTemplateValidator;
+        private readonly IValidator<UpdateWebsiteTemplateRequest> _updateWebsiteTemplateValidator;
         private readonly IValidator<WebsiteTemplateRequestsQueryRequest> _websiteTemplateRequestsQueryValidator;
         private readonly IValidator<CloseWebsiteTemplateRequestRequest> _closeWebsiteTemplateRequestValidator;
 
@@ -27,12 +28,14 @@ namespace MerchForge.api.Controllers
             IValidator<UsersQueryRequest> usersQueryValidator,
             IValidator<BusinessesQueryRequest> businessesQueryValidator,
             IValidator<CreateWebsiteTemplateRequest> createWebsiteTemplateValidator,
+            IValidator<UpdateWebsiteTemplateRequest> updateWebsiteTemplateValidator,
             IValidator<WebsiteTemplateRequestsQueryRequest> websiteTemplateRequestsQueryValidator,
             IValidator<CloseWebsiteTemplateRequestRequest> closeWebsiteTemplateRequestValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
             _businessesQueryValidator = businessesQueryValidator;
+            _updateWebsiteTemplateValidator = updateWebsiteTemplateValidator;
             _createWebsiteTemplateValidator = createWebsiteTemplateValidator;
             _websiteTemplateRequestsQueryValidator = websiteTemplateRequestsQueryValidator;
             _closeWebsiteTemplateRequestValidator = closeWebsiteTemplateRequestValidator;
@@ -110,6 +113,50 @@ namespace MerchForge.api.Controllers
             await _createWebsiteTemplateValidator.ValidateAndThrowAsync(request, cancellationToken);
 
             var response = await _dashboardService.CreateWebsiteTemplateAsync(request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/video")]
+        [RequestSizeLimit(200 * 1024 * 1024)]
+        public async Task<ActionResult<UploadWebsiteTemplateVideoResponse>> UploadWebsiteTemplateVideo(
+            IFormFile file,
+            CancellationToken cancellationToken)
+        {
+            var videoUrl = await _dashboardService.UploadWebsiteTemplateVideoAsync(file, cancellationToken);
+
+            return Ok(new UploadWebsiteTemplateVideoResponse { VideoUrl = videoUrl });
+        }
+
+        [HttpGet("website-templates/{websiteTemplateId:guid}")]
+        public async Task<ActionResult<WebsiteTemplateDetailResponse>> GetWebsiteTemplate(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetWebsiteTemplateDetailAsync(websiteTemplateId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("website-templates/{websiteTemplateId:guid}")]
+        public async Task<ActionResult<WebsiteTemplateResponse>> UpdateWebsiteTemplate(
+            Guid websiteTemplateId,
+            [FromBody] UpdateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateWebsiteTemplateValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.UpdateWebsiteTemplateAsync(websiteTemplateId, request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/{websiteTemplateId:guid}/deactivate")]
+        public async Task<ActionResult<WebsiteTemplateResponse>> DeactivateWebsiteTemplate(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.DeactivateWebsiteTemplateAsync(websiteTemplateId, cancellationToken);
 
             return Ok(response);
         }

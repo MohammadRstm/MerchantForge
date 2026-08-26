@@ -29,6 +29,23 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             CreateWebsiteTemplateRequest request,
             CancellationToken cancellationToken = default);
 
+        Task<string> UploadWebsiteTemplateVideoAsync(
+            IFormFile file,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateDetailResponse> GetWebsiteTemplateDetailAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateResponse> UpdateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            UpdateWebsiteTemplateRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateResponse> DeactivateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
         // ---- website template requests ----
 
         Task<PagedResult<WebsiteTemplateRequestSummaryResponse>> GetWebsiteTemplateRequestsAsync(

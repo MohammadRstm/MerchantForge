@@ -1,3 +1,4 @@
+using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
@@ -19,6 +20,23 @@ namespace MerchForge.api.Services.Dashboard.interfaces
 
         Task<PagedResult<DashboardBusinessResponse>> GetBusinessesAsync(
             BusinessesQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessDetailResponse> GetBusinessDetailAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<RevokeUserSessionsResponse> RevokeBusinessSessionsAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<List<ProductFormFieldResponse>> GetBusinessMetadataShapeAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<List<ProductFormFieldResponse>> UpdateBusinessMetadataShapeAsync(
+            Guid businessId,
+            UpdateMetadataShapeRequest request,
             CancellationToken cancellationToken = default);
 
         // ---- website templates ----

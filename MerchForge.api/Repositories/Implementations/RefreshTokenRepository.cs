@@ -57,5 +57,25 @@ namespace MerchForge.api.Repositories.Implementations
                     setters => setters.SetProperty(rt => rt.RevokedAt, now),
                     cancellationToken);
         }
+
+        public async Task<int> RevokeAllForBusinessAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+
+            var memberUserIds = _db.BusinessUsers
+                .Where(bu => bu.BusinessId == businessId)
+                .Select(bu => bu.UserId);
+
+            return await _db.RefreshTokens
+                .Where(rt =>
+                    memberUserIds.Contains(rt.UserId) &&
+                    rt.RevokedAt == null &&
+                    rt.ExpiresAt > now)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(rt => rt.RevokedAt, now),
+                    cancellationToken);
+        }
     }
 }

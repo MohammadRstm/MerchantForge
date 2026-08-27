@@ -25,6 +25,10 @@ public class BusinessDashboardStatsResponse
 
     public decimal? MaxProductPrice { get; set; }
 
+    public int OutOfStockProductCount { get; set; }
+
+    public List<BusinessProductResponse> RecentProducts { get; set; } = new();
+
     public List<KeyCountResponse> ProductsByCategory { get; set; } = new();
 
     public List<KeyCountResponse> ProductDraftsByStatus { get; set; } = new();

@@ -23,6 +23,14 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<List<KeyCountResponse>> GetProductsByCategoryAsync(Guid businessId, CancellationToken cancellationToken = default);
 
+        /// <summary>Products with StockQuantity == 0 — untracked (null) inventory doesn't count as out of stock.</summary>
+        Task<int> CountOutOfStockProductsAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+        Task<List<BusinessProductResponse>> GetRecentProductsAsync(
+            Guid businessId,
+            int take,
+            CancellationToken cancellationToken = default);
+
         Task<List<KeyCountResponse>> GetProductDraftsByStatusAsync(Guid businessId, CancellationToken cancellationToken = default);
 
         Task<List<KeyCountResponse>> GetMembersByRoleAsync(Guid businessId, CancellationToken cancellationToken = default);

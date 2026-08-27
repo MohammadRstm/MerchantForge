@@ -8,7 +8,12 @@ public class BusinessConfigurations : IEntityTypeConfiguration<Business>
 {
     public void Configure(EntityTypeBuilder<Business> builder)
     {
-        builder.ToTable("businesses");
+        builder.ToTable("businesses", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_businesses_LowStockThreshold_Positive",
+                "`LowStockThreshold` >= 1");
+        });
 
         builder.HasKey(x => x.Id);
 
@@ -56,6 +61,10 @@ public class BusinessConfigurations : IEntityTypeConfiguration<Business>
 
         builder.Property(x => x.ContactPhone)
             .HasMaxLength(50);
+
+        builder.Property(x => x.LowStockThreshold)
+            .IsRequired()
+            .HasDefaultValue(5);
 
         builder.Property(x => x.WebsiteUrl)
             .HasMaxLength(500);

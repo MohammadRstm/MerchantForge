@@ -9,6 +9,8 @@ public class ProductsQueryRequest : PagedQuery
 
     public string? Category { get; set; }
 
+    public ProductStockStatus StockStatus { get; set; } = ProductStockStatus.All;
+
     public ProductSortField SortBy { get; set; } = ProductSortField.CreatedAt;
 
     public bool SortDescending { get; set; } = true;

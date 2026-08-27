@@ -152,6 +152,7 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task<(List<BusinessProductResponse> Items, int TotalCount)> GetProductsAsync(
             Guid businessId,
             ProductsQueryRequest query,
+            int lowStockThreshold,
             CancellationToken cancellationToken = default)
         {
             var baseQuery = _db.Products.Where(p => p.BusinessId == businessId);
@@ -171,6 +172,18 @@ namespace MerchForge.api.Repositories.Implementations
                 // categoryId instead.
                 baseQuery = baseQuery.Where(p => p.Category.Name == query.Category);
             }
+
+            // Buckets are mutually exclusive — see ProductStockStatus's own doc comment.
+            baseQuery = query.StockStatus switch
+            {
+                ProductStockStatus.Tracked => baseQuery.Where(p => p.StockQuantity != null),
+                ProductStockStatus.Untracked => baseQuery.Where(p => p.StockQuantity == null),
+                ProductStockStatus.OutOfStock => baseQuery.Where(p => p.StockQuantity == 0),
+                ProductStockStatus.LowStock => baseQuery.Where(
+                    p => p.StockQuantity != null && p.StockQuantity > 0 && p.StockQuantity <= lowStockThreshold),
+                ProductStockStatus.InStock => baseQuery.Where(p => p.StockQuantity > lowStockThreshold),
+                _ => baseQuery,
+            };
 
             var totalCount = await baseQuery.CountAsync(cancellationToken);
 
@@ -376,9 +389,11 @@ namespace MerchForge.api.Repositories.Implementations
         {
             // Images included and tracked: UpdateProductAsync does a full
             // Images.Clear()-then-rebuild, which needs the existing rows loaded to
-            // know what to delete.
+            // know what to delete. Category included too: AdjustStockAsync's response
+            // mapping reads product.Category.Name and there's no lazy-loading here.
             return await _db.Products
                 .Include(p => p.Images)
+                .Include(p => p.Category)
                 .FirstOrDefaultAsync(
                     p => p.Id == productId && p.BusinessId == businessId,
                     cancellationToken);
@@ -485,6 +500,135 @@ namespace MerchForge.api.Repositories.Implementations
                     PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        // ---- inventory ----
+
+        public async Task<int?> GetLowStockThresholdAsync(Guid businessId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Businesses
+                .AsNoTracking()
+                .Where(b => b.Id == businessId)
+                .Select(b => (int?)b.LowStockThreshold)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<bool> UpdateLowStockThresholdAsync(
+            Guid businessId,
+            int lowStockThreshold,
+            CancellationToken cancellationToken = default)
+        {
+            var business = await _db.Businesses
+                .FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
+
+            if (business is null)
+            {
+                return false;
+            }
+
+            business.LowStockThreshold = lowStockThreshold;
+            business.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return true;
+        }
+
+        public async Task<StockMovement?> AdjustStockAsync(
+            Product product,
+            int amount,
+            string? reason,
+            Guid createdByUserId,
+            CancellationToken cancellationToken = default)
+        {
+            var newQuantity = (product.StockQuantity ?? 0) + amount;
+
+            if (newQuantity < 0)
+            {
+                return null;
+            }
+
+            var now = DateTime.UtcNow;
+
+            product.StockQuantity = newQuantity;
+            product.UpdatedAt = now;
+
+            var movement = new StockMovement
+            {
+                Id = Guid.NewGuid(),
+                ProductId = product.Id,
+                BusinessId = product.BusinessId,
+                Amount = amount,
+                BalanceAfter = newQuantity,
+                Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+                CreatedByUserId = createdByUserId,
+                CreatedAt = now,
+            };
+
+            await _db.StockMovements.AddAsync(movement, cancellationToken);
+
+            // One SaveChangesAsync call, so the stock update and its ledger entry land
+            // in the same implicit transaction — same reasoning as
+            // FeatureCreditRepository.GrantCreditsAsync.
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return movement;
+        }
+
+        public async Task<InventorySummaryResponse> GetInventorySummaryAsync(
+            Guid businessId,
+            int lowStockThreshold,
+            CancellationToken cancellationToken = default)
+        {
+            var stats = await _db.Products
+                .Where(p => p.BusinessId == businessId)
+                .GroupBy(p => 1)
+                .Select(g => new
+                {
+                    Tracked = g.Count(p => p.StockQuantity != null),
+                    Untracked = g.Count(p => p.StockQuantity == null),
+                    OutOfStock = g.Count(p => p.StockQuantity == 0),
+                    LowStock = g.Count(p => p.StockQuantity != null && p.StockQuantity > 0 && p.StockQuantity <= lowStockThreshold),
+                    TotalUnits = g.Sum(p => p.StockQuantity ?? 0),
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return new InventorySummaryResponse
+            {
+                TrackedProductCount = stats?.Tracked ?? 0,
+                UntrackedProductCount = stats?.Untracked ?? 0,
+                TotalUnitsInStock = stats?.TotalUnits ?? 0,
+                OutOfStockCount = stats?.OutOfStock ?? 0,
+                LowStockCount = stats?.LowStock ?? 0,
+                LowStockThreshold = lowStockThreshold,
+            };
+        }
+
+        public async Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
+            Guid businessId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.StockMovements
+                .AsNoTracking()
+                .Where(m => m.BusinessId == businessId)
+                .OrderByDescending(m => m.CreatedAt)
+                .Take(take)
+                .Join(
+                    _db.Products,
+                    m => m.ProductId,
+                    p => p.Id,
+                    (m, p) => new StockMovementResponse
+                    {
+                        Id = m.Id,
+                        ProductId = m.ProductId,
+                        ProductTitle = p.Title,
+                        Amount = m.Amount,
+                        BalanceAfter = m.BalanceAfter,
+                        Reason = m.Reason,
+                        CreatedAt = m.CreatedAt,
+                    })
+                .ToListAsync(cancellationToken);
         }
     }
 }

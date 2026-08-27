@@ -43,6 +43,16 @@ public class Business
     public string? ContactPhone { get; set; }
 
     /// <summary>
+    /// Units remaining at or below which a tracked product counts as "low stock" on
+    /// the Inventory page. One number for the whole business rather than per product
+    /// — same tradeoff as <see cref="Currency"/>/<see cref="Locale"/>: simple, and
+    /// good enough without per-product tuning. Never applies to untracked products
+    /// (null StockQuantity) or to the "out of stock" bucket (StockQuantity == 0),
+    /// which are their own separate states.
+    /// </summary>
+    public int LowStockThreshold { get; set; } = 5;
+
+    /// <summary>
     /// The storefront template this business chose, if any. Null means the business
     /// has no website yet -- that's the whole signal the "choose a template" button
     /// gates on, so there is deliberately no separate HasWebsite flag that could

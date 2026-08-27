@@ -335,6 +335,61 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<ProductAttributeDefinition>> GetAttributeDefinitionsAsync(
+            Guid? businessDomainId,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _db.ProductAttributeDefinitions
+                .AsNoTracking()
+                .Include(d => d.BusinessDomain)
+                .AsQueryable();
+
+            if (businessDomainId.HasValue)
+            {
+                query = query.Where(d => d.BusinessDomainId == businessDomainId.Value);
+            }
+
+            return await query
+                .OrderBy(d => d.BusinessDomain.Name)
+                .ThenBy(d => d.DisplayOrder)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<bool> AttributeDefinitionKeyExistsAsync(
+            Guid businessDomainId,
+            string key,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.ProductAttributeDefinitions
+                .AnyAsync(d => d.BusinessDomainId == businessDomainId && d.Key == key, cancellationToken);
+        }
+
+        public async Task CreateAttributeDefinitionAsync(
+            ProductAttributeDefinition definition,
+            CancellationToken cancellationToken = default)
+        {
+            _db.ProductAttributeDefinitions.Add(definition);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<ProductAttributeDefinition?> GetTrackedAttributeDefinitionAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.ProductAttributeDefinitions
+                .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        }
+
+        public async Task<ProductAttributeDefinition?> GetAttributeDefinitionWithDomainAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.ProductAttributeDefinitions
+                .AsNoTracking()
+                .Include(d => d.BusinessDomain)
+                .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        }
+
         public async Task<List<BusinessFeatureCreditResponse>> GetBusinessFeatureCreditsAsync(
             Guid businessId,
             CancellationToken cancellationToken = default)

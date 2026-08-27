@@ -61,6 +61,32 @@ namespace MerchForge.api.Repositories.Interfaces
             Guid businessDomainId,
             CancellationToken cancellationToken = default);
 
+        // ---- product attribute definition CRUD (domain field catalogue) ----
+
+        /// <summary>All definitions (active and inactive), optionally filtered to one domain, with BusinessDomain loaded.</summary>
+        Task<List<ProductAttributeDefinition>> GetAttributeDefinitionsAsync(
+            Guid? businessDomainId,
+            CancellationToken cancellationToken = default);
+
+        Task<bool> AttributeDefinitionKeyExistsAsync(
+            Guid businessDomainId,
+            string key,
+            CancellationToken cancellationToken = default);
+
+        Task CreateAttributeDefinitionAsync(
+            ProductAttributeDefinition definition,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Loads a tracked entity for an update/activate mutation.</summary>
+        Task<ProductAttributeDefinition?> GetTrackedAttributeDefinitionAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Loads with BusinessDomain, for building a response after a mutation.</summary>
+        Task<ProductAttributeDefinition?> GetAttributeDefinitionWithDomainAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
         // ---- website templates ----
 
         Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);

@@ -39,6 +39,26 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             UpdateMetadataShapeRequest request,
             CancellationToken cancellationToken = default);
 
+        // ---- product attribute definitions (domain field catalogue) ----
+
+        Task<List<ProductAttributeDefinitionResponse>> GetAttributeDefinitionsAsync(
+            Guid? businessDomainId,
+            CancellationToken cancellationToken = default);
+
+        Task<ProductAttributeDefinitionResponse> CreateAttributeDefinitionAsync(
+            CreateProductAttributeDefinitionRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<ProductAttributeDefinitionResponse> UpdateAttributeDefinitionAsync(
+            Guid id,
+            UpdateProductAttributeDefinitionRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<ProductAttributeDefinitionResponse> SetAttributeDefinitionActiveAsync(
+            Guid id,
+            bool isActive,
+            CancellationToken cancellationToken = default);
+
         // ---- website templates ----
 
         Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);

@@ -88,6 +88,59 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToList();
         }
 
+        public async Task<List<KeyCountResponse>> GetBusinessCountsByDomainAsync(CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.Businesses
+                .GroupBy(b => b.BusinessDomain != null ? b.BusinessDomain.Name : null)
+                .Select(g => new { DomainName = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            return grouped
+                .Select(x => new KeyCountResponse { Key = x.DomainName ?? "Unassigned", Count = x.Count })
+                .ToList();
+        }
+
+        public async Task<List<KeyCountResponse>> GetSubscriptionStatusCountsAsync(CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.Subscriptions
+                .GroupBy(s => s.Status)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            return grouped
+                .Select(x => new KeyCountResponse { Key = x.Status.ToString(), Count = x.Count })
+                .ToList();
+        }
+
+        public async Task<int> CountActiveSessionsAsync(CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+
+            return await _db.RefreshTokens
+                .Where(rt => rt.RevokedAt == null && rt.ExpiresAt > now)
+                .Select(rt => rt.UserId)
+                .Distinct()
+                .CountAsync(cancellationToken);
+        }
+
+        public async Task<List<DashboardBusinessResponse>> GetRecentBusinessesAsync(int take, CancellationToken cancellationToken = default)
+        {
+            return await _db.Businesses
+                .OrderByDescending(b => b.CreatedAt)
+                .Take(take)
+                .Select(b => new DashboardBusinessResponse
+                {
+                    Id = b.Id,
+                    Name = b.Name,
+                    OwnerFullName = b.Owner.FirstName + " " + b.Owner.LastName,
+                    OwnerEmail = b.Owner.Email,
+                    MemberCount = b.Members.Count,
+                    ProductCount = b.Products.Count,
+                    CreatedAt = b.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<List<DateTime>> GetBusinessCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default)
         {
             return await _db.Businesses

@@ -64,9 +64,13 @@ namespace MerchForge.api.Services.Dashboard
             var pendingInvitations = await _dashboardRepository.CountPendingInvitationsAsync(cancellationToken);
             var (pendingRequests, completedRequests) =
                 await _dashboardRepository.GetWebsiteTemplateRequestStatusCountsAsync(cancellationToken);
+            var activeSessionCount = await _dashboardRepository.CountActiveSessionsAsync(cancellationToken);
 
             var usersBySystemRole = await _dashboardRepository.GetUserCountsBySystemRoleAsync(cancellationToken);
             var businessUsersByRole = await _dashboardRepository.GetBusinessUserCountsByRoleAsync(cancellationToken);
+            var businessesByDomain = await _dashboardRepository.GetBusinessCountsByDomainAsync(cancellationToken);
+            var subscriptionsByStatus = await _dashboardRepository.GetSubscriptionStatusCountsAsync(cancellationToken);
+            var recentBusinesses = await _dashboardRepository.GetRecentBusinessesAsync(5, cancellationToken);
 
             var businessDates = await _dashboardRepository.GetBusinessCreationDatesSinceAsync(seriesStart, cancellationToken);
             var productDates = await _dashboardRepository.GetProductCreationDatesSinceAsync(seriesStart, cancellationToken);
@@ -80,9 +84,13 @@ namespace MerchForge.api.Services.Dashboard
                 PendingInvitations = pendingInvitations,
                 PendingWebsiteTemplateRequests = pendingRequests,
                 CompletedWebsiteTemplateRequests = completedRequests,
+                ActiveSessionCount = activeSessionCount,
 
                 UsersBySystemRole = usersBySystemRole,
                 BusinessUsersByRole = businessUsersByRole,
+                BusinessesByDomain = businessesByDomain,
+                SubscriptionsByStatus = subscriptionsByStatus,
+                RecentBusinesses = recentBusinesses,
 
                 BusinessesOverTime = TimeSeriesBuilder.BuildMonthlySeries(businessDates, seriesStart, now),
                 ProductsOverTime = TimeSeriesBuilder.BuildMonthlySeries(productDates, seriesStart, now),

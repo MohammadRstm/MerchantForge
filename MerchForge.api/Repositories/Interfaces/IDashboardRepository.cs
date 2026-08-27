@@ -23,6 +23,15 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<List<KeyCountResponse>> GetBusinessUserCountsByRoleAsync(CancellationToken cancellationToken = default);
 
+        /// <summary>Businesses grouped by domain name; businesses with no domain set are grouped under "Unassigned".</summary>
+        Task<List<KeyCountResponse>> GetBusinessCountsByDomainAsync(CancellationToken cancellationToken = default);
+
+        Task<List<KeyCountResponse>> GetSubscriptionStatusCountsAsync(CancellationToken cancellationToken = default);
+
+        Task<int> CountActiveSessionsAsync(CancellationToken cancellationToken = default);
+
+        Task<List<DashboardBusinessResponse>> GetRecentBusinessesAsync(int take, CancellationToken cancellationToken = default);
+
         Task<List<DateTime>> GetBusinessCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
 
         Task<List<DateTime>> GetProductCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);

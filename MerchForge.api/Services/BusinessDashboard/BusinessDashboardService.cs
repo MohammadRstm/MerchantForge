@@ -57,6 +57,8 @@ namespace MerchForge.api.Services.BusinessDashboard
             var draftCount = await _businessDashboardRepository.CountProductDraftsAsync(businessId, cancellationToken);
 
             var priceStats = await _businessDashboardRepository.GetProductPriceStatsAsync(businessId, cancellationToken);
+            var outOfStockCount = await _businessDashboardRepository.CountOutOfStockProductsAsync(businessId, cancellationToken);
+            var recentProducts = await _businessDashboardRepository.GetRecentProductsAsync(businessId, 5, cancellationToken);
 
             var productsByCategory = await _businessDashboardRepository.GetProductsByCategoryAsync(businessId, cancellationToken);
             var draftsByStatus = await _businessDashboardRepository.GetProductDraftsByStatusAsync(businessId, cancellationToken);
@@ -81,6 +83,8 @@ namespace MerchForge.api.Services.BusinessDashboard
                 AverageProductPrice = priceStats.Average,
                 MinProductPrice = priceStats.Min,
                 MaxProductPrice = priceStats.Max,
+                OutOfStockProductCount = outOfStockCount,
+                RecentProducts = recentProducts,
 
                 ProductsByCategory = productsByCategory,
                 ProductDraftsByStatus = draftsByStatus,

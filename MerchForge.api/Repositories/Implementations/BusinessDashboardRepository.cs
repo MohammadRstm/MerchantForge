@@ -74,6 +74,35 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<int> CountOutOfStockProductsAsync(Guid businessId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Products
+                .CountAsync(p => p.BusinessId == businessId && p.StockQuantity == 0, cancellationToken);
+        }
+
+        public async Task<List<BusinessProductResponse>> GetRecentProductsAsync(
+            Guid businessId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.Products
+                .Where(p => p.BusinessId == businessId)
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(take)
+                .Select(p => new BusinessProductResponse
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Category = p.Category.Name,
+                    Price = p.Price,
+                    CompareAtPrice = p.CompareAtPrice,
+                    ImageUrl = p.ImageUrl,
+                    StockQuantity = p.StockQuantity,
+                    CreatedAt = p.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<List<KeyCountResponse>> GetProductDraftsByStatusAsync(
             Guid businessId,
             CancellationToken cancellationToken = default)

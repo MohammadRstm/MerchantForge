@@ -40,9 +40,13 @@ namespace MerchForge.api.Repositories.Interfaces
             DateTime since,
             CancellationToken cancellationToken = default);
 
+        /// <summary>lowStockThreshold is only consulted when query.StockStatus is
+        /// LowStock or InStock — pass the business's current threshold regardless,
+        /// resolved once by the caller.</summary>
         Task<(List<BusinessProductResponse> Items, int TotalCount)> GetProductsAsync(
             Guid businessId,
             ProductsQueryRequest query,
+            int lowStockThreshold,
             CancellationToken cancellationToken = default);
 
         Task<List<BusinessMemberResponse>> GetMembersAsync(Guid businessId, CancellationToken cancellationToken = default);
@@ -124,6 +128,43 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<WebsiteTemplateOptionResponse?> GetActiveWebsiteTemplateInDomainAsync(
             Guid websiteTemplateId,
             Guid businessDomainId,
+            CancellationToken cancellationToken = default);
+
+        // ---- inventory ----
+
+        /// <summary>Null when the business doesn't exist.</summary>
+        Task<int?> GetLowStockThresholdAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+        /// <summary>False when the business doesn't exist — the caller decides how to surface that.</summary>
+        Task<bool> UpdateLowStockThresholdAsync(
+            Guid businessId,
+            int lowStockThreshold,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Applies the adjustment to an already-loaded tracked product (the caller is
+        /// expected to have fetched it via GetTrackedProductAsync, same as
+        /// UpdateProductAsync/DeleteProductAsync already do) and persists both the new
+        /// StockQuantity and the ledger row in one SaveChangesAsync call. Returns null
+        /// if the adjustment would take StockQuantity below zero — same
+        /// signal-failure-via-return-value convention as
+        /// FeatureCreditRepository.TryConsumeCreditAsync.
+        /// </summary>
+        Task<StockMovement?> AdjustStockAsync(
+            Product product,
+            int amount,
+            string? reason,
+            Guid createdByUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<InventorySummaryResponse> GetInventorySummaryAsync(
+            Guid businessId,
+            int lowStockThreshold,
+            CancellationToken cancellationToken = default);
+
+        Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
+            Guid businessId,
+            int take,
             CancellationToken cancellationToken = default);
     }
 }

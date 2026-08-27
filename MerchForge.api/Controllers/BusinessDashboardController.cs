@@ -22,6 +22,8 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<SaveProductRequest> _saveProductValidator;
         private readonly IValidator<CreateBusinessMemberRequest> _createMemberValidator;
         private readonly IValidator<CreateWebsiteTemplateRequestRequest> _createWebsiteTemplateRequestValidator;
+        private readonly IValidator<StockAdjustmentRequest> _stockAdjustmentValidator;
+        private readonly IValidator<UpdateLowStockThresholdRequest> _updateLowStockThresholdValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -30,7 +32,9 @@ namespace MerchForge.api.Controllers
             IValidator<ProductsQueryRequest> productsQueryValidator,
             IValidator<SaveProductRequest> saveProductValidator,
             IValidator<CreateBusinessMemberRequest> createMemberValidator,
-            IValidator<CreateWebsiteTemplateRequestRequest> createWebsiteTemplateRequestValidator)
+            IValidator<CreateWebsiteTemplateRequestRequest> createWebsiteTemplateRequestValidator,
+            IValidator<StockAdjustmentRequest> stockAdjustmentValidator,
+            IValidator<UpdateLowStockThresholdRequest> updateLowStockThresholdValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
@@ -39,6 +43,8 @@ namespace MerchForge.api.Controllers
             _saveProductValidator = saveProductValidator;
             _createMemberValidator = createMemberValidator;
             _createWebsiteTemplateRequestValidator = createWebsiteTemplateRequestValidator;
+            _stockAdjustmentValidator = stockAdjustmentValidator;
+            _updateLowStockThresholdValidator = updateLowStockThresholdValidator;
         }
 
         [HttpGet("stats")]
@@ -243,6 +249,74 @@ namespace MerchForge.api.Controllers
                 cancellationToken);
 
             return Ok(response);
+        }
+
+        // ---- inventory ----
+
+        [HttpPost("products/{productId:guid}/stock-adjustments")]
+        public async Task<ActionResult<StockAdjustmentResponse>> AdjustStock(
+            Guid businessId,
+            Guid productId,
+            [FromBody] StockAdjustmentRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _stockAdjustmentValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var actingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(actingUserId, out var parsedActingUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _businessDashboardService.AdjustStockAsync(
+                businessId,
+                productId,
+                request,
+                parsedActingUserId,
+                cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("inventory/summary")]
+        public async Task<ActionResult<InventorySummaryResponse>> GetInventorySummary(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetInventorySummaryAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("inventory/movements")]
+        public async Task<ActionResult<List<StockMovementResponse>>> GetRecentStockMovements(
+            Guid businessId,
+            [FromQuery] int take,
+            CancellationToken cancellationToken)
+        {
+            // Same "clamp rather than validate" treatment as an unset paging size
+            // elsewhere — this is a fixed-shape activity feed, not a paged list.
+            var boundedTake = take is < 1 or > 100 ? 20 : take;
+
+            var response = await _businessDashboardService.GetRecentStockMovementsAsync(
+                businessId, boundedTake, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("inventory/low-stock-threshold")]
+        public async Task<IActionResult> UpdateLowStockThreshold(
+            Guid businessId,
+            [FromBody] UpdateLowStockThresholdRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateLowStockThresholdValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            await _businessDashboardService.UpdateLowStockThresholdAsync(
+                businessId, request.LowStockThreshold, cancellationToken);
+
+            return NoContent();
         }
     }
 }

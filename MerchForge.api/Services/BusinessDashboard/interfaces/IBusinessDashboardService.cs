@@ -65,5 +65,28 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
         Task<List<WebsiteTemplateRequestResponse>> GetWebsiteTemplateRequestsAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);
+
+        // ---- inventory ----
+
+        Task<StockAdjustmentResponse> AdjustStockAsync(
+            Guid businessId,
+            Guid productId,
+            StockAdjustmentRequest request,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<InventorySummaryResponse> GetInventorySummaryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
+            Guid businessId,
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task UpdateLowStockThresholdAsync(
+            Guid businessId,
+            int lowStockThreshold,
+            CancellationToken cancellationToken = default);
     }
 }

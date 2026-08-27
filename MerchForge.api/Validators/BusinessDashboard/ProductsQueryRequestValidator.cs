@@ -16,5 +16,8 @@ public class ProductsQueryRequestValidator : PagedQueryValidator<ProductsQueryRe
 
         RuleFor(x => x.SortBy)
             .IsInEnum();
+
+        RuleFor(x => x.StockStatus)
+            .IsInEnum();
     }
 }

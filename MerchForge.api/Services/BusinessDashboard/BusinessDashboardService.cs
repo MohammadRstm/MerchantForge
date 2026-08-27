@@ -99,7 +99,15 @@ namespace MerchForge.api.Services.BusinessDashboard
             ProductsQueryRequest query,
             CancellationToken cancellationToken = default)
         {
-            var (items, totalCount) = await _businessDashboardRepository.GetProductsAsync(businessId, query, cancellationToken);
+            // Only resolved when actually needed — LowStock/InStock are the only
+            // buckets that consult it, and every other request shouldn't pay for an
+            // extra query against Business on the hot product-list path.
+            var lowStockThreshold = query.StockStatus is ProductStockStatus.LowStock or ProductStockStatus.InStock
+                ? await _businessDashboardRepository.GetLowStockThresholdAsync(businessId, cancellationToken) ?? 0
+                : 0;
+
+            var (items, totalCount) = await _businessDashboardRepository.GetProductsAsync(
+                businessId, query, lowStockThreshold, cancellationToken);
 
             return new PagedResult<BusinessProductResponse>
             {
@@ -359,6 +367,84 @@ namespace MerchForge.api.Services.BusinessDashboard
             CancellationToken cancellationToken = default)
         {
             return await _websiteTemplateRequestRepository.GetForBusinessAsync(businessId, cancellationToken);
+        }
+
+        // ---- inventory ----
+
+        public async Task<StockAdjustmentResponse> AdjustStockAsync(
+            Guid businessId,
+            Guid productId,
+            StockAdjustmentRequest request,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default)
+        {
+            var product = await _businessDashboardRepository.GetTrackedProductAsync(businessId, productId, cancellationToken)
+                ?? throw new ProductNotFoundException();
+
+            var movement = await _businessDashboardRepository.AdjustStockAsync(
+                product,
+                request.Amount,
+                request.Reason,
+                actingUserId,
+                cancellationToken)
+                ?? throw new InsufficientStockException();
+
+            return new StockAdjustmentResponse
+            {
+                Product = new BusinessProductResponse
+                {
+                    Id = product.Id,
+                    Title = product.Title,
+                    Category = product.Category.Name,
+                    Price = product.Price,
+                    CompareAtPrice = product.CompareAtPrice,
+                    ImageUrl = product.ImageUrl,
+                    StockQuantity = product.StockQuantity,
+                    CreatedAt = product.CreatedAt,
+                },
+                Movement = new StockMovementResponse
+                {
+                    Id = movement.Id,
+                    ProductId = movement.ProductId,
+                    ProductTitle = product.Title,
+                    Amount = movement.Amount,
+                    BalanceAfter = movement.BalanceAfter,
+                    Reason = movement.Reason,
+                    CreatedAt = movement.CreatedAt,
+                },
+            };
+        }
+
+        public async Task<InventorySummaryResponse> GetInventorySummaryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var threshold = await _businessDashboardRepository.GetLowStockThresholdAsync(businessId, cancellationToken)
+                ?? throw new BusinessNotFoundException();
+
+            return await _businessDashboardRepository.GetInventorySummaryAsync(businessId, threshold, cancellationToken);
+        }
+
+        public async Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
+            Guid businessId,
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardRepository.GetRecentStockMovementsAsync(businessId, take, cancellationToken);
+        }
+
+        public async Task UpdateLowStockThresholdAsync(
+            Guid businessId,
+            int lowStockThreshold,
+            CancellationToken cancellationToken = default)
+        {
+            var updated = await _businessDashboardRepository.UpdateLowStockThresholdAsync(
+                businessId, lowStockThreshold, cancellationToken);
+
+            if (!updated)
+            {
+                throw new BusinessNotFoundException();
+            }
         }
 
         private async Task EnsureCategoryIsUsableAsync(

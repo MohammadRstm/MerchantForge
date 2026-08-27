@@ -46,6 +46,20 @@ namespace MerchForge.api.Repositories.Implementations
                 cancellationToken);
         }
 
+        public async Task<(int Pending, int Completed)> GetWebsiteTemplateRequestStatusCountsAsync(CancellationToken cancellationToken = default)
+        {
+            var pending = await _db.WebsiteTemplateRequests
+                .CountAsync(r =>
+                    r.Status == WebsiteTemplateRequestStatus.Pending ||
+                    r.Status == WebsiteTemplateRequestStatus.InProgress,
+                    cancellationToken);
+
+            var completed = await _db.WebsiteTemplateRequests
+                .CountAsync(r => r.Status == WebsiteTemplateRequestStatus.Closed, cancellationToken);
+
+            return (pending, completed);
+        }
+
         public async Task<List<KeyCountResponse>> GetUserCountsBySystemRoleAsync(CancellationToken cancellationToken = default)
         {
             var grouped = await (
@@ -240,6 +254,49 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToListAsync(cancellationToken);
 
             return (items, totalCount);
+        }
+
+        public async Task<Business?> GetBusinessDetailCoreAsync(Guid businessId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Businesses
+                .AsNoTracking()
+                .Include(b => b.Owner)
+                .Include(b => b.BusinessDomain)
+                .Include(b => b.WebsiteTemplate)
+                .FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
+        }
+
+        public async Task<Business?> GetTrackedBusinessAsync(Guid businessId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Businesses
+                .FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
+        }
+
+        public async Task<List<ProductAttributeDefinition>> GetActiveAttributeDefinitionsForDomainAsync(
+            Guid businessDomainId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.ProductAttributeDefinitions
+                .AsNoTracking()
+                .Where(d => d.BusinessDomainId == businessDomainId && d.IsActive)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<BusinessFeatureCreditResponse>> GetBusinessFeatureCreditsAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.BusinessFeatureCredits
+                .AsNoTracking()
+                .Where(fc => fc.BusinessId == businessId)
+                .Select(fc => new BusinessFeatureCreditResponse
+                {
+                    FeatureKey = fc.Feature.Key,
+                    FeatureName = fc.Feature.Name,
+                    CreditsRemaining = fc.CreditsRemaining,
+                    CreditsGrantedTotal = fc.CreditsGrantedTotal,
+                })
+                .ToListAsync(cancellationToken);
         }
 
         // ---- website templates ----

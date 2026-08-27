@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FluentValidation;
 using MerchForge.api.Authorization;
+using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
@@ -22,6 +23,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateWebsiteTemplateRequest> _updateWebsiteTemplateValidator;
         private readonly IValidator<WebsiteTemplateRequestsQueryRequest> _websiteTemplateRequestsQueryValidator;
         private readonly IValidator<CloseWebsiteTemplateRequestRequest> _closeWebsiteTemplateRequestValidator;
+        private readonly IValidator<UpdateMetadataShapeRequest> _updateMetadataShapeValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -30,7 +32,8 @@ namespace MerchForge.api.Controllers
             IValidator<CreateWebsiteTemplateRequest> createWebsiteTemplateValidator,
             IValidator<UpdateWebsiteTemplateRequest> updateWebsiteTemplateValidator,
             IValidator<WebsiteTemplateRequestsQueryRequest> websiteTemplateRequestsQueryValidator,
-            IValidator<CloseWebsiteTemplateRequestRequest> closeWebsiteTemplateRequestValidator)
+            IValidator<CloseWebsiteTemplateRequestRequest> closeWebsiteTemplateRequestValidator,
+            IValidator<UpdateMetadataShapeRequest> updateMetadataShapeValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -39,6 +42,7 @@ namespace MerchForge.api.Controllers
             _createWebsiteTemplateValidator = createWebsiteTemplateValidator;
             _websiteTemplateRequestsQueryValidator = websiteTemplateRequestsQueryValidator;
             _closeWebsiteTemplateRequestValidator = closeWebsiteTemplateRequestValidator;
+            _updateMetadataShapeValidator = updateMetadataShapeValidator;
         }
 
         [HttpGet("stats")]
@@ -90,6 +94,49 @@ namespace MerchForge.api.Controllers
             await _businessesQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
 
             var response = await _dashboardService.GetBusinessesAsync(query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/{businessId:guid}")]
+        public async Task<ActionResult<BusinessDetailResponse>> GetBusinessDetail(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetBusinessDetailAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("businesses/{businessId:guid}/revoke-sessions")]
+        public async Task<ActionResult<RevokeUserSessionsResponse>> RevokeBusinessSessions(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.RevokeBusinessSessionsAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/{businessId:guid}/metadata-shape")]
+        public async Task<ActionResult<List<ProductFormFieldResponse>>> GetBusinessMetadataShape(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetBusinessMetadataShapeAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("businesses/{businessId:guid}/metadata-shape")]
+        public async Task<ActionResult<List<ProductFormFieldResponse>>> UpdateBusinessMetadataShape(
+            Guid businessId,
+            [FromBody] UpdateMetadataShapeRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateMetadataShapeValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.UpdateBusinessMetadataShapeAsync(businessId, request, cancellationToken);
 
             return Ok(response);
         }

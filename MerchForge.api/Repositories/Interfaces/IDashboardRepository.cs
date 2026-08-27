@@ -16,6 +16,9 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<int> CountPendingInvitationsAsync(CancellationToken cancellationToken = default);
 
+        /// <summary>Pending/InProgress vs Closed counts across every website template request platform-wide.</summary>
+        Task<(int Pending, int Completed)> GetWebsiteTemplateRequestStatusCountsAsync(CancellationToken cancellationToken = default);
+
         Task<List<KeyCountResponse>> GetUserCountsBySystemRoleAsync(CancellationToken cancellationToken = default);
 
         Task<List<KeyCountResponse>> GetBusinessUserCountsByRoleAsync(CancellationToken cancellationToken = default);
@@ -32,6 +35,21 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<(List<DashboardBusinessResponse> Items, int TotalCount)> GetBusinessesAsync(
             BusinessesQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Owner, domain, and website-template navigation properties are loaded for the business-detail view. Null when the business doesn't exist.</summary>
+        Task<Business?> GetBusinessDetailCoreAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+        /// <summary>Loads a tracked entity for the metadata-shape mutation.</summary>
+        Task<Business?> GetTrackedBusinessAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+        Task<List<BusinessFeatureCreditResponse>> GetBusinessFeatureCreditsAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>The active fields a business's domain allows products to carry — what a metadata-shape edit may choose keys from.</summary>
+        Task<List<ProductAttributeDefinition>> GetActiveAttributeDefinitionsForDomainAsync(
+            Guid businessDomainId,
             CancellationToken cancellationToken = default);
 
         // ---- website templates ----

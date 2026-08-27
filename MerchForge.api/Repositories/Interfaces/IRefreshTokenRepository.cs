@@ -17,5 +17,9 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<int> RevokeAllForUserAsync(
             Guid userId,
             CancellationToken cancellationToken = default);
+
+        Task<int> RevokeAllForBusinessAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
     }
 }

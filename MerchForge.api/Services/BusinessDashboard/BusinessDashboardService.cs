@@ -160,7 +160,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             return new ProductFormResponse
             {
                 Categories = formData.Categories,
-                MetadataFields = ReadMetadataFields(formData.MetadataShape),
+                MetadataFields = MetadataShapeReader.Read(formData.MetadataShape),
             };
         }
 
@@ -425,46 +425,5 @@ namespace MerchForge.api.Services.BusinessDashboard
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
-        private static List<ProductFormFieldResponse> ReadMetadataFields(JsonDocument? metadataShape)
-        {
-            var fields = new List<ProductFormFieldResponse>();
-
-            if (metadataShape is null
-                || !metadataShape.RootElement.TryGetProperty("fields", out var fieldsElement)
-                || fieldsElement.ValueKind != JsonValueKind.Array)
-            {
-                return fields;
-            }
-
-            foreach (var field in fieldsElement.EnumerateArray())
-            {
-                var key = field.TryGetProperty("key", out var k) ? k.GetString() : null;
-                var label = field.TryGetProperty("label", out var l) ? l.GetString() : null;
-                var valueType = field.TryGetProperty("valueType", out var v) ? v.GetString() : null;
-
-                if (key is null || label is null || valueType is null)
-                {
-                    continue;
-                }
-
-                fields.Add(new ProductFormFieldResponse
-                {
-                    Key = key,
-                    Label = label,
-                    ValueType = valueType,
-                    IsRequired = field.TryGetProperty("isRequired", out var req)
-                        && req.ValueKind == JsonValueKind.True,
-                    AllowedValues = field.TryGetProperty("allowedValues", out var allowed)
-                        && allowed.ValueKind == JsonValueKind.Array
-                            ? allowed.EnumerateArray()
-                                .Where(v => v.ValueKind == JsonValueKind.String)
-                                .Select(v => v.GetString()!)
-                                .ToList()
-                            : [],
-                });
-            }
-
-            return fields;
-        }
     }
 }

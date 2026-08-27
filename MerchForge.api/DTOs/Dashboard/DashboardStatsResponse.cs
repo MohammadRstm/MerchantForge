@@ -14,6 +14,11 @@ public class DashboardStatsResponse
 
     public int PendingInvitations { get; set; }
 
+    /// <summary>Pending or InProgress — a request that still needs the admin to act on it.</summary>
+    public int PendingWebsiteTemplateRequests { get; set; }
+
+    public int CompletedWebsiteTemplateRequests { get; set; }
+
     public List<KeyCountResponse> UsersBySystemRole { get; set; } = new();
 
     public List<KeyCountResponse> BusinessUsersByRole { get; set; } = new();

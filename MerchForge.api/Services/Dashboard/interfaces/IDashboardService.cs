@@ -67,7 +67,7 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             CreateWebsiteTemplateRequest request,
             CancellationToken cancellationToken = default);
 
-        Task<string> UploadWebsiteTemplateVideoAsync(
+        Task<string> UploadWebsiteTemplateImageAsync(
             IFormFile file,
             CancellationToken cancellationToken = default);
 

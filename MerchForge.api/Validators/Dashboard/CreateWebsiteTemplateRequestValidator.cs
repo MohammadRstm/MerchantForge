@@ -24,7 +24,7 @@ public class CreateWebsiteTemplateRequestValidator : AbstractValidator<CreateWeb
             .NotEmpty()
             .MaximumLength(150);
 
-        RuleFor(x => x.VideoPreviewUrl)
+        RuleFor(x => x.PreviewImageUrl)
             .NotEmpty()
             .MaximumLength(500);
 

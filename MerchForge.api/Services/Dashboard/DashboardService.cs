@@ -26,7 +26,7 @@ namespace MerchForge.api.Services.Dashboard
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
-        private readonly IWebsiteTemplateVideoService _websiteTemplateVideoService;
+        private readonly IWebsiteTemplateImageService _websiteTemplateImageService;
         private readonly IDomainService _domainService;
         private readonly IBackgroundJobClient _backgroundJobClient;
 
@@ -36,7 +36,7 @@ namespace MerchForge.api.Services.Dashboard
             ISubscriptionRepository subscriptionRepository,
             IRefreshTokenRepository refreshTokenRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
-            IWebsiteTemplateVideoService websiteTemplateVideoService,
+            IWebsiteTemplateImageService websiteTemplateImageService,
             IDomainService domainService,
             IBackgroundJobClient backgroundJobClient)
         {
@@ -45,7 +45,7 @@ namespace MerchForge.api.Services.Dashboard
             _subscriptionRepository = subscriptionRepository;
             _refreshTokenRepository = refreshTokenRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
-            _websiteTemplateVideoService = websiteTemplateVideoService;
+            _websiteTemplateImageService = websiteTemplateImageService;
             _domainService = domainService;
             _backgroundJobClient = backgroundJobClient;
         }
@@ -479,7 +479,7 @@ namespace MerchForge.api.Services.Dashboard
                 BusinessDomainId = request.BusinessDomainId,
                 Name = request.Name,
                 Label = request.Label,
-                VideoPreviewUrl = request.VideoPreviewUrl,
+                PreviewImageUrl = request.PreviewImageUrl,
                 PreviewWebsiteUrl = string.IsNullOrWhiteSpace(request.PreviewWebsiteUrl) ? null : request.PreviewWebsiteUrl.Trim(),
                 DisplayOrder = request.DisplayOrder,
                 IsActive = true,
@@ -499,7 +499,7 @@ namespace MerchForge.api.Services.Dashboard
                 DomainName = domainName,
                 Name = template.Name,
                 Label = template.Label,
-                VideoPreviewUrl = template.VideoPreviewUrl,
+                PreviewImageUrl = template.PreviewImageUrl,
                 PreviewWebsiteUrl = template.PreviewWebsiteUrl,
                 IsActive = template.IsActive,
                 DisplayOrder = template.DisplayOrder,
@@ -508,11 +508,11 @@ namespace MerchForge.api.Services.Dashboard
             };
         }
 
-        public async Task<string> UploadWebsiteTemplateVideoAsync(
+        public async Task<string> UploadWebsiteTemplateImageAsync(
             IFormFile file,
             CancellationToken cancellationToken = default)
         {
-            return await _websiteTemplateVideoService.SaveAsync(file, cancellationToken);
+            return await _websiteTemplateImageService.SaveAsync(file, cancellationToken);
         }
 
         public async Task<WebsiteTemplateDetailResponse> GetWebsiteTemplateDetailAsync(
@@ -532,7 +532,7 @@ namespace MerchForge.api.Services.Dashboard
                 ?? throw new WebsiteTemplateNotFoundException();
 
             template.Label = request.Label;
-            template.VideoPreviewUrl = request.VideoPreviewUrl;
+            template.PreviewImageUrl = request.PreviewImageUrl;
             template.PreviewWebsiteUrl = string.IsNullOrWhiteSpace(request.PreviewWebsiteUrl) ? null : request.PreviewWebsiteUrl.Trim();
             template.DisplayOrder = request.DisplayOrder;
             template.UpdatedAt = DateTime.UtcNow;
@@ -573,7 +573,7 @@ namespace MerchForge.api.Services.Dashboard
                 DomainName = detail.DomainName,
                 Name = detail.Name,
                 Label = detail.Label,
-                VideoPreviewUrl = detail.VideoPreviewUrl,
+                PreviewImageUrl = detail.PreviewImageUrl,
                 PreviewWebsiteUrl = detail.PreviewWebsiteUrl,
                 IsActive = detail.IsActive,
                 DisplayOrder = detail.DisplayOrder,

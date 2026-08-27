@@ -227,15 +227,15 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
-        [HttpPost("website-templates/video")]
-        [RequestSizeLimit(200 * 1024 * 1024)]
-        public async Task<ActionResult<UploadWebsiteTemplateVideoResponse>> UploadWebsiteTemplateVideo(
+        [HttpPost("website-templates/image")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public async Task<ActionResult<UploadWebsiteTemplateImageResponse>> UploadWebsiteTemplateImage(
             IFormFile file,
             CancellationToken cancellationToken)
         {
-            var videoUrl = await _dashboardService.UploadWebsiteTemplateVideoAsync(file, cancellationToken);
+            var imageUrl = await _dashboardService.UploadWebsiteTemplateImageAsync(file, cancellationToken);
 
-            return Ok(new UploadWebsiteTemplateVideoResponse { VideoUrl = videoUrl });
+            return Ok(new UploadWebsiteTemplateImageResponse { ImageUrl = imageUrl });
         }
 
         [HttpGet("website-templates/{websiteTemplateId:guid}")]

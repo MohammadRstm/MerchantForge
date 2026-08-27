@@ -4,7 +4,7 @@ namespace MerchForge.api.Models;
 /// One storefront template a business can choose for its public website, scoped to a
 /// single business vertical (a Fashion business is only ever offered Fashion
 /// templates). SuperAdmin-managed: a template exists here once its project has been
-/// built, independently of whether its video preview is ready yet.
+/// built, independently of whether its preview image is ready yet.
 ///
 /// <see cref="Name"/> is the identifier that actually matters -- it is expected to
 /// match the deployed template project's own name (e.g. "fashion-template-01"), which
@@ -28,16 +28,17 @@ public class WebsiteTemplate
     public string Label { get; set; } = string.Empty;
 
     /// <summary>
-    /// Preview video shown on the template's card. Required on every template so the
-    /// choose-a-template screen is never missing a preview outright; a SuperAdmin who
-    /// doesn't have the real recording yet points this at a placeholder until they do.
+    /// Preview screenshot shown on the template's card. Required on every template so
+    /// the choose-a-template screen is never missing a preview outright; a SuperAdmin
+    /// who doesn't have the real screenshot yet points this at a placeholder until
+    /// they do.
     /// </summary>
-    public string VideoPreviewUrl { get; set; } = string.Empty;
+    public string PreviewImageUrl { get; set; } = string.Empty;
 
     /// <summary>
     /// Link to a live demo of the template, opened in a new tab from the "Preview"
     /// button on the choose-a-template screen. Nullable for the same reason
-    /// <see cref="VideoPreviewUrl"/> tolerates a placeholder: a template can exist in
+    /// <see cref="PreviewImageUrl"/> tolerates a placeholder: a template can exist in
     /// the catalogue before a demo deployment exists for it.
     /// </summary>
     public string? PreviewWebsiteUrl { get; set; }

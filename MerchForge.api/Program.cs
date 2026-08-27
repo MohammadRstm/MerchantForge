@@ -226,15 +226,15 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<IProductImageService, ProductImageService>();
-builder.Services.AddScoped<IWebsiteTemplateVideoService, WebsiteTemplateVideoService>();
+builder.Services.AddScoped<IWebsiteTemplateImageService, WebsiteTemplateImageService>();
 
 builder.Services
     .AddOptions<ProductImageOptions>()
     .Bind(builder.Configuration.GetSection(ProductImageOptions.SectionName));
 
 builder.Services
-    .AddOptions<WebsiteTemplateVideoOptions>()
-    .Bind(builder.Configuration.GetSection(WebsiteTemplateVideoOptions.SectionName));
+    .AddOptions<WebsiteTemplateImageOptions>()
+    .Bind(builder.Configuration.GetSection(WebsiteTemplateImageOptions.SectionName));
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();

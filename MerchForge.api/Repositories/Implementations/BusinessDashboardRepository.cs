@@ -425,7 +425,7 @@ namespace MerchForge.api.Repositories.Implementations
         // ---- website template ----
 
         public async Task<(Guid? BusinessDomainId, string? DomainName, Guid? WebsiteTemplateId, string? WebsiteTemplateName,
-            string? WebsiteTemplateLabel, string? WebsiteTemplateVideoPreviewUrl, DateTime? WebsiteTemplateChosenAt)?>
+            string? WebsiteTemplateLabel, string? WebsiteTemplatePreviewImageUrl, DateTime? WebsiteTemplateChosenAt)?>
             GetBusinessWebsiteTemplateInfoAsync(Guid businessId, CancellationToken cancellationToken = default)
         {
             var info = await _db.Businesses
@@ -437,7 +437,7 @@ namespace MerchForge.api.Repositories.Implementations
                     b.WebsiteTemplateId,
                     WebsiteTemplateName = b.WebsiteTemplate != null ? b.WebsiteTemplate.Name : null,
                     WebsiteTemplateLabel = b.WebsiteTemplate != null ? b.WebsiteTemplate.Label : null,
-                    WebsiteTemplateVideoPreviewUrl = b.WebsiteTemplate != null ? b.WebsiteTemplate.VideoPreviewUrl : null,
+                    WebsiteTemplatePreviewImageUrl = b.WebsiteTemplate != null ? b.WebsiteTemplate.PreviewImageUrl : null,
                     b.WebsiteTemplateChosenAt,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
@@ -445,7 +445,7 @@ namespace MerchForge.api.Repositories.Implementations
             return info is null
                 ? null
                 : (info.BusinessDomainId, info.DomainName, info.WebsiteTemplateId, info.WebsiteTemplateName,
-                    info.WebsiteTemplateLabel, info.WebsiteTemplateVideoPreviewUrl, info.WebsiteTemplateChosenAt);
+                    info.WebsiteTemplateLabel, info.WebsiteTemplatePreviewImageUrl, info.WebsiteTemplateChosenAt);
         }
 
         public async Task<List<WebsiteTemplateOptionResponse>> GetActiveWebsiteTemplatesByDomainAsync(
@@ -462,7 +462,7 @@ namespace MerchForge.api.Repositories.Implementations
                     Id = t.Id,
                     Name = t.Name,
                     Label = t.Label,
-                    VideoPreviewUrl = t.VideoPreviewUrl,
+                    PreviewImageUrl = t.PreviewImageUrl,
                     PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                 })
                 .ToListAsync(cancellationToken);
@@ -481,7 +481,7 @@ namespace MerchForge.api.Repositories.Implementations
                     Id = t.Id,
                     Name = t.Name,
                     Label = t.Label,
-                    VideoPreviewUrl = t.VideoPreviewUrl,
+                    PreviewImageUrl = t.PreviewImageUrl,
                     PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                 })
                 .FirstOrDefaultAsync(cancellationToken);

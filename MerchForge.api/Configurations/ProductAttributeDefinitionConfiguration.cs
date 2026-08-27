@@ -38,6 +38,9 @@ public class ProductAttributeDefinitionConfiguration
     // consistently across a catalog.
     private static readonly string[] GarmentSizes = ["XS", "S", "M", "L", "XL", "2XL"];
 
+    private static readonly string[] GroceryDietaryTags =
+        ["Vegan", "Vegetarian", "Gluten-Free", "Dairy-Free", "Nut-Free", "Sugar-Free"];
+
     public void Configure(EntityTypeBuilder<ProductAttributeDefinition> builder)
     {
         builder.ToTable("product_attribute_definitions");
@@ -95,6 +98,7 @@ public class ProductAttributeDefinitionConfiguration
         var fashion = BusinessDomainConfiguration.FashionId;
         var restaurant = BusinessDomainConfiguration.RestaurantId;
         var electronics = BusinessDomainConfiguration.ElectronicsId;
+        var grocery = BusinessDomainConfiguration.GroceryId;
 
         builder.HasData(
             // ---- Fashion ----
@@ -132,6 +136,18 @@ public class ProductAttributeDefinitionConfiguration
             Seed("a3000000-0000-4000-8000-000000000007", electronics, "colors", "Colors", ProductAttributeValueType.ColorList, 7),
             Seed("a3000000-0000-4000-8000-000000000008", electronics, "connectivity", "Connectivity", ProductAttributeValueType.TextList, 8),
             Seed("a3000000-0000-4000-8000-000000000009", electronics, "operatingSystem", "Operating system", ProductAttributeValueType.Text, 9),
-            Seed("a3000000-0000-4000-8000-00000000000a", electronics, "warrantyMonths", "Warranty (months)", ProductAttributeValueType.Number, 10));
+            Seed("a3000000-0000-4000-8000-00000000000a", electronics, "warrantyMonths", "Warranty (months)", ProductAttributeValueType.Number, 10),
+
+            // ---- Grocery ----
+            Seed("a4000000-0000-4000-8000-000000000001", grocery, "unit", "Unit", ProductAttributeValueType.Text, 1, isRequired: true),
+            Seed("a4000000-0000-4000-8000-000000000002", grocery, "organic", "Organic", ProductAttributeValueType.Boolean, 2),
+            Seed("a4000000-0000-4000-8000-000000000003", grocery, "origin", "Origin", ProductAttributeValueType.Text, 3),
+            Seed("a4000000-0000-4000-8000-000000000004", grocery, "brand", "Brand", ProductAttributeValueType.Text, 4),
+            Seed("a4000000-0000-4000-8000-000000000005", grocery, "dietaryTags", "Dietary tags", ProductAttributeValueType.TextList, 5, allowedValues: GroceryDietaryTags),
+            Seed("a4000000-0000-4000-8000-000000000006", grocery, "storageInstructions", "Storage instructions", ProductAttributeValueType.Text, 6),
+            Seed("a4000000-0000-4000-8000-000000000007", grocery, "shelfLifeDays", "Shelf life (days)", ProductAttributeValueType.Number, 7),
+            Seed("a4000000-0000-4000-8000-000000000008", grocery, "packSize", "Pack size", ProductAttributeValueType.Text, 8),
+            Seed("a4000000-0000-4000-8000-000000000009", grocery, "ingredients", "Ingredients", ProductAttributeValueType.Text, 9),
+            Seed("a4000000-0000-4000-8000-00000000000a", grocery, "isFrozen", "Frozen", ProductAttributeValueType.Boolean, 10));
     }
 }

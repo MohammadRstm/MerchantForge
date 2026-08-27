@@ -113,7 +113,7 @@ namespace MerchForge.api.Repositories.Interfaces
 
         /// <summary>Null when the business doesn't exist. WebsiteTemplate* fields are null when no template has been chosen.</summary>
         Task<(Guid? BusinessDomainId, string? DomainName, Guid? WebsiteTemplateId, string? WebsiteTemplateName,
-            string? WebsiteTemplateLabel, string? WebsiteTemplateVideoPreviewUrl, DateTime? WebsiteTemplateChosenAt)?>
+            string? WebsiteTemplateLabel, string? WebsiteTemplatePreviewImageUrl, DateTime? WebsiteTemplateChosenAt)?>
             GetBusinessWebsiteTemplateInfoAsync(Guid businessId, CancellationToken cancellationToken = default);
 
         Task<List<WebsiteTemplateOptionResponse>> GetActiveWebsiteTemplatesByDomainAsync(

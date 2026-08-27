@@ -11,14 +11,14 @@ public class WebsiteTemplateConfiguration : IEntityTypeConfiguration<WebsiteTemp
         Guid domainId,
         string name,
         string label,
-        string videoPreviewUrl,
+        string previewImageUrl,
         int displayOrder) => new()
         {
             Id = Guid.Parse(id),
             BusinessDomainId = domainId,
             Name = name,
             Label = label,
-            VideoPreviewUrl = videoPreviewUrl,
+            PreviewImageUrl = previewImageUrl,
             DisplayOrder = displayOrder,
             IsActive = true,
             CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
@@ -39,7 +39,7 @@ public class WebsiteTemplateConfiguration : IEntityTypeConfiguration<WebsiteTemp
             .IsRequired()
             .HasMaxLength(150);
 
-        builder.Property(x => x.VideoPreviewUrl)
+        builder.Property(x => x.PreviewImageUrl)
             .IsRequired()
             .HasMaxLength(500);
 
@@ -73,8 +73,8 @@ public class WebsiteTemplateConfiguration : IEntityTypeConfiguration<WebsiteTemp
 
         builder.HasData(
             Seed("e1000000-0000-4000-8000-000000000001", BusinessDomainConfiguration.FashionId,
-                "fashion-template-01", "Vineta Fashion", "/videos/templates/coming-soon.mp4", 1),
+                "fashion-template-01", "Vineta Fashion", "/images/templates/coming-soon.jpg", 1),
             Seed("e1000000-0000-4000-8000-000000000002", BusinessDomainConfiguration.ElectronicsId,
-                "electronic-template-01", "Vineta Electronics", "/videos/templates/coming-soon.mp4", 1));
+                "electronic-template-01", "Vineta Electronics", "/images/templates/coming-soon.jpg", 1));
     }
 }

@@ -24,6 +24,8 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<WebsiteTemplateRequestsQueryRequest> _websiteTemplateRequestsQueryValidator;
         private readonly IValidator<CloseWebsiteTemplateRequestRequest> _closeWebsiteTemplateRequestValidator;
         private readonly IValidator<UpdateMetadataShapeRequest> _updateMetadataShapeValidator;
+        private readonly IValidator<CreateProductAttributeDefinitionRequest> _createAttributeDefinitionValidator;
+        private readonly IValidator<UpdateProductAttributeDefinitionRequest> _updateAttributeDefinitionValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -33,7 +35,9 @@ namespace MerchForge.api.Controllers
             IValidator<UpdateWebsiteTemplateRequest> updateWebsiteTemplateValidator,
             IValidator<WebsiteTemplateRequestsQueryRequest> websiteTemplateRequestsQueryValidator,
             IValidator<CloseWebsiteTemplateRequestRequest> closeWebsiteTemplateRequestValidator,
-            IValidator<UpdateMetadataShapeRequest> updateMetadataShapeValidator)
+            IValidator<UpdateMetadataShapeRequest> updateMetadataShapeValidator,
+            IValidator<CreateProductAttributeDefinitionRequest> createAttributeDefinitionValidator,
+            IValidator<UpdateProductAttributeDefinitionRequest> updateAttributeDefinitionValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -43,6 +47,8 @@ namespace MerchForge.api.Controllers
             _websiteTemplateRequestsQueryValidator = websiteTemplateRequestsQueryValidator;
             _closeWebsiteTemplateRequestValidator = closeWebsiteTemplateRequestValidator;
             _updateMetadataShapeValidator = updateMetadataShapeValidator;
+            _createAttributeDefinitionValidator = createAttributeDefinitionValidator;
+            _updateAttributeDefinitionValidator = updateAttributeDefinitionValidator;
         }
 
         [HttpGet("stats")]
@@ -141,6 +147,63 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        // ---- product attribute definitions (domain field catalogue) ----
+
+        [HttpGet("product-attributes")]
+        public async Task<ActionResult<List<ProductAttributeDefinitionResponse>>> GetProductAttributeDefinitions(
+            [FromQuery] Guid? businessDomainId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetAttributeDefinitionsAsync(businessDomainId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("product-attributes")]
+        public async Task<ActionResult<ProductAttributeDefinitionResponse>> CreateProductAttributeDefinition(
+            [FromBody] CreateProductAttributeDefinitionRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createAttributeDefinitionValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.CreateAttributeDefinitionAsync(request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("product-attributes/{id:guid}")]
+        public async Task<ActionResult<ProductAttributeDefinitionResponse>> UpdateProductAttributeDefinition(
+            Guid id,
+            [FromBody] UpdateProductAttributeDefinitionRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateAttributeDefinitionValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.UpdateAttributeDefinitionAsync(id, request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("product-attributes/{id:guid}/deactivate")]
+        public async Task<ActionResult<ProductAttributeDefinitionResponse>> DeactivateProductAttributeDefinition(
+            Guid id,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.SetAttributeDefinitionActiveAsync(id, false, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("product-attributes/{id:guid}/reactivate")]
+        public async Task<ActionResult<ProductAttributeDefinitionResponse>> ReactivateProductAttributeDefinition(
+            Guid id,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.SetAttributeDefinitionActiveAsync(id, true, cancellationToken);
+
+            return Ok(response);
+        }
+
         // ---- website templates ----
 
         [HttpGet("website-templates")]
@@ -164,15 +227,15 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
-        [HttpPost("website-templates/video")]
-        [RequestSizeLimit(200 * 1024 * 1024)]
-        public async Task<ActionResult<UploadWebsiteTemplateVideoResponse>> UploadWebsiteTemplateVideo(
+        [HttpPost("website-templates/image")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public async Task<ActionResult<UploadWebsiteTemplateImageResponse>> UploadWebsiteTemplateImage(
             IFormFile file,
             CancellationToken cancellationToken)
         {
-            var videoUrl = await _dashboardService.UploadWebsiteTemplateVideoAsync(file, cancellationToken);
+            var imageUrl = await _dashboardService.UploadWebsiteTemplateImageAsync(file, cancellationToken);
 
-            return Ok(new UploadWebsiteTemplateVideoResponse { VideoUrl = videoUrl });
+            return Ok(new UploadWebsiteTemplateImageResponse { ImageUrl = imageUrl });
         }
 
         [HttpGet("website-templates/{websiteTemplateId:guid}")]

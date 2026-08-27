@@ -13,7 +13,7 @@ public class WebsiteTemplateDetailResponse
 
     public string Label { get; set; } = string.Empty;
 
-    public string VideoPreviewUrl { get; set; } = string.Empty;
+    public string PreviewImageUrl { get; set; } = string.Empty;
 
     public string? PreviewWebsiteUrl { get; set; }
 

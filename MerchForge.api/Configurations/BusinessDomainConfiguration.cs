@@ -22,6 +22,9 @@ public class BusinessDomainConfiguration : IEntityTypeConfiguration<BusinessDoma
     internal static readonly Guid ElectronicsId =
         Guid.Parse("d1000000-0000-4000-8000-000000000003");
 
+    internal static readonly Guid GroceryId =
+        Guid.Parse("d1000000-0000-4000-8000-000000000004");
+
     public void Configure(EntityTypeBuilder<BusinessDomain> builder)
     {
         builder.ToTable("business_domains");
@@ -73,6 +76,15 @@ public class BusinessDomainConfiguration : IEntityTypeConfiguration<BusinessDoma
                 Id = ElectronicsId,
                 Name = "Electronics",
                 Slug = "electronics",
+                IsActive = true,
+                CreatedAt = SeedTimestamp,
+                UpdatedAt = SeedTimestamp,
+            },
+            new BusinessDomain
+            {
+                Id = GroceryId,
+                Name = "Grocery",
+                Slug = "grocery",
                 IsActive = true,
                 CreatedAt = SeedTimestamp,
                 UpdatedAt = SeedTimestamp,

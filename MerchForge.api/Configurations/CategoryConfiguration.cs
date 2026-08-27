@@ -98,6 +98,13 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
             // Electronics
             Seed("c3000000-0000-4000-8000-000000000001", BusinessDomainConfiguration.ElectronicsId, "Phones", "phones", 1),
             Seed("c3000000-0000-4000-8000-000000000002", BusinessDomainConfiguration.ElectronicsId, "Laptops", "laptops", 2),
-            Seed("c3000000-0000-4000-8000-000000000003", BusinessDomainConfiguration.ElectronicsId, "Accessories", "accessories", 3));
+            Seed("c3000000-0000-4000-8000-000000000003", BusinessDomainConfiguration.ElectronicsId, "Accessories", "accessories", 3),
+
+            // Grocery
+            Seed("c4000000-0000-4000-8000-000000000001", BusinessDomainConfiguration.GroceryId, "Vegetables", "vegetables", 1),
+            Seed("c4000000-0000-4000-8000-000000000002", BusinessDomainConfiguration.GroceryId, "Fruits", "fruits", 2),
+            Seed("c4000000-0000-4000-8000-000000000003", BusinessDomainConfiguration.GroceryId, "Dairy", "dairy", 3),
+            Seed("c4000000-0000-4000-8000-000000000004", BusinessDomainConfiguration.GroceryId, "Bakery", "bakery", 4),
+            Seed("c4000000-0000-4000-8000-000000000005", BusinessDomainConfiguration.GroceryId, "Beverages", "beverages", 5));
     }
 }

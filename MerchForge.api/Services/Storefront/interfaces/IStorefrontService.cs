@@ -36,5 +36,17 @@ namespace MerchForge.api.Services.Storefront.interfaces
             Guid productId,
             int limit,
             CancellationToken cancellationToken = default);
+
+        // ---- orders ----
+
+        Task<StorefrontOrderResponse> CreateOrderAsync(
+            Guid businessId,
+            CreateOrderRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<StorefrontOrderResponse> GetOrderAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default);
     }
 }

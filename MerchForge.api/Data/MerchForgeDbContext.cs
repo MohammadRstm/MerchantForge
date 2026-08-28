@@ -23,6 +23,9 @@ namespace MerchForge.api.Data
 
         public DbSet<WebsiteTemplateRequest> WebsiteTemplateRequests => Set<WebsiteTemplateRequest>();
 
+        public DbSet<WebsiteTemplateCustomizableComponent> WebsiteTemplateCustomizableComponents
+            => Set<WebsiteTemplateCustomizableComponent>();
+
         public DbSet<ProductAttributeDefinition> ProductAttributeDefinitions
             => Set<ProductAttributeDefinition>();
 

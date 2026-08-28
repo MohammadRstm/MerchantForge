@@ -2,6 +2,7 @@ using System.Text.Json;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Models;
+using MerchForge.api.Services.Common;
 
 namespace MerchForge.api.Services.BusinessDashboard;
 
@@ -260,18 +261,16 @@ public static partial class WebsiteCustomizationValuesBuilder
         }
     }
 
-    private static readonly HashSet<string> AllowedUrlSchemes =
-        new(StringComparer.OrdinalIgnoreCase) { "http", "https", "mailto", "tel" };
-
     /// <summary>
     /// Both Url and Link values eventually get interpolated into an &lt;a href&gt; by
-    /// template code this platform doesn't control, so a scheme allowlist is enforced
+    /// template code this platform doesn't control, so a scheme allowlist (shared with
+    /// SaveWebsiteCustomizationDraftRequestValidator via SafeUrlValidator) is enforced
     /// here rather than trusting every current and future template to sanitize on
     /// render.
     /// </summary>
     private static string EnsureSafeUrl(string key, string url)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed) || !AllowedUrlSchemes.Contains(parsed.Scheme))
+        if (!SafeUrlValidator.IsSafe(url))
         {
             throw new InvalidWebsiteCustomizationValueException(
                 $"'{url}' isn't a valid link for '{key}'. Only http, https, mailto, and tel links are allowed.");

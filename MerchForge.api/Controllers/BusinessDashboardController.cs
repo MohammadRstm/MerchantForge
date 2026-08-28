@@ -5,6 +5,7 @@ using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
+using MerchForge.api.DTOs.Dashboard;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,6 +19,7 @@ namespace MerchForge.api.Controllers
         private readonly IBusinessDashboardService _businessDashboardService;
         private readonly IBusinessMemberService _businessMemberService;
         private readonly IProductImageService _productImageService;
+        private readonly IWebsiteCustomizationService _websiteCustomizationService;
         private readonly IValidator<ProductsQueryRequest> _productsQueryValidator;
         private readonly IValidator<SaveProductRequest> _saveProductValidator;
         private readonly IValidator<CreateBusinessMemberRequest> _createMemberValidator;
@@ -27,11 +29,13 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<OrdersQueryRequest> _ordersQueryValidator;
         private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
         private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
+        private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
             IBusinessMemberService businessMemberService,
             IProductImageService productImageService,
+            IWebsiteCustomizationService websiteCustomizationService,
             IValidator<ProductsQueryRequest> productsQueryValidator,
             IValidator<SaveProductRequest> saveProductValidator,
             IValidator<CreateBusinessMemberRequest> createMemberValidator,
@@ -40,11 +44,13 @@ namespace MerchForge.api.Controllers
             IValidator<UpdateLowStockThresholdRequest> updateLowStockThresholdValidator,
             IValidator<OrdersQueryRequest> ordersQueryValidator,
             IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
-            IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator)
+            IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator,
+            IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
             _productImageService = productImageService;
+            _websiteCustomizationService = websiteCustomizationService;
             _productsQueryValidator = productsQueryValidator;
             _saveProductValidator = saveProductValidator;
             _createMemberValidator = createMemberValidator;
@@ -54,6 +60,7 @@ namespace MerchForge.api.Controllers
             _ordersQueryValidator = ordersQueryValidator;
             _updateOrderStatusValidator = updateOrderStatusValidator;
             _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
+            _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
         }
 
         [HttpGet("stats")]
@@ -380,6 +387,41 @@ namespace MerchForge.api.Controllers
 
             var response = await _businessDashboardService.UpdateOrderPaymentStatusAsync(
                 businessId, orderId, request.PaymentStatus, cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- website customization ----
+
+        [HttpGet("website-customization/catalogue")]
+        public async Task<ActionResult<List<WebsiteTemplateCustomizableComponentResponse>>> GetWebsiteCustomizationCatalogue(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _websiteCustomizationService.GetCatalogueAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("website-customization/draft")]
+        public async Task<ActionResult<WebsiteCustomizationDraftResponse>> GetWebsiteCustomizationDraft(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _websiteCustomizationService.GetOrCreateDraftAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("website-customization/draft")]
+        public async Task<ActionResult<WebsiteCustomizationDraftResponse>> SaveWebsiteCustomizationDraft(
+            Guid businessId,
+            [FromBody] SaveWebsiteCustomizationDraftRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _saveWebsiteCustomizationDraftValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _websiteCustomizationService.SaveDraftAsync(businessId, request, cancellationToken);
 
             return Ok(response);
         }

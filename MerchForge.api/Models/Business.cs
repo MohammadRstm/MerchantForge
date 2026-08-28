@@ -150,6 +150,8 @@ public class Business
 
     public WebsiteTemplate? WebsiteTemplate { get; set; }
 
+    public BusinessWebsiteDraft? WebsiteDraft { get; set; }
+
     public ICollection<BusinessUser> Members { get; set; }
         = new List<BusinessUser>();
 

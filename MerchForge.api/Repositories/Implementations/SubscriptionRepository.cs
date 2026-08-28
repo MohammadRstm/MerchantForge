@@ -61,6 +61,21 @@
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<SubscriptionPlan?> GetPlanAsync(
+            Guid subscriptionPlanId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.SubscriptionPlans
+                .FirstOrDefaultAsync(p => p.Id == subscriptionPlanId, cancellationToken);
+        }
+
+        public async Task AddSubscriptionAsync(
+            Subscription subscription,
+            CancellationToken cancellationToken = default)
+        {
+            await _db.Subscriptions.AddAsync(subscription, cancellationToken);
+        }
+
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _db.SaveChangesAsync(cancellationToken);

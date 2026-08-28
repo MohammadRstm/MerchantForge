@@ -24,6 +24,19 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid businessId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Subscribes (or switches) a business to a plan: no real payment gateway
+        /// exists yet, so this always succeeds and takes effect immediately. Any
+        /// existing Active subscription is cancelled and replaced outright - no
+        /// proration, no cancel-first step. Grants the plan's initial
+        /// ai.image_editing credit allotment synchronously so it's available right
+        /// away rather than waiting for the next renewal job pass.
+        /// </summary>
+        Task<BusinessSubscriptionResponse> SubscribeToPlanAsync(
+            Guid businessId,
+            Guid subscriptionPlanId,
+            CancellationToken cancellationToken = default);
+
         // ---- product CRUD ----
 
         Task<ProductFormResponse> GetProductFormAsync(

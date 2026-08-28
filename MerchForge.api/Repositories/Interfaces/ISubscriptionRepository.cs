@@ -29,6 +29,15 @@ namespace MerchForge.api.Repositories.Interfaces
             DateTime now,
             CancellationToken cancellationToken = default);
 
+        Task<SubscriptionPlan?> GetPlanAsync(
+            Guid subscriptionPlanId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Tracked-add only — caller commits via SaveChangesAsync, so this can land in the same transaction as cancelling a prior Active subscription.</summary>
+        Task AddSubscriptionAsync(
+            Subscription subscription,
+            CancellationToken cancellationToken = default);
+
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

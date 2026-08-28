@@ -10,9 +10,11 @@ using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Exceptions.WebsiteTemplateRequests;
 using MerchForge.api.Jobs.Email;
 using MerchForge.api.Models;
+using MerchForge.api.Exceptions.Subscriptions;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Common;
+using MerchForge.api.Services.Subscription.interfaces;
 
 namespace MerchForge.api.Services.BusinessDashboard
 {
@@ -25,6 +27,7 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
         private readonly IOrderRepository _orderRepository;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IFeatureCreditService _featureCreditService;
 
         /// <summary>
         /// Pending -> Confirmed | Cancelled; Confirmed -> Shipped | Cancelled;
@@ -46,13 +49,15 @@ namespace MerchForge.api.Services.BusinessDashboard
             ISubscriptionRepository subscriptionRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
             IOrderRepository orderRepository,
-            IBackgroundJobClient backgroundJobClient)
+            IBackgroundJobClient backgroundJobClient,
+            IFeatureCreditService featureCreditService)
         {
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
             _orderRepository = orderRepository;
             _backgroundJobClient = backgroundJobClient;
+            _featureCreditService = featureCreditService;
         }
 
         public async Task<BusinessDashboardStatsResponse> GetStatsAsync(
@@ -182,6 +187,53 @@ namespace MerchForge.api.Services.BusinessDashboard
                     })
                     .ToList(),
             };
+        }
+
+        public async Task<BusinessSubscriptionResponse> SubscribeToPlanAsync(
+            Guid businessId,
+            Guid subscriptionPlanId,
+            CancellationToken cancellationToken = default)
+        {
+            var plan = await _subscriptionRepository.GetPlanAsync(subscriptionPlanId, cancellationToken);
+
+            if (plan is null || !plan.IsActive)
+            {
+                throw new SubscriptionPlanNotFoundException();
+            }
+
+            // No cancel-first step: with no real payment gateway, there's nothing to
+            // reconcile a partial-period refund against, so switching plans just
+            // replaces the current one outright.
+            var currentActive = await _subscriptionRepository.GetSubscriptionWithPlanFeaturesAsync(businessId);
+
+            var now = DateTime.UtcNow;
+
+            if (currentActive is not null)
+            {
+                currentActive.Status = SubscriptionStatus.Cancelled;
+                currentActive.UpdatedAt = now;
+            }
+
+            var subscription = new Models.Subscription
+            {
+                Id = Guid.NewGuid(),
+                BusinessId = businessId,
+                SubscriptionPlanId = plan.Id,
+                Status = SubscriptionStatus.Active,
+                CurrentPeriodStart = now,
+                CurrentPeriodEnd = plan.BillingInterval == BillingInterval.Yearly
+                    ? now.AddYears(1)
+                    : now.AddMonths(1),
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+
+            await _subscriptionRepository.AddSubscriptionAsync(subscription, cancellationToken);
+            await _subscriptionRepository.SaveChangesAsync(cancellationToken);
+
+            await _featureCreditService.ResetImageEditingCreditsForPeriodAsync(businessId, plan.Id, cancellationToken);
+
+            return (await GetSubscriptionAsync(businessId, cancellationToken))!;
         }
 
         // ---- product CRUD ----

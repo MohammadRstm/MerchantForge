@@ -32,6 +32,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
         private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
+        private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -48,7 +49,8 @@ namespace MerchForge.api.Controllers
             IValidator<OrdersQueryRequest> ordersQueryValidator,
             IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
             IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator,
-            IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator)
+            IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
+            IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
@@ -65,6 +67,7 @@ namespace MerchForge.api.Controllers
             _updateOrderStatusValidator = updateOrderStatusValidator;
             _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
+            _subscribeToPlanValidator = subscribeToPlanValidator;
         }
 
         [HttpGet("stats")]
@@ -128,6 +131,20 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _businessDashboardService.GetSubscriptionAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("subscription")]
+        public async Task<ActionResult<BusinessSubscriptionResponse>> SubscribeToPlan(
+            Guid businessId,
+            [FromBody] SubscribeToPlanRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _subscribeToPlanValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessDashboardService.SubscribeToPlanAsync(
+                businessId, request.SubscriptionPlanId, cancellationToken);
 
             return Ok(response);
         }

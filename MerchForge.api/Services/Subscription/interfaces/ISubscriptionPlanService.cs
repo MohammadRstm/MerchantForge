@@ -7,8 +7,8 @@ public interface ISubscriptionPlanService
 {
     Task<List<SubscriptionPlanResponse>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Active plans only, for the public-facing landing/billing pages.</summary>
-    Task<List<SubscriptionPlanResponse>> GetPublicAsync(CancellationToken cancellationToken = default);
+    /// <summary>Active plans only, with their features, for the public-facing landing/billing pages.</summary>
+    Task<List<SubscriptionPlanDetailResponse>> GetPublicAsync(CancellationToken cancellationToken = default);
 
     Task<SubscriptionPlanDetailResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 

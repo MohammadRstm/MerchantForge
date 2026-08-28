@@ -23,11 +23,13 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         return plans.Select(MapPlan).ToList();
     }
 
-    public async Task<List<SubscriptionPlanResponse>> GetPublicAsync(CancellationToken cancellationToken = default)
+    public async Task<List<SubscriptionPlanDetailResponse>> GetPublicAsync(CancellationToken cancellationToken = default)
     {
         var plans = await _repository.GetActiveAsync(cancellationToken);
 
-        return plans.Select(MapPlan).ToList();
+        // No subscriber count here - that's an internal metric, not something a
+        // public landing/billing page needs.
+        return plans.Select(plan => MapDetail(plan, activeSubscriberCount: 0)).ToList();
     }
 
     public async Task<SubscriptionPlanDetailResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

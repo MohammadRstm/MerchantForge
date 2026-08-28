@@ -29,7 +29,7 @@ namespace MerchForge.api.Controllers
         /// <summary>Active plans only — no auth, for the public landing/billing pages.</summary>
         [HttpGet("public")]
         [AllowAnonymous]
-        public async Task<ActionResult<List<SubscriptionPlanResponse>>> GetPublicPlans(
+        public async Task<ActionResult<List<SubscriptionPlanDetailResponse>>> GetPublicPlans(
             CancellationToken cancellationToken)
         {
             var response = await _subscriptionPlanService.GetPublicAsync(cancellationToken);

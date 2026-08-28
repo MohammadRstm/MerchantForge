@@ -66,7 +66,21 @@ namespace MerchForge.api.Repositories.Implementations
                 var droppedKeys = new List<string>();
                 JsonDocument? validatedTemplateFields = null;
 
-                if (business.WebsiteTemplateId is Guid templateId)
+                // A draft is only ever created once; the business can switch templates
+                // afterward without the draft ever being re-opened (Publish doesn't
+                // require a prior GetOrCreateDraftAsync call). draft.TemplateFieldsDraft
+                // reflecting a *different* template than business.WebsiteTemplateId right
+                // now means those values are leftover from before the switch -- treated
+                // the same as "no template chosen": meaningless to publish, never
+                // validated against the current template's rules. Without this guard, two
+                // templates that happen to share a key name (as the seeded fashion/
+                // electronic catalogues do) would pass DropUnknownKeys's "is this key
+                // known" check and get published as if they were the new template's own
+                // values -- exactly the cross-template leak the namespaced storage exists
+                // to prevent.
+                var draftMatchesCurrentTemplate = draft.TemplateFieldsWebsiteTemplateId == business.WebsiteTemplateId;
+
+                if (business.WebsiteTemplateId is Guid templateId && draftMatchesCurrentTemplate)
                 {
                     var components = await _db.WebsiteTemplateCustomizableComponents
                         .Where(c => c.WebsiteTemplateId == templateId && c.IsActive)
@@ -80,7 +94,8 @@ namespace MerchForge.api.Repositories.Implementations
                 else if (draft.TemplateFieldsDraft is not null
                     && draft.TemplateFieldsDraft.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    // No template chosen at all -- any saved template-field values are
+                    // No template chosen, or the draft is stale relative to the current
+                    // template (see above) -- any saved template-field values are
                     // meaningless, so everything the draft had is dropped.
                     droppedKeys.AddRange(draft.TemplateFieldsDraft.RootElement.EnumerateObject().Select(p => p.Name));
                 }

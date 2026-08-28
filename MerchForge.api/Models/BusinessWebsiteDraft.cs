@@ -57,6 +57,19 @@ public class BusinessWebsiteDraft
     /// <summary>Same namespaced-by-WebsiteTemplateId shape as Business.WebsiteCustomizationValues, but only ever holds the current template's own sub-object — a draft is scoped to "editing the current template's values right now", unlike the published column which keeps every previously-used template's leftover values around.</summary>
     public JsonDocument? TemplateFieldsDraft { get; set; }
 
+    /// <summary>
+    /// Which template TemplateFieldsDraft was captured for. A business can switch
+    /// templates after a draft already exists (the draft is only ever created once,
+    /// on first access) — without this, a stale TemplateFieldsDraft from the old
+    /// template would sit unnoticed and, if two templates happen to share a key name
+    /// (as fashion-template-01 and electronic-template-01's seeded slots do), get
+    /// re-saved as if it were the new template's own value on the next save. Compared
+    /// against Business.WebsiteTemplateId whenever the draft is loaded; a mismatch
+    /// re-syncs TemplateFieldsDraft from the live published values for the new
+    /// template, same as if the draft were being created fresh.
+    /// </summary>
+    public Guid? TemplateFieldsWebsiteTemplateId { get; set; }
+
     /// <summary>Opaque random, generated once when the row is first created. Regenerable via a dedicated endpoint if a link is shared/leaked.</summary>
     public string PreviewToken { get; set; } = string.Empty;
 

@@ -68,6 +68,7 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
             : new Dictionary<string, WebsiteCustomizationValuesBuilder.FieldRule>();
 
         var templateFields = WebsiteCustomizationValuesBuilder.Build(rules, request.TemplateFields);
+        draft.TemplateFieldsWebsiteTemplateId = business.WebsiteTemplateId;
 
         draft.Tagline = Clean(request.Tagline);
         draft.Description = Clean(request.Description);
@@ -129,6 +130,25 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
 
         if (draft is not null)
         {
+            // A draft is only ever created once (below), but the business can switch
+            // templates afterward via the website-template-request workflow. Without
+            // this check, a stale TemplateFieldsDraft captured under the old template
+            // would sit unnoticed and, if the two templates happen to share a key name,
+            // get saved as if it were the new template's own value on the next save —
+            // exactly the cross-template leak the namespaced storage exists to prevent.
+            // Re-sync it here, the same way a fresh draft is seeded below, whenever it's
+            // out of date — everything else on the draft (global fields) stays as-is,
+            // since those aren't template-specific.
+            if (draft.TemplateFieldsWebsiteTemplateId != business.WebsiteTemplateId)
+            {
+                draft.TemplateFieldsDraft = WebsiteCustomizationValuesReader.ReadForTemplate(
+                    business.WebsiteCustomizationValues, business.WebsiteTemplateId);
+                draft.TemplateFieldsWebsiteTemplateId = business.WebsiteTemplateId;
+                draft.UpdatedAt = DateTime.UtcNow;
+
+                await _websiteCustomizationRepository.SaveChangesAsync(cancellationToken);
+            }
+
             return draft;
         }
 
@@ -153,6 +173,7 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
             PrimaryColor = business.PrimaryColor,
             TemplateFieldsDraft = WebsiteCustomizationValuesReader.ReadForTemplate(
                 business.WebsiteCustomizationValues, business.WebsiteTemplateId),
+            TemplateFieldsWebsiteTemplateId = business.WebsiteTemplateId,
             PreviewToken = GeneratePreviewToken(),
             UpdatedAt = DateTime.UtcNow,
         };

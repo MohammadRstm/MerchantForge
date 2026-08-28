@@ -292,6 +292,7 @@ builder.Services.AddScoped<ICustomerAuthService, CustomerAuthService>();
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IFeatureCreditService, FeatureCreditService>();
+builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
 
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -507,6 +508,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+builder.Services.AddScoped<ISubscriptionPlanRepository, SubscriptionPlanRepository>();
 builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();

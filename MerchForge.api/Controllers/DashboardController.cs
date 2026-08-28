@@ -19,6 +19,7 @@ namespace MerchForge.api.Controllers
         private readonly IDashboardService _dashboardService;
         private readonly IValidator<UsersQueryRequest> _usersQueryValidator;
         private readonly IValidator<BusinessesQueryRequest> _businessesQueryValidator;
+        private readonly IValidator<CustomersQueryRequest> _customersQueryValidator;
         private readonly IValidator<CreateWebsiteTemplateRequest> _createWebsiteTemplateValidator;
         private readonly IValidator<UpdateWebsiteTemplateRequest> _updateWebsiteTemplateValidator;
         private readonly IValidator<WebsiteTemplateRequestsQueryRequest> _websiteTemplateRequestsQueryValidator;
@@ -31,6 +32,7 @@ namespace MerchForge.api.Controllers
             IDashboardService dashboardService,
             IValidator<UsersQueryRequest> usersQueryValidator,
             IValidator<BusinessesQueryRequest> businessesQueryValidator,
+            IValidator<CustomersQueryRequest> customersQueryValidator,
             IValidator<CreateWebsiteTemplateRequest> createWebsiteTemplateValidator,
             IValidator<UpdateWebsiteTemplateRequest> updateWebsiteTemplateValidator,
             IValidator<WebsiteTemplateRequestsQueryRequest> websiteTemplateRequestsQueryValidator,
@@ -42,6 +44,7 @@ namespace MerchForge.api.Controllers
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
             _businessesQueryValidator = businessesQueryValidator;
+            _customersQueryValidator = customersQueryValidator;
             _updateWebsiteTemplateValidator = updateWebsiteTemplateValidator;
             _createWebsiteTemplateValidator = createWebsiteTemplateValidator;
             _websiteTemplateRequestsQueryValidator = websiteTemplateRequestsQueryValidator;
@@ -267,6 +270,30 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _dashboardService.DeactivateWebsiteTemplateAsync(websiteTemplateId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- customers ----
+
+        [HttpGet("customers")]
+        public async Task<ActionResult<PagedResult<DashboardCustomerResponse>>> GetCustomers(
+            [FromQuery] CustomersQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _customersQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetCustomersAsync(query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/{customerId:guid}")]
+        public async Task<ActionResult<DashboardCustomerDetailResponse>> GetCustomerDetail(
+            Guid customerId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetCustomerDetailAsync(customerId, cancellationToken);
 
             return Ok(response);
         }

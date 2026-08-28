@@ -582,6 +582,31 @@ namespace MerchForge.api.Services.Dashboard
             };
         }
 
+        // ---- customers ----
+
+        public async Task<PagedResult<DashboardCustomerResponse>> GetCustomersAsync(
+            CustomersQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var (items, totalCount) = await _dashboardRepository.GetCustomersAsync(query, cancellationToken);
+
+            return new PagedResult<DashboardCustomerResponse>
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = totalCount,
+            };
+        }
+
+        public async Task<DashboardCustomerDetailResponse> GetCustomerDetailAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _dashboardRepository.GetCustomerDetailAsync(customerId, cancellationToken)
+                ?? throw new Exceptions.CustomerAuth.CustomerNotFoundException();
+        }
+
         // ---- website template requests ----
 
         public async Task<PagedResult<WebsiteTemplateRequestSummaryResponse>> GetWebsiteTemplateRequestsAsync(

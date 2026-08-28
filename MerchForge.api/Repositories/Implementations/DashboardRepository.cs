@@ -390,6 +390,72 @@ namespace MerchForge.api.Repositories.Implementations
                 .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
         }
 
+        public async Task<List<WebsiteTemplateCustomizableComponent>> GetActiveCustomizableComponentsForTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplateCustomizableComponents
+                .AsNoTracking()
+                .Where(c => c.WebsiteTemplateId == websiteTemplateId && c.IsActive)
+                .OrderBy(c => c.DisplayOrder)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<WebsiteTemplateCustomizableComponent>> GetCustomizableComponentsAsync(
+            Guid? websiteTemplateId,
+            CancellationToken cancellationToken = default)
+        {
+            var query = _db.WebsiteTemplateCustomizableComponents
+                .AsNoTracking()
+                .Include(c => c.WebsiteTemplate)
+                .AsQueryable();
+
+            if (websiteTemplateId.HasValue)
+            {
+                query = query.Where(c => c.WebsiteTemplateId == websiteTemplateId.Value);
+            }
+
+            return await query
+                .OrderBy(c => c.WebsiteTemplate.Name)
+                .ThenBy(c => c.DisplayOrder)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<bool> CustomizableComponentKeyExistsAsync(
+            Guid websiteTemplateId,
+            string key,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplateCustomizableComponents
+                .AnyAsync(c => c.WebsiteTemplateId == websiteTemplateId && c.Key == key, cancellationToken);
+        }
+
+        public async Task CreateCustomizableComponentAsync(
+            WebsiteTemplateCustomizableComponent component,
+            CancellationToken cancellationToken = default)
+        {
+            _db.WebsiteTemplateCustomizableComponents.Add(component);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateCustomizableComponent?> GetTrackedCustomizableComponentAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplateCustomizableComponents
+                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateCustomizableComponent?> GetCustomizableComponentWithTemplateAsync(
+            Guid id,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplateCustomizableComponents
+                .AsNoTracking()
+                .Include(c => c.WebsiteTemplate)
+                .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+        }
+
         public async Task<List<BusinessFeatureCreditResponse>> GetBusinessFeatureCreditsAsync(
             Guid businessId,
             CancellationToken cancellationToken = default)

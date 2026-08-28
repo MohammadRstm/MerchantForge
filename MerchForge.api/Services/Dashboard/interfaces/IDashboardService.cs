@@ -59,6 +59,26 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             bool isActive,
             CancellationToken cancellationToken = default);
 
+        // ---- website template customizable components (per-template capability catalogue) ----
+
+        Task<List<WebsiteTemplateCustomizableComponentResponse>> GetCustomizableComponentsAsync(
+            Guid? websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateCustomizableComponentResponse> CreateCustomizableComponentAsync(
+            CreateWebsiteTemplateCustomizableComponentRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateCustomizableComponentResponse> UpdateCustomizableComponentAsync(
+            Guid id,
+            UpdateWebsiteTemplateCustomizableComponentRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateCustomizableComponentResponse> SetCustomizableComponentActiveAsync(
+            Guid id,
+            bool isActive,
+            CancellationToken cancellationToken = default);
+
         // ---- website templates ----
 
         Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);

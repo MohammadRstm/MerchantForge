@@ -88,6 +88,26 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        /// <summary>
+        /// The draft overlaid on published, for the dashboard's "Preview" button —
+        /// never cached, since its whole purpose is reflecting the very latest draft
+        /// edit on every reload. token is public-but-obscure (same posture as an order
+        /// lookup by id, not real authentication) and gates this to businesses that
+        /// have actually started customizing.
+        /// </summary>
+        [HttpGet("preview")]
+        public async Task<ActionResult<StorefrontBusinessResponse>> GetPreview(
+            [FromQuery] Guid businessId,
+            [FromQuery] string token,
+            CancellationToken cancellationToken)
+        {
+            Response.Headers.CacheControl = "no-store";
+
+            var response = await _storefrontService.GetPreviewAsync(businessId, token, cancellationToken);
+
+            return Ok(response);
+        }
+
         /// <summary>A single product, including its description and metadata.</summary>
         [HttpGet("products/{productId:guid}")]
         public async Task<ActionResult<StorefrontProductDetailResponse>> GetProduct(

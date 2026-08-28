@@ -59,4 +59,7 @@ public class WebsiteTemplate
 
     public ICollection<Business> Businesses { get; set; }
         = new List<Business>();
+
+    public ICollection<WebsiteTemplateCustomizableComponent> CustomizableComponents { get; set; }
+        = new List<WebsiteTemplateCustomizableComponent>();
 }

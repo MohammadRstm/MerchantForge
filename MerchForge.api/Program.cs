@@ -296,6 +296,8 @@ builder.Services.AddScoped<IFeatureCreditService, FeatureCreditService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
+builder.Services.AddScoped<IWebsiteCustomizationService, WebsiteCustomizationService>();
+builder.Services.AddScoped<IWebsiteCustomizationImageService, WebsiteCustomizationImageService>();
 builder.Services.AddScoped<IProductImageService, ProductImageService>();
 builder.Services.AddScoped<IWebsiteTemplateImageService, WebsiteTemplateImageService>();
 
@@ -306,6 +308,10 @@ builder.Services
 builder.Services
     .AddOptions<WebsiteTemplateImageOptions>()
     .Bind(builder.Configuration.GetSection(WebsiteTemplateImageOptions.SectionName));
+
+builder.Services
+    .AddOptions<WebsiteCustomizationImageOptions>()
+    .Bind(builder.Configuration.GetSection(WebsiteCustomizationImageOptions.SectionName));
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();
@@ -492,6 +498,7 @@ builder.Services.AddScoped<IWebsiteTemplateRequestRepository, WebsiteTemplateReq
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<ICustomerRefreshTokenRepository, CustomerRefreshTokenRepository>();
+builder.Services.AddScoped<IWebsiteCustomizationRepository, WebsiteCustomizationRepository>();
 
 // build app
 var app = builder.Build();

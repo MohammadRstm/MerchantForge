@@ -23,9 +23,15 @@ public class Business
     // than a separate settings table/CMS: each of these is needed by essentially
     // every storefront to render correctly, and a 1:1 table would buy nothing yet.
 
+    /// <summary>Long-form "About" text. Never rendered by any storefront today; kept distinct from <see cref="Tagline"/>.</summary>
     public string? Description { get; set; }
 
+    /// <summary>Short marketing line, e.g. "Fresh flowers, delivered daily."</summary>
+    public string? Tagline { get; set; }
+
     public string? LogoUrl { get; set; }
+
+    public string? FaviconUrl { get; set; }
 
     /// <summary>
     /// ISO 4217 code. Prices are meaningless to a storefront without it, so unlike
@@ -41,6 +47,47 @@ public class Business
     public string? ContactEmail { get; set; }
 
     public string? ContactPhone { get; set; }
+
+    /// <summary>Digits/E.164 only, never a full URL — the wa.me/&lt;number&gt; link is built by the SDK/storefront, never stored.</summary>
+    public string? WhatsAppNumber { get; set; }
+
+    public string? AddressLine1 { get; set; }
+
+    public string? AddressLine2 { get; set; }
+
+    public string? City { get; set; }
+
+    public string? State { get; set; }
+
+    public string? PostalCode { get; set; }
+
+    public string? Country { get; set; }
+
+    /// <summary>Fixed key set: facebook, instagram, twitter, tiktok, youtube, linkedin. Any key omitted or null means "not set" — a storefront should hide that icon, not link to a placeholder.</summary>
+    public JsonDocument? SocialLinks { get; set; }
+
+    /// <summary>Per-day open/close/closed. Shape and reader live alongside WebsiteCustomizationValues, not this doc comment, since both are read the same way.</summary>
+    public JsonDocument? BusinessHours { get; set; }
+
+    /// <summary>Hex, e.g. "#1A1A1A". Applied at runtime by the SDK as the storefront's --primary CSS custom property — no per-template code needed for this one.</summary>
+    public string? PrimaryColor { get; set; }
+
+    /// <summary>
+    /// Published values for this business's currently-chosen template's customizable
+    /// components, namespaced by WebsiteTemplateId so a stale value saved under one
+    /// template's Image-typed key can never leak into a different template whose own
+    /// key of the same name happens to be a different type:
+    ///
+    ///   { "&lt;websiteTemplateId&gt;": { "heroImage": "/uploads/...", "heroHeadline": "..." } }
+    ///
+    /// Only the sub-object for the *current* WebsiteTemplateId is ever read; older
+    /// sub-objects from a previously-used template are inert leftover data, kept
+    /// (not garbage-collected) so switching back recovers them. Read via
+    /// Services/Common/WebsiteCustomizationValuesReader.cs. Unlike MetadataShape, this
+    /// IS exposed on the public storefront API — these values exist specifically to
+    /// drive public storefront rendering.
+    /// </summary>
+    public JsonDocument? WebsiteCustomizationValues { get; set; }
 
     /// <summary>
     /// Units remaining at or below which a tracked product counts as "low stock" on
@@ -102,6 +149,8 @@ public class Business
     public BusinessDomain? BusinessDomain { get; set; }
 
     public WebsiteTemplate? WebsiteTemplate { get; set; }
+
+    public BusinessWebsiteDraft? WebsiteDraft { get; set; }
 
     public ICollection<BusinessUser> Members { get; set; }
         = new List<BusinessUser>();

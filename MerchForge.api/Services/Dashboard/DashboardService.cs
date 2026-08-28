@@ -455,6 +455,131 @@ namespace MerchForge.api.Services.Dashboard
                 .ToList();
         }
 
+        // ---- website template customizable components (per-template capability catalogue) ----
+
+        public async Task<List<WebsiteTemplateCustomizableComponentResponse>> GetCustomizableComponentsAsync(
+            Guid? websiteTemplateId,
+            CancellationToken cancellationToken = default)
+        {
+            var components = await _dashboardRepository.GetCustomizableComponentsAsync(websiteTemplateId, cancellationToken);
+
+            return components.Select(MapCustomizableComponent).ToList();
+        }
+
+        public async Task<WebsiteTemplateCustomizableComponentResponse> CreateCustomizableComponentAsync(
+            CreateWebsiteTemplateCustomizableComponentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (await _dashboardRepository.GetTrackedWebsiteTemplateAsync(request.WebsiteTemplateId, cancellationToken) is null)
+            {
+                throw new WebsiteTemplateNotFoundException();
+            }
+
+            if (!Enum.TryParse<WebsiteCustomizableValueType>(request.ValueType, out var valueType))
+            {
+                throw new InvalidWebsiteCustomizableValueTypeException();
+            }
+
+            var key = request.Key.Trim();
+
+            if (await _dashboardRepository.CustomizableComponentKeyExistsAsync(request.WebsiteTemplateId, key, cancellationToken))
+            {
+                throw new WebsiteTemplateCustomizableComponentKeyAlreadyExistsException();
+            }
+
+            var component = new WebsiteTemplateCustomizableComponent
+            {
+                Id = Guid.NewGuid(),
+                WebsiteTemplateId = request.WebsiteTemplateId,
+                Key = key,
+                Label = request.Label.Trim(),
+                ValueType = valueType,
+                IsRequired = request.IsRequired,
+                AllowedValues = SerializeAllowedValues(request.AllowedValues),
+                HelpText = string.IsNullOrWhiteSpace(request.HelpText) ? null : request.HelpText.Trim(),
+                DisplayOrder = request.DisplayOrder,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+
+            await _dashboardRepository.CreateCustomizableComponentAsync(component, cancellationToken);
+
+            return await MapCustomizableComponentByIdAsync(component.Id, cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateCustomizableComponentResponse> UpdateCustomizableComponentAsync(
+            Guid id,
+            UpdateWebsiteTemplateCustomizableComponentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var component = await _dashboardRepository.GetTrackedCustomizableComponentAsync(id, cancellationToken)
+                ?? throw new WebsiteTemplateCustomizableComponentNotFoundException();
+
+            if (!Enum.TryParse<WebsiteCustomizableValueType>(request.ValueType, out var valueType))
+            {
+                throw new InvalidWebsiteCustomizableValueTypeException();
+            }
+
+            component.Label = request.Label.Trim();
+            component.ValueType = valueType;
+            component.IsRequired = request.IsRequired;
+            component.AllowedValues = SerializeAllowedValues(request.AllowedValues);
+            component.HelpText = string.IsNullOrWhiteSpace(request.HelpText) ? null : request.HelpText.Trim();
+            component.DisplayOrder = request.DisplayOrder;
+            component.UpdatedAt = DateTime.UtcNow;
+
+            await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+            return await MapCustomizableComponentByIdAsync(id, cancellationToken);
+        }
+
+        public async Task<WebsiteTemplateCustomizableComponentResponse> SetCustomizableComponentActiveAsync(
+            Guid id,
+            bool isActive,
+            CancellationToken cancellationToken = default)
+        {
+            var component = await _dashboardRepository.GetTrackedCustomizableComponentAsync(id, cancellationToken)
+                ?? throw new WebsiteTemplateCustomizableComponentNotFoundException();
+
+            component.IsActive = isActive;
+            component.UpdatedAt = DateTime.UtcNow;
+
+            await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+            return await MapCustomizableComponentByIdAsync(id, cancellationToken);
+        }
+
+        private async Task<WebsiteTemplateCustomizableComponentResponse> MapCustomizableComponentByIdAsync(
+            Guid id,
+            CancellationToken cancellationToken)
+        {
+            var component = await _dashboardRepository.GetCustomizableComponentWithTemplateAsync(id, cancellationToken)
+                ?? throw new WebsiteTemplateCustomizableComponentNotFoundException();
+
+            return MapCustomizableComponent(component);
+        }
+
+        private static WebsiteTemplateCustomizableComponentResponse MapCustomizableComponent(
+            WebsiteTemplateCustomizableComponent component)
+        {
+            return new WebsiteTemplateCustomizableComponentResponse
+            {
+                Id = component.Id,
+                WebsiteTemplateId = component.WebsiteTemplateId,
+                TemplateName = component.WebsiteTemplate.Name,
+                Key = component.Key,
+                Label = component.Label,
+                ValueType = component.ValueType.ToString(),
+                IsRequired = component.IsRequired,
+                AllowedValues = ReadAllowedValuesList(component.AllowedValues),
+                HelpText = component.HelpText,
+                DisplayOrder = component.DisplayOrder,
+                IsActive = component.IsActive,
+                CreatedAt = component.CreatedAt,
+            };
+        }
+
         // ---- website templates ----
 
         public async Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default)

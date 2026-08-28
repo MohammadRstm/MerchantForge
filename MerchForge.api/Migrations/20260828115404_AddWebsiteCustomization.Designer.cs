@@ -4,6 +4,7 @@ using MerchForge.api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MerchForge.api.Migrations
 {
     [DbContext(typeof(MerchForgeDbContext))]
-    partial class MerchForgeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828115404_AddWebsiteCustomization")]
+    partial class AddWebsiteCustomization
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -322,98 +325,6 @@ namespace MerchForge.api.Migrations
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
                             Role = "Member"
                         });
-                });
-
-            modelBuilder.Entity("MerchForge.api.Models.BusinessWebsiteDraft", b =>
-                {
-                    b.Property<Guid>("BusinessId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("AddressLine1")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("AddressLine2")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("BusinessHours")
-                        .HasColumnType("json");
-
-                    b.Property<string>("City")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("ContactEmail")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("ContactPhone")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("Country")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<string>("FaviconUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<DateTime?>("LastPublishedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("LogoUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<string>("PostalCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
-
-                    b.Property<string>("PreviewToken")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("PrimaryColor")
-                        .HasMaxLength(7)
-                        .HasColumnType("varchar(7)");
-
-                    b.Property<string>("SocialLinks")
-                        .HasColumnType("json");
-
-                    b.Property<string>("State")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Tagline")
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.Property<string>("TemplateFieldsDraft")
-                        .HasColumnType("json");
-
-                    b.Property<Guid?>("TemplateFieldsWebsiteTemplateId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("WhatsAppNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.HasKey("BusinessId");
-
-                    b.HasIndex("PreviewToken")
-                        .IsUnique();
-
-                    b.ToTable("business_website_drafts", (string)null);
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.Category", b =>
@@ -2624,17 +2535,6 @@ namespace MerchForge.api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("MerchForge.api.Models.BusinessWebsiteDraft", b =>
-                {
-                    b.HasOne("MerchForge.api.Models.Business", "Business")
-                        .WithOne("WebsiteDraft")
-                        .HasForeignKey("MerchForge.api.Models.BusinessWebsiteDraft", "BusinessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Business");
-                });
-
             modelBuilder.Entity("MerchForge.api.Models.Category", b =>
                 {
                     b.HasOne("MerchForge.api.Models.BusinessDomain", "BusinessDomain")
@@ -2946,8 +2846,6 @@ namespace MerchForge.api.Migrations
                     b.Navigation("ProductDrafts");
 
                     b.Navigation("Products");
-
-                    b.Navigation("WebsiteDraft");
 
                     b.Navigation("WebsiteTemplateRequests");
                 });

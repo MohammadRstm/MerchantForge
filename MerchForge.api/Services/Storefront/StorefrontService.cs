@@ -33,6 +33,15 @@ namespace MerchForge.api.Services.Storefront
                 ?? throw new BusinessNotFoundException();
         }
 
+        public async Task<StorefrontBusinessResponse> GetPreviewAsync(
+            Guid businessId,
+            string previewToken,
+            CancellationToken cancellationToken = default)
+        {
+            return await _storefrontRepository.GetPreviewAsync(businessId, previewToken, cancellationToken)
+                ?? throw new InvalidPreviewTokenException();
+        }
+
         public async Task<List<StorefrontCategoryResponse>> GetCategoriesAsync(
             Guid businessId,
             CancellationToken cancellationToken = default)

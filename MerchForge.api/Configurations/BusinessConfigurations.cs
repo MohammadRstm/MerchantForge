@@ -43,7 +43,13 @@ public class BusinessConfigurations : IEntityTypeConfiguration<Business>
         builder.Property(x => x.Description)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.Tagline)
+            .HasMaxLength(150);
+
         builder.Property(x => x.LogoUrl)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.FaviconUrl)
             .HasMaxLength(500);
 
         builder.Property(x => x.Currency)
@@ -61,6 +67,41 @@ public class BusinessConfigurations : IEntityTypeConfiguration<Business>
 
         builder.Property(x => x.ContactPhone)
             .HasMaxLength(50);
+
+        builder.Property(x => x.WhatsAppNumber)
+            .HasMaxLength(50);
+
+        builder.Property(x => x.AddressLine1)
+            .HasMaxLength(255);
+
+        builder.Property(x => x.AddressLine2)
+            .HasMaxLength(255);
+
+        builder.Property(x => x.City)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.State)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.PostalCode)
+            .HasMaxLength(20);
+
+        builder.Property(x => x.Country)
+            .HasMaxLength(100);
+
+        // Real json columns, same as MetadataShape: MariaDB adds
+        // CHECK (json_valid(...)) so a malformed shape is rejected by the database.
+        builder.Property(x => x.SocialLinks)
+            .HasColumnType("json");
+
+        builder.Property(x => x.BusinessHours)
+            .HasColumnType("json");
+
+        builder.Property(x => x.PrimaryColor)
+            .HasMaxLength(7);
+
+        builder.Property(x => x.WebsiteCustomizationValues)
+            .HasColumnType("json");
 
         builder.Property(x => x.LowStockThreshold)
             .IsRequired()

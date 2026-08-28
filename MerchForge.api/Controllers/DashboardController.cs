@@ -27,6 +27,8 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateMetadataShapeRequest> _updateMetadataShapeValidator;
         private readonly IValidator<CreateProductAttributeDefinitionRequest> _createAttributeDefinitionValidator;
         private readonly IValidator<UpdateProductAttributeDefinitionRequest> _updateAttributeDefinitionValidator;
+        private readonly IValidator<CreateWebsiteTemplateCustomizableComponentRequest> _createCustomizableComponentValidator;
+        private readonly IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> _updateCustomizableComponentValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -39,7 +41,9 @@ namespace MerchForge.api.Controllers
             IValidator<CloseWebsiteTemplateRequestRequest> closeWebsiteTemplateRequestValidator,
             IValidator<UpdateMetadataShapeRequest> updateMetadataShapeValidator,
             IValidator<CreateProductAttributeDefinitionRequest> createAttributeDefinitionValidator,
-            IValidator<UpdateProductAttributeDefinitionRequest> updateAttributeDefinitionValidator)
+            IValidator<UpdateProductAttributeDefinitionRequest> updateAttributeDefinitionValidator,
+            IValidator<CreateWebsiteTemplateCustomizableComponentRequest> createCustomizableComponentValidator,
+            IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> updateCustomizableComponentValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -52,6 +56,8 @@ namespace MerchForge.api.Controllers
             _updateMetadataShapeValidator = updateMetadataShapeValidator;
             _createAttributeDefinitionValidator = createAttributeDefinitionValidator;
             _updateAttributeDefinitionValidator = updateAttributeDefinitionValidator;
+            _createCustomizableComponentValidator = createCustomizableComponentValidator;
+            _updateCustomizableComponentValidator = updateCustomizableComponentValidator;
         }
 
         [HttpGet("stats")]
@@ -203,6 +209,69 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _dashboardService.SetAttributeDefinitionActiveAsync(id, true, cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- website template customizable components (per-template capability catalogue) ----
+
+        [HttpGet("website-templates/{websiteTemplateId:guid}/customizable-components")]
+        public async Task<ActionResult<List<WebsiteTemplateCustomizableComponentResponse>>> GetCustomizableComponents(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetCustomizableComponentsAsync(websiteTemplateId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/{websiteTemplateId:guid}/customizable-components")]
+        public async Task<ActionResult<WebsiteTemplateCustomizableComponentResponse>> CreateCustomizableComponent(
+            Guid websiteTemplateId,
+            [FromBody] CreateWebsiteTemplateCustomizableComponentRequest request,
+            CancellationToken cancellationToken)
+        {
+            request.WebsiteTemplateId = websiteTemplateId;
+
+            await _createCustomizableComponentValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.CreateCustomizableComponentAsync(request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("website-templates/{websiteTemplateId:guid}/customizable-components/{id:guid}")]
+        public async Task<ActionResult<WebsiteTemplateCustomizableComponentResponse>> UpdateCustomizableComponent(
+            Guid websiteTemplateId,
+            Guid id,
+            [FromBody] UpdateWebsiteTemplateCustomizableComponentRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateCustomizableComponentValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.UpdateCustomizableComponentAsync(id, request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/{websiteTemplateId:guid}/customizable-components/{id:guid}/deactivate")]
+        public async Task<ActionResult<WebsiteTemplateCustomizableComponentResponse>> DeactivateCustomizableComponent(
+            Guid websiteTemplateId,
+            Guid id,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.SetCustomizableComponentActiveAsync(id, false, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/{websiteTemplateId:guid}/customizable-components/{id:guid}/reactivate")]
+        public async Task<ActionResult<WebsiteTemplateCustomizableComponentResponse>> ReactivateCustomizableComponent(
+            Guid websiteTemplateId,
+            Guid id,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.SetCustomizableComponentActiveAsync(id, true, cancellationToken);
 
             return Ok(response);
         }

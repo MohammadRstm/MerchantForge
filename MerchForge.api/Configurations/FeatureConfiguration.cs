@@ -16,6 +16,14 @@ public class FeatureConfiguration
     internal static readonly Guid AiImageEditingId =
         Guid.Parse("f0000000-0000-4000-8000-000000000002");
 
+    /// <summary>Fixed so PlanFeatureConfiguration's seed rows can reference it by id.</summary>
+    internal static readonly Guid WebsiteCustomizationBasicId =
+        Guid.Parse("f0000000-0000-4000-8000-000000000003");
+
+    /// <summary>Fixed so PlanFeatureConfiguration's seed rows can reference it by id.</summary>
+    internal static readonly Guid WebsiteCustomizationAdvancedId =
+        Guid.Parse("f0000000-0000-4000-8000-000000000004");
+
     public void Configure(EntityTypeBuilder<Feature> builder)
     {
         builder.ToTable("features");
@@ -56,7 +64,9 @@ public class FeatureConfiguration
                 Name = "AI Product Creation",
                 Description = "Draft a product through conversation instead of filling in the form by hand.",
                 IsActive = true,
-                SupportsCreditPurchase = true,
+                // Unlimited on every paid plan now (see PlanFeatureConfiguration) -
+                // no longer independently purchasable in standalone credit blocks.
+                SupportsCreditPurchase = false,
                 CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
                 UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
             },
@@ -68,6 +78,28 @@ public class FeatureConfiguration
                 Description = "Edit a product photo by describing the change you want instead of using an image editor.",
                 IsActive = true,
                 SupportsCreditPurchase = true,
+                CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
+                UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
+            },
+            new Feature
+            {
+                Id = WebsiteCustomizationBasicId,
+                Key = FeatureKeys.WebsiteCustomizationBasic,
+                Name = "Basic Website Customization",
+                Description = "Logo, favicon, brand color, tagline, description, and contact/address details on your storefront.",
+                IsActive = true,
+                SupportsCreditPurchase = false,
+                CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
+                UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
+            },
+            new Feature
+            {
+                Id = WebsiteCustomizationAdvancedId,
+                Key = FeatureKeys.WebsiteCustomizationAdvanced,
+                Name = "Advanced Website Customization",
+                Description = "Social links, business hours, and per-template storefront fields (hero image, promo banner, etc.).",
+                IsActive = true,
+                SupportsCreditPurchase = false,
                 CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
                 UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
             });

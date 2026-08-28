@@ -16,6 +16,19 @@ namespace MerchForge.api.Repositories.Interfaces
             Guid businessId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// The draft overlaid on published: identity fields (Name/Currency/Locale/
+        /// Domain) come from the live Business, since those are never part of
+        /// customization; every customization field comes from the draft instead of
+        /// what's published. Null when the business doesn't exist, no draft has been
+        /// created for it yet, or previewToken doesn't match — deliberately the same
+        /// outcome for all three, so this can never be used to probe which is true.
+        /// </summary>
+        Task<StorefrontBusinessResponse?> GetPreviewAsync(
+            Guid businessId,
+            string previewToken,
+            CancellationToken cancellationToken = default);
+
         Task<bool> BusinessExistsAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);

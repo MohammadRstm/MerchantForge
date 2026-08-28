@@ -1,8 +1,11 @@
+using System.Text.Json;
 using MerchForge.api.Data;
+using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace MerchForge.api.Repositories.Implementations
@@ -20,29 +23,126 @@ namespace MerchForge.api.Repositories.Implementations
             Guid businessId,
             CancellationToken cancellationToken = default)
         {
-            return await _db.Businesses
+            // Fetched as the full entity (not a LINQ Select projection) specifically so
+            // the JSON columns (SocialLinks/BusinessHours/WebsiteCustomizationValues)
+            // materialize normally and can be converted to their public DTO shapes in
+            // C# below -- a Select projection can't call into
+            // WebsiteCustomizationValuesReader/JsonSerializer for that conversion.
+            var business = await _db.Businesses
                 .AsNoTracking()
-                .Where(b => b.Id == businessId)
-                .Select(b => new StorefrontBusinessResponse
-                {
-                    Id = b.Id,
-                    Name = b.Name,
-                    Description = b.Description,
-                    LogoUrl = b.LogoUrl,
-                    Currency = b.Currency,
-                    Locale = b.Locale,
-                    ContactEmail = b.ContactEmail,
-                    ContactPhone = b.ContactPhone,
-                    Domain = b.BusinessDomain == null
-                        ? null
-                        : new StorefrontDomainResponse
-                        {
-                            Id = b.BusinessDomain.Id,
-                            Name = b.BusinessDomain.Name,
-                            Slug = b.BusinessDomain.Slug,
-                        },
-                })
-                .FirstOrDefaultAsync(cancellationToken);
+                .Include(b => b.BusinessDomain)
+                .FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
+
+            return business is null ? null : MapToStorefrontResponse(business);
+        }
+
+        public async Task<StorefrontBusinessResponse?> GetPreviewAsync(
+            Guid businessId,
+            string previewToken,
+            CancellationToken cancellationToken = default)
+        {
+            var business = await _db.Businesses
+                .AsNoTracking()
+                .Include(b => b.BusinessDomain)
+                .Include(b => b.WebsiteDraft)
+                .FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
+
+            if (business?.WebsiteDraft is not { } draft || draft.PreviewToken != previewToken)
+            {
+                return null;
+            }
+
+            // Baseline for the fields never part of customization (Id/Name/Currency/
+            // Locale/Domain), then every customization field is overwritten from the
+            // draft instead of what's published.
+            var response = MapToStorefrontResponse(business);
+
+            response.Description = draft.Description;
+            response.Tagline = draft.Tagline;
+            response.LogoUrl = draft.LogoUrl;
+            response.FaviconUrl = draft.FaviconUrl;
+            response.ContactEmail = draft.ContactEmail;
+            response.ContactPhone = draft.ContactPhone;
+            response.WhatsAppNumber = draft.WhatsAppNumber;
+            response.AddressLine1 = draft.AddressLine1;
+            response.AddressLine2 = draft.AddressLine2;
+            response.City = draft.City;
+            response.State = draft.State;
+            response.PostalCode = draft.PostalCode;
+            response.Country = draft.Country;
+            response.SocialLinks = ReadSocialLinks(draft.SocialLinks);
+            response.BusinessHours = ReadBusinessHours(draft.BusinessHours);
+            response.PrimaryColor = draft.PrimaryColor;
+            // TemplateFieldsDraft is already just the current template's own flat
+            // object (see BusinessWebsiteDraft's doc comment) -- no namespace lookup
+            // needed here, unlike the published WebsiteCustomizationValues column.
+            response.TemplateFields = ReadTemplateFields(draft.TemplateFieldsDraft);
+
+            return response;
+        }
+
+        internal static StorefrontBusinessResponse MapToStorefrontResponse(Business business)
+        {
+            return new StorefrontBusinessResponse
+            {
+                Id = business.Id,
+                Name = business.Name,
+                Description = business.Description,
+                Tagline = business.Tagline,
+                LogoUrl = business.LogoUrl,
+                FaviconUrl = business.FaviconUrl,
+                Currency = business.Currency,
+                Locale = business.Locale,
+                ContactEmail = business.ContactEmail,
+                ContactPhone = business.ContactPhone,
+                WhatsAppNumber = business.WhatsAppNumber,
+                AddressLine1 = business.AddressLine1,
+                AddressLine2 = business.AddressLine2,
+                City = business.City,
+                State = business.State,
+                PostalCode = business.PostalCode,
+                Country = business.Country,
+                SocialLinks = ReadSocialLinks(business.SocialLinks),
+                BusinessHours = ReadBusinessHours(business.BusinessHours),
+                PrimaryColor = business.PrimaryColor,
+                TemplateFields = ReadTemplateFields(
+                    WebsiteCustomizationValuesReader.ReadForTemplate(business.WebsiteCustomizationValues, business.WebsiteTemplateId)),
+                Domain = business.BusinessDomain is null
+                    ? null
+                    : new StorefrontDomainResponse
+                    {
+                        Id = business.BusinessDomain.Id,
+                        Name = business.BusinessDomain.Name,
+                        Slug = business.BusinessDomain.Slug,
+                    },
+            };
+        }
+
+        private static SocialLinksDto ReadSocialLinks(JsonDocument? document) =>
+            document is null
+                ? new SocialLinksDto()
+                : JsonSerializer.Deserialize<SocialLinksDto>(document.RootElement.GetRawText()) ?? new SocialLinksDto();
+
+        private static BusinessHoursDto ReadBusinessHours(JsonDocument? document) =>
+            document is null
+                ? new BusinessHoursDto()
+                : JsonSerializer.Deserialize<BusinessHoursDto>(document.RootElement.GetRawText()) ?? new BusinessHoursDto();
+
+        private static Dictionary<string, JsonElement> ReadTemplateFields(JsonDocument? document)
+        {
+            var result = new Dictionary<string, JsonElement>();
+
+            if (document is null || document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return result;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                result[property.Name] = property.Value.Clone();
+            }
+
+            return result;
         }
 
         public async Task<bool> BusinessExistsAsync(

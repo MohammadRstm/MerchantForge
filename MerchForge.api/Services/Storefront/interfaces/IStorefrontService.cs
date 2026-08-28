@@ -17,6 +17,12 @@ namespace MerchForge.api.Services.Storefront.interfaces
             Guid businessId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>Throws InvalidPreviewTokenException when the business doesn't exist, has no draft yet, or the token doesn't match.</summary>
+        Task<StorefrontBusinessResponse> GetPreviewAsync(
+            Guid businessId,
+            string previewToken,
+            CancellationToken cancellationToken = default);
+
         Task<List<StorefrontCategoryResponse>> GetCategoriesAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);

@@ -23,5 +23,7 @@
         public const string WhatsApp = "Feature.WhatsApp";
         public const string AiProductGeneration = "Feature.AiProductGeneration";
         public const string AiImageEditing = "Feature.AiImageEditing";
+        public const string WebsiteCustomizationBasic = "Feature.WebsiteCustomizationBasic";
+        public const string WebsiteCustomizationAdvanced = "Feature.WebsiteCustomizationAdvanced";
     }
 }

@@ -469,6 +469,26 @@ builder.Services.AddAuthorization(options =>
                 ));
         });
 
+    options.AddPolicy(
+        AuthorizationPolicies.WebsiteCustomizationBasic,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                     FeatureKeys.WebsiteCustomizationBasic
+                ));
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.WebsiteCustomizationAdvanced,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                     FeatureKeys.WebsiteCustomizationAdvanced
+                ));
+        });
+
     // add more policies as more services are added
 });
 

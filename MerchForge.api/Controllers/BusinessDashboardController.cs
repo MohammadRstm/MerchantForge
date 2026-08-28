@@ -398,6 +398,7 @@ namespace MerchForge.api.Controllers
         // ---- website customization ----
 
         [HttpGet("website-customization/catalogue")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<List<WebsiteTemplateCustomizableComponentResponse>>> GetWebsiteCustomizationCatalogue(
             Guid businessId,
             CancellationToken cancellationToken)
@@ -408,6 +409,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpGet("website-customization/draft")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<WebsiteCustomizationDraftResponse>> GetWebsiteCustomizationDraft(
             Guid businessId,
             CancellationToken cancellationToken)
@@ -418,6 +420,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPut("website-customization/draft")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<WebsiteCustomizationDraftResponse>> SaveWebsiteCustomizationDraft(
             Guid businessId,
             [FromBody] SaveWebsiteCustomizationDraftRequest request,
@@ -432,6 +435,7 @@ namespace MerchForge.api.Controllers
 
         [HttpPost("website-customization/image")]
         [RequestSizeLimit(6 * 1024 * 1024)]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<UploadWebsiteCustomizationImageResponse>> UploadWebsiteCustomizationImage(
             Guid businessId,
             IFormFile file,
@@ -444,6 +448,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("website-customization/publish")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<PublishWebsiteCustomizationResponse>> PublishWebsiteCustomization(
             Guid businessId,
             CancellationToken cancellationToken)
@@ -454,6 +459,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("website-customization/preview-token/regenerate")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<RegeneratePreviewTokenResponse>> RegenerateWebsiteCustomizationPreviewToken(
             Guid businessId,
             CancellationToken cancellationToken)

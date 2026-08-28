@@ -107,5 +107,16 @@ namespace MerchForge.api.Repositories.Interfaces
             CancellationToken cancellationToken = default);
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
+
+        // ---- customers ----
+
+        Task<(List<DashboardCustomerResponse> Items, int TotalCount)> GetCustomersAsync(
+            CustomersQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Null when no customer with this id exists.</summary>
+        Task<DashboardCustomerDetailResponse?> GetCustomerDetailAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default);
     }
 }

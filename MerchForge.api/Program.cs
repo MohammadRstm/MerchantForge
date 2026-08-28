@@ -15,6 +15,8 @@ using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
+using MerchForge.api.Services.CustomerAuth;
+using MerchForge.api.Services.CustomerAuth.interfaces;
 using MerchForge.api.Services.BusinessDashboard;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Dashboard;
@@ -137,17 +139,34 @@ builder.Services.AddCors(options =>
     // The public storefront API is consumed by independently deployed storefronts on
     // origins MerchForge does not know in advance, so it cannot use an allow-list.
     // That is safe precisely because it is anonymous and credential-free: no cookies
-    // or Authorization headers are involved, so there is no cross-site request the
-    // browser could authenticate. AllowAnyOrigin and AllowCredentials are mutually
-    // exclusive per the CORS spec, which is exactly the trade this policy makes.
+    // are involved. It's also what the customer-facing exchange/profile endpoints ride
+    // on — those carry a Bearer access token instead of a cookie, so a browser only
+    // ever attaches it when JS explicitly does so, unlike a cookie the browser attaches
+    // automatically. AllowAnyOrigin and AllowCredentials are mutually exclusive per the
+    // CORS spec, which is exactly the trade this policy makes.
     options.AddPolicy("Storefront", policy =>
     {
         policy
             .AllowAnyOrigin()
             .AllowAnyHeader()
-            // POST added for order creation — still no AllowCredentials(), so this
-            // stays combinable with AllowAnyOrigin() per the CORS spec.
-            .WithMethods("GET", "POST");
+            // POST added for order creation; PUT added for customer profile updates.
+            // Still no AllowCredentials(), so this stays combinable with
+            // AllowAnyOrigin() per the CORS spec.
+            .WithMethods("GET", "POST", "PUT");
+    });
+
+    // Customer signup/login/refresh/logout/silent are only ever called from
+    // MerchForgeClient's own origin (the platform) — same origin-allowlist +
+    // AllowCredentials() shape as "Frontend", kept as its own policy so the
+    // customer-auth surface can diverge from the dashboard's CORS rules later without
+    // touching the dashboard's own policy.
+    options.AddPolicy("CustomerPlatform", policy =>
+    {
+        policy
+            .WithOrigins(corsAllowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -201,6 +220,41 @@ builder.Services
 
             ClockSkew = TimeSpan.Zero
         };
+    })
+    // Second, independent JWT scheme for customers. Reuses the platform's existing
+    // Jwt:SecretKey/Issuer (see CustomerJwtOptions's doc comment) — the distinct scheme
+    // name ("Customer") plus the distinct Audience below are what stop a customer token
+    // from being accepted by any owner/admin policy, and vice versa, not a distinct
+    // secret.
+    .AddJwtBearer("Customer", options =>
+    {
+        var jwtOptions = builder.Configuration
+            .GetSection(JwtOptions.SectionName)
+            .Get<JwtOptions>()
+            ?? throw new JwtConfigurationException();
+
+        var customerJwtOptions = builder.Configuration
+            .GetSection(CustomerJwtOptions.SectionName)
+            .Get<CustomerJwtOptions>()
+            ?? new CustomerJwtOptions();
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOptions.Issuer,
+
+            ValidateAudience = true,
+            ValidAudience = customerJwtOptions.Audience,
+
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtOptions.SecretKey)
+            ),
+
+            ValidateLifetime = true,
+
+            ClockSkew = TimeSpan.Zero
+        };
     });
 
 builder.Services
@@ -209,15 +263,30 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services
+    .AddOptions<CustomerJwtOptions>()
+    .Bind(builder.Configuration.GetSection(CustomerJwtOptions.SectionName))
+    .ValidateOnStart();
+
+builder.Services
     .AddOptions<RefreshTokenOptions>()
     .Bind(builder.Configuration.GetSection(RefreshTokenOptions.SectionName))
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<CustomerRefreshTokenOptions>()
+    .Bind(builder.Configuration.GetSection(CustomerRefreshTokenOptions.SectionName))
+    .ValidateOnStart();
+
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<IPasswordHasher<Customer>, PasswordHasher<Customer>>();
 
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+builder.Services.AddScoped<ICustomerJwtService, CustomerJwtService>();
+builder.Services.AddScoped<ICustomerRefreshTokenService, CustomerRefreshTokenService>();
+builder.Services.AddScoped<ICustomerAuthService, CustomerAuthService>();
 
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
@@ -352,6 +421,16 @@ builder.Services.AddAuthorization(options =>
                 ));
         });
 
+    // Customer (shopper) Authorization — restricted to the "Customer" JWT scheme only,
+    // so it structurally cannot accept an owner/admin token, and vice versa.
+    options.AddPolicy(
+        AuthorizationPolicies.Customer,
+        policy =>
+        {
+            policy.AddAuthenticationSchemes("Customer");
+            policy.RequireAuthenticatedUser();
+        });
+
     // Feature Authorizations
 
     options.AddPolicy(
@@ -411,6 +490,8 @@ builder.Services.AddScoped<IFeatureCreditRepository, FeatureCreditRepository>();
 builder.Services.AddScoped<IImageEditJobRepository, ImageEditJobRepository>();
 builder.Services.AddScoped<IWebsiteTemplateRequestRepository, WebsiteTemplateRequestRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+builder.Services.AddScoped<ICustomerRefreshTokenRepository, CustomerRefreshTokenRepository>();
 
 // build app
 var app = builder.Build();

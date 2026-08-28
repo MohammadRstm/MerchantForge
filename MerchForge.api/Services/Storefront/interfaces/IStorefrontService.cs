@@ -42,6 +42,7 @@ namespace MerchForge.api.Services.Storefront.interfaces
         Task<StorefrontOrderResponse> CreateOrderAsync(
             Guid businessId,
             CreateOrderRequest request,
+            Guid? customerId,
             CancellationToken cancellationToken = default);
 
         Task<StorefrontOrderResponse> GetOrderAsync(

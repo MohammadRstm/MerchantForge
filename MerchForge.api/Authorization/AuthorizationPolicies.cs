@@ -12,6 +12,11 @@
 
         public const string BusinessOwner = "BusinessOwner";
 
+        /* Customer (shopper) identity — structurally separate from every role above:
+           this policy accepts only the "Customer" JWT scheme, so a customer token can
+           never satisfy an owner/admin policy and vice versa. */
+        public const string Customer = "Customer";
+
         // Features
         public const string Products = "Feature.Products";
         public const string Telegram = "Feature.Telegram";

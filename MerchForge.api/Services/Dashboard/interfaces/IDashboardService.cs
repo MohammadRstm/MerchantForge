@@ -98,6 +98,16 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             Guid websiteTemplateRequestId,
             CancellationToken cancellationToken = default);
 
+        // ---- customers ----
+
+        Task<PagedResult<DashboardCustomerResponse>> GetCustomersAsync(
+            CustomersQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<DashboardCustomerDetailResponse> GetCustomerDetailAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default);
+
         Task<WebsiteTemplateRequestDetailResponse> CloseWebsiteTemplateRequestAsync(
             Guid websiteTemplateRequestId,
             Guid closedByUserId,

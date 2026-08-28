@@ -486,5 +486,121 @@ namespace MerchForge.api.Repositories.Implementations
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        // ---- customers ----
+
+        public async Task<(List<DashboardCustomerResponse> Items, int TotalCount)> GetCustomersAsync(
+            CustomersQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var baseQuery = _db.Customers.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var pattern = $"%{query.Search.Trim()}%";
+
+                baseQuery = baseQuery.Where(c =>
+                    EF.Functions.Like(c.FirstName, pattern) ||
+                    EF.Functions.Like(c.LastName, pattern) ||
+                    EF.Functions.Like(c.Email, pattern));
+            }
+
+            var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+            baseQuery = query.SortBy switch
+            {
+                CustomerSortField.Name => query.SortDescending
+                    ? baseQuery.OrderByDescending(c => c.FirstName).ThenByDescending(c => c.LastName)
+                    : baseQuery.OrderBy(c => c.FirstName).ThenBy(c => c.LastName),
+
+                CustomerSortField.Email => query.SortDescending
+                    ? baseQuery.OrderByDescending(c => c.Email)
+                    : baseQuery.OrderBy(c => c.Email),
+
+                _ => query.SortDescending
+                    ? baseQuery.OrderByDescending(c => c.CreatedAt)
+                    : baseQuery.OrderBy(c => c.CreatedAt),
+            };
+
+            var page = await baseQuery
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.FirstName,
+                    c.LastName,
+                    c.Email,
+                    c.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+
+            var customerIds = page.Select(c => c.Id).ToList();
+
+            var orderCounts = (await _db.Orders
+                .Where(o => o.CustomerId != null && customerIds.Contains(o.CustomerId.Value))
+                .GroupBy(o => o.CustomerId!.Value)
+                .Select(g => new { CustomerId = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(x => x.CustomerId, x => x.Count);
+
+            var items = page
+                .Select(c => new DashboardCustomerResponse
+                {
+                    Id = c.Id,
+                    FirstName = c.FirstName,
+                    LastName = c.LastName,
+                    Email = c.Email,
+                    OrderCount = orderCounts.TryGetValue(c.Id, out var count) ? count : 0,
+                    CreatedAt = c.CreatedAt,
+                })
+                .ToList();
+
+            return (items, totalCount);
+        }
+
+        public async Task<DashboardCustomerDetailResponse?> GetCustomerDetailAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default)
+        {
+            var customer = await _db.Customers
+                .FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+
+            if (customer is null)
+            {
+                return null;
+            }
+
+            var businesses = await _db.Orders
+                .Where(o => o.CustomerId == customerId)
+                .GroupBy(o => new { o.BusinessId, o.Business.Name, o.Currency })
+                .Select(g => new CustomerBusinessOrderSummaryResponse
+                {
+                    BusinessId = g.Key.BusinessId,
+                    BusinessName = g.Key.Name,
+                    OrderCount = g.Count(),
+                    TotalSpent = g.Sum(o => o.Total),
+                    Currency = g.Key.Currency,
+                })
+                .ToListAsync(cancellationToken);
+
+            return new DashboardCustomerDetailResponse
+            {
+                Id = customer.Id,
+                FirstName = customer.FirstName,
+                LastName = customer.LastName,
+                Email = customer.Email,
+                Phone = customer.Phone,
+                AddressLine1 = customer.AddressLine1,
+                AddressLine2 = customer.AddressLine2,
+                City = customer.City,
+                State = customer.State,
+                PostalCode = customer.PostalCode,
+                Country = customer.Country,
+                CreatedAt = customer.CreatedAt,
+                UpdatedAt = customer.UpdatedAt,
+                Businesses = businesses,
+            };
+        }
     }
 }

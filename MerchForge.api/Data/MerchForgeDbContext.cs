@@ -40,6 +40,12 @@ namespace MerchForge.api.Data
 
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+        public DbSet<Customer> Customers => Set<Customer>();
+
+        public DbSet<CustomerRefreshToken> CustomerRefreshTokens => Set<CustomerRefreshToken>();
+
+        public DbSet<CustomerExchangeCode> CustomerExchangeCodes => Set<CustomerExchangeCode>();
+
         public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
         public DbSet<Feature> Features => Set<Feature>();
         public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();

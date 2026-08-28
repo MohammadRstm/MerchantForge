@@ -297,6 +297,7 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
 builder.Services.AddScoped<IBusinessMemberService, BusinessMemberService>();
 builder.Services.AddScoped<IWebsiteCustomizationService, WebsiteCustomizationService>();
+builder.Services.AddScoped<IWebsiteCustomizationImageService, WebsiteCustomizationImageService>();
 builder.Services.AddScoped<IProductImageService, ProductImageService>();
 builder.Services.AddScoped<IWebsiteTemplateImageService, WebsiteTemplateImageService>();
 
@@ -307,6 +308,10 @@ builder.Services
 builder.Services
     .AddOptions<WebsiteTemplateImageOptions>()
     .Bind(builder.Configuration.GetSection(WebsiteTemplateImageOptions.SectionName));
+
+builder.Services
+    .AddOptions<WebsiteCustomizationImageOptions>()
+    .Bind(builder.Configuration.GetSection(WebsiteCustomizationImageOptions.SectionName));
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();

@@ -1,6 +1,7 @@
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
+using MerchForge.api.Enums;
 
 namespace MerchForge.api.Services.BusinessDashboard.interfaces
 {
@@ -87,6 +88,30 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
         Task UpdateLowStockThresholdAsync(
             Guid businessId,
             int lowStockThreshold,
+            CancellationToken cancellationToken = default);
+
+        // ---- orders ----
+
+        Task<PagedResult<BusinessOrderResponse>> GetOrdersAsync(
+            Guid businessId,
+            OrdersQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessOrderDetailResponse> GetOrderAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessOrderDetailResponse> UpdateOrderStatusAsync(
+            Guid businessId,
+            Guid orderId,
+            OrderStatus status,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessOrderDetailResponse> UpdateOrderPaymentStatusAsync(
+            Guid businessId,
+            Guid orderId,
+            PaymentStatus paymentStatus,
             CancellationToken cancellationToken = default);
     }
 }

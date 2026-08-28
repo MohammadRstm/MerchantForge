@@ -31,13 +31,16 @@ namespace MerchForge.api.Controllers
     {
         private readonly IStorefrontService _storefrontService;
         private readonly IValidator<StorefrontProductsQueryRequest> _productsQueryValidator;
+        private readonly IValidator<CreateOrderRequest> _createOrderValidator;
 
         public StorefrontController(
             IStorefrontService storefrontService,
-            IValidator<StorefrontProductsQueryRequest> productsQueryValidator)
+            IValidator<StorefrontProductsQueryRequest> productsQueryValidator,
+            IValidator<CreateOrderRequest> createOrderValidator)
         {
             _storefrontService = storefrontService;
             _productsQueryValidator = productsQueryValidator;
+            _createOrderValidator = createOrderValidator;
         }
 
         /// <summary>Store identity, presentation, and formatting configuration.</summary>
@@ -111,6 +114,42 @@ namespace MerchForge.api.Controllers
                 productId,
                 limit,
                 cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- orders ----
+
+        /// <summary>
+        /// Places an order from the storefront's cart. No price is trusted from the
+        /// client — every line's price and every item's stock are resolved and
+        /// checked server-side. No payment is collected or verified here; see
+        /// PaymentStatus's own doc comment.
+        /// </summary>
+        [HttpPost("orders")]
+        public async Task<ActionResult<StorefrontOrderResponse>> CreateOrder(
+            [FromQuery] Guid businessId,
+            [FromBody] CreateOrderRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createOrderValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _storefrontService.CreateOrderAsync(businessId, request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Looks up a single order for a confirmation/tracking page. The order id
+        /// itself is the only credential — see StorefrontOrderResponse's doc comment.
+        /// </summary>
+        [HttpGet("orders/{orderId:guid}")]
+        public async Task<ActionResult<StorefrontOrderResponse>> GetOrder(
+            Guid orderId,
+            [FromQuery] Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _storefrontService.GetOrderAsync(businessId, orderId, cancellationToken);
 
             return Ok(response);
         }

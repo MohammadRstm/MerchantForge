@@ -27,6 +27,10 @@ public class BusinessDashboardStatsResponse
 
     public int OutOfStockProductCount { get; set; }
 
+    public int OrderCount { get; set; }
+
+    public int PendingOrderCount { get; set; }
+
     public List<BusinessProductResponse> RecentProducts { get; set; } = new();
 
     public List<KeyCountResponse> ProductsByCategory { get; set; } = new();

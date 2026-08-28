@@ -1,6 +1,7 @@
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Exceptions.BusinessDashboard;
+using MerchForge.api.Exceptions.Orders;
 using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Storefront.interfaces;
@@ -16,10 +17,12 @@ namespace MerchForge.api.Services.Storefront
         public const int MaxRelatedProducts = 20;
 
         private readonly IStorefrontRepository _storefrontRepository;
+        private readonly IOrderRepository _orderRepository;
 
-        public StorefrontService(IStorefrontRepository storefrontRepository)
+        public StorefrontService(IStorefrontRepository storefrontRepository, IOrderRepository orderRepository)
         {
             _storefrontRepository = storefrontRepository;
+            _orderRepository = orderRepository;
         }
 
         public async Task<StorefrontBusinessResponse> GetBusinessAsync(
@@ -100,6 +103,32 @@ namespace MerchForge.api.Services.Storefront
                 productId,
                 effectiveLimit,
                 cancellationToken);
+        }
+
+        // ---- orders ----
+
+        public async Task<StorefrontOrderResponse> CreateOrderAsync(
+            Guid businessId,
+            CreateOrderRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await EnsureBusinessExistsAsync(businessId, cancellationToken);
+
+            var order = await _orderRepository.CreateOrderAsync(businessId, request, cancellationToken);
+
+            // Re-read through the same projection GetOrderAsync uses, rather than
+            // hand-mapping the just-created entity a second way — one shape, one place
+            // it's built.
+            return await GetOrderAsync(businessId, order.Id, cancellationToken);
+        }
+
+        public async Task<StorefrontOrderResponse> GetOrderAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderForStorefrontAsync(businessId, orderId, cancellationToken)
+                ?? throw new OrderNotFoundException();
         }
 
         private async Task EnsureBusinessExistsAsync(

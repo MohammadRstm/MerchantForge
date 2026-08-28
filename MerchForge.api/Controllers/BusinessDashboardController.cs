@@ -24,6 +24,9 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<CreateWebsiteTemplateRequestRequest> _createWebsiteTemplateRequestValidator;
         private readonly IValidator<StockAdjustmentRequest> _stockAdjustmentValidator;
         private readonly IValidator<UpdateLowStockThresholdRequest> _updateLowStockThresholdValidator;
+        private readonly IValidator<OrdersQueryRequest> _ordersQueryValidator;
+        private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
+        private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -34,7 +37,10 @@ namespace MerchForge.api.Controllers
             IValidator<CreateBusinessMemberRequest> createMemberValidator,
             IValidator<CreateWebsiteTemplateRequestRequest> createWebsiteTemplateRequestValidator,
             IValidator<StockAdjustmentRequest> stockAdjustmentValidator,
-            IValidator<UpdateLowStockThresholdRequest> updateLowStockThresholdValidator)
+            IValidator<UpdateLowStockThresholdRequest> updateLowStockThresholdValidator,
+            IValidator<OrdersQueryRequest> ordersQueryValidator,
+            IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
+            IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
@@ -45,6 +51,9 @@ namespace MerchForge.api.Controllers
             _createWebsiteTemplateRequestValidator = createWebsiteTemplateRequestValidator;
             _stockAdjustmentValidator = stockAdjustmentValidator;
             _updateLowStockThresholdValidator = updateLowStockThresholdValidator;
+            _ordersQueryValidator = ordersQueryValidator;
+            _updateOrderStatusValidator = updateOrderStatusValidator;
+            _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
         }
 
         [HttpGet("stats")]
@@ -317,6 +326,62 @@ namespace MerchForge.api.Controllers
                 businessId, request.LowStockThreshold, cancellationToken);
 
             return NoContent();
+        }
+
+        // ---- orders ----
+
+        [HttpGet("orders")]
+        public async Task<ActionResult<PagedResult<BusinessOrderResponse>>> GetOrders(
+            Guid businessId,
+            [FromQuery] OrdersQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _ordersQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetOrdersAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/{orderId:guid}")]
+        public async Task<ActionResult<BusinessOrderDetailResponse>> GetOrder(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetOrderAsync(businessId, orderId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("orders/{orderId:guid}/status")]
+        public async Task<ActionResult<BusinessOrderDetailResponse>> UpdateOrderStatus(
+            Guid businessId,
+            Guid orderId,
+            [FromBody] UpdateOrderStatusRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateOrderStatusValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessDashboardService.UpdateOrderStatusAsync(
+                businessId, orderId, request.Status, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("orders/{orderId:guid}/payment-status")]
+        public async Task<ActionResult<BusinessOrderDetailResponse>> UpdateOrderPaymentStatus(
+            Guid businessId,
+            Guid orderId,
+            [FromBody] UpdateOrderPaymentStatusRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateOrderPaymentStatusValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessDashboardService.UpdateOrderPaymentStatusAsync(
+                businessId, orderId, request.PaymentStatus, cancellationToken);
+
+            return Ok(response);
         }
     }
 }

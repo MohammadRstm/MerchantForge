@@ -145,7 +145,9 @@ builder.Services.AddCors(options =>
         policy
             .AllowAnyOrigin()
             .AllowAnyHeader()
-            .WithMethods("GET");
+            // POST added for order creation — still no AllowCredentials(), so this
+            // stays combinable with AllowAnyOrigin() per the CORS spec.
+            .WithMethods("GET", "POST");
     });
 });
 
@@ -408,6 +410,7 @@ builder.Services.AddScoped<IProductDraftRepository, ProductDraftRepository>();
 builder.Services.AddScoped<IFeatureCreditRepository, FeatureCreditRepository>();
 builder.Services.AddScoped<IImageEditJobRepository, ImageEditJobRepository>();
 builder.Services.AddScoped<IWebsiteTemplateRequestRepository, WebsiteTemplateRequestRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 // build app
 var app = builder.Build();

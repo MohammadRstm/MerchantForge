@@ -5,6 +5,7 @@ using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.BusinessDashboard;
+using MerchForge.api.Exceptions.Orders;
 using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Exceptions.WebsiteTemplateRequests;
 using MerchForge.api.Jobs.Email;
@@ -22,17 +23,35 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
+        private readonly IOrderRepository _orderRepository;
         private readonly IBackgroundJobClient _backgroundJobClient;
+
+        /// <summary>
+        /// Pending -> Confirmed | Cancelled; Confirmed -> Shipped | Cancelled;
+        /// Shipped -> Delivered. Delivered/Cancelled are terminal. Mirrors
+        /// OrderStatus's own doc comment — kept here rather than on the enum since
+        /// C# enums can't carry behavior.
+        /// </summary>
+        private static readonly Dictionary<OrderStatus, OrderStatus[]> AllowedOrderStatusTransitions = new()
+        {
+            [OrderStatus.Pending] = [OrderStatus.Confirmed, OrderStatus.Cancelled],
+            [OrderStatus.Confirmed] = [OrderStatus.Shipped, OrderStatus.Cancelled],
+            [OrderStatus.Shipped] = [OrderStatus.Delivered],
+            [OrderStatus.Delivered] = [],
+            [OrderStatus.Cancelled] = [],
+        };
 
         public BusinessDashboardService(
             IBusinessDashboardRepository businessDashboardRepository,
             ISubscriptionRepository subscriptionRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
+            IOrderRepository orderRepository,
             IBackgroundJobClient backgroundJobClient)
         {
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
+            _orderRepository = orderRepository;
             _backgroundJobClient = backgroundJobClient;
         }
 
@@ -60,6 +79,9 @@ namespace MerchForge.api.Services.BusinessDashboard
             var outOfStockCount = await _businessDashboardRepository.CountOutOfStockProductsAsync(businessId, cancellationToken);
             var recentProducts = await _businessDashboardRepository.GetRecentProductsAsync(businessId, 5, cancellationToken);
 
+            var orderCount = await _orderRepository.CountOrdersAsync(businessId, cancellationToken);
+            var pendingOrderCount = await _orderRepository.CountOrdersByStatusAsync(businessId, OrderStatus.Pending, cancellationToken);
+
             var productsByCategory = await _businessDashboardRepository.GetProductsByCategoryAsync(businessId, cancellationToken);
             var draftsByStatus = await _businessDashboardRepository.GetProductDraftsByStatusAsync(businessId, cancellationToken);
             var membersByRole = await _businessDashboardRepository.GetMembersByRoleAsync(businessId, cancellationToken);
@@ -84,6 +106,8 @@ namespace MerchForge.api.Services.BusinessDashboard
                 MinProductPrice = priceStats.Min,
                 MaxProductPrice = priceStats.Max,
                 OutOfStockProductCount = outOfStockCount,
+                OrderCount = orderCount,
+                PendingOrderCount = pendingOrderCount,
                 RecentProducts = recentProducts,
 
                 ProductsByCategory = productsByCategory,
@@ -271,6 +295,14 @@ namespace MerchForge.api.Services.BusinessDashboard
             var product = await _businessDashboardRepository.GetTrackedProductAsync(businessId, productId, cancellationToken)
                 ?? throw new ProductNotFoundException();
 
+            // OrderItem.ProductId is Restrict-deleted (order history must survive a
+            // product being removed), so this would otherwise surface as a raw
+            // DbUpdateException from the database instead of a clear error.
+            if (await _orderRepository.HasOrderItemsForProductAsync(productId, cancellationToken))
+            {
+                throw new ProductHasOrdersException();
+            }
+
             // The image file is intentionally left on disk. Deleting it here would be
             // wrong if the same URL was ever reused, and orphaned files are a cleanup
             // concern rather than a correctness one.
@@ -445,6 +477,66 @@ namespace MerchForge.api.Services.BusinessDashboard
             {
                 throw new BusinessNotFoundException();
             }
+        }
+
+        // ---- orders ----
+
+        public async Task<PagedResult<BusinessOrderResponse>> GetOrdersAsync(
+            Guid businessId,
+            OrdersQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var (items, totalCount) = await _orderRepository.GetOrdersAsync(businessId, query, cancellationToken);
+
+            return new PagedResult<BusinessOrderResponse>
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = totalCount,
+            };
+        }
+
+        public async Task<BusinessOrderDetailResponse> GetOrderAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderAsync(businessId, orderId, cancellationToken)
+                ?? throw new OrderNotFoundException();
+        }
+
+        public async Task<BusinessOrderDetailResponse> UpdateOrderStatusAsync(
+            Guid businessId,
+            Guid orderId,
+            OrderStatus status,
+            CancellationToken cancellationToken = default)
+        {
+            var order = await _orderRepository.GetTrackedOrderAsync(businessId, orderId, cancellationToken)
+                ?? throw new OrderNotFoundException();
+
+            if (!AllowedOrderStatusTransitions[order.Status].Contains(status))
+            {
+                throw new OrderInvalidStatusTransitionException();
+            }
+
+            await _orderRepository.UpdateOrderStatusAsync(order, status, cancellationToken);
+
+            return await GetOrderAsync(businessId, orderId, cancellationToken);
+        }
+
+        public async Task<BusinessOrderDetailResponse> UpdateOrderPaymentStatusAsync(
+            Guid businessId,
+            Guid orderId,
+            PaymentStatus paymentStatus,
+            CancellationToken cancellationToken = default)
+        {
+            var order = await _orderRepository.GetTrackedOrderAsync(businessId, orderId, cancellationToken)
+                ?? throw new OrderNotFoundException();
+
+            await _orderRepository.UpdateOrderPaymentStatusAsync(order, paymentStatus, cancellationToken);
+
+            return await GetOrderAsync(businessId, orderId, cancellationToken);
         }
 
         private async Task EnsureCategoryIsUsableAsync(

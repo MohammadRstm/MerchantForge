@@ -92,7 +92,17 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasForeignKey(x => x.BusinessId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // A customer deleting their account must never take a business's order history
+        // with it — every other field on Order already snapshots what it needs, so
+        // SetNull just detaches the link rather than cascading.
+        builder.HasOne(x => x.Customer)
+            .WithMany()
+            .HasForeignKey(x => x.CustomerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => x.BusinessId);
+
+        builder.HasIndex(x => x.CustomerId);
 
         // The dashboard's order list is always business-scoped and usually
         // status-filtered, newest first.

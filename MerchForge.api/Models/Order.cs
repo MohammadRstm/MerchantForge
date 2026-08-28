@@ -15,6 +15,14 @@ public class Order
 
     public Guid BusinessId { get; set; }
 
+    /// <summary>
+    /// Null for a guest order — every field below already snapshots everything needed
+    /// regardless, so guest checkout stays fully functional with no CustomerId at all.
+    /// SetNull on delete: a business's order history must survive a customer deleting
+    /// their account.
+    /// </summary>
+    public Guid? CustomerId { get; set; }
+
     public string CustomerName { get; set; } = string.Empty;
 
     public string CustomerEmail { get; set; } = string.Empty;
@@ -57,6 +65,8 @@ public class Order
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public Business Business { get; set; } = null!;
+
+    public Customer? Customer { get; set; }
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 }

@@ -87,6 +87,37 @@ namespace MerchForge.api.Repositories.Interfaces
             Guid id,
             CancellationToken cancellationToken = default);
 
+        // ---- website template customizable component CRUD (per-template capability catalogue) ----
+
+        /// <summary>All active components for a template, ordered by DisplayOrder — the shape of that template's customization form.</summary>
+        Task<List<WebsiteTemplateCustomizableComponent>> GetActiveCustomizableComponentsForTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>All components (active and inactive), optionally filtered to one template, with WebsiteTemplate loaded.</summary>
+        Task<List<WebsiteTemplateCustomizableComponent>> GetCustomizableComponentsAsync(
+            Guid? websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        Task<bool> CustomizableComponentKeyExistsAsync(
+            Guid websiteTemplateId,
+            string key,
+            CancellationToken cancellationToken = default);
+
+        Task CreateCustomizableComponentAsync(
+            WebsiteTemplateCustomizableComponent component,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Loads a tracked entity for an update/activate mutation.</summary>
+        Task<WebsiteTemplateCustomizableComponent?> GetTrackedCustomizableComponentAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>Loads with WebsiteTemplate, for building a response after a mutation.</summary>
+        Task<WebsiteTemplateCustomizableComponent?> GetCustomizableComponentWithTemplateAsync(
+            Guid id,
+            CancellationToken cancellationToken = default);
+
         // ---- website templates ----
 
         Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);

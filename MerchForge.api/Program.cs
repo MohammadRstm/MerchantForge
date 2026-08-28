@@ -108,11 +108,18 @@ builder.Services.AddDbContext<MerchForgeDbContext>(options =>
 });
 
 // Add job queue
+// Hangfire.MySqlStorage relies on MySQL user-defined variables (e.g. @rownum) internally,
+// so its connection string must opt in to them explicitly.
+var hangfireConnectionString = new MySqlConnector.MySqlConnectionStringBuilder(connectionString)
+{
+    AllowUserVariables = true,
+}.ConnectionString;
+
 builder.Services.AddHangfire(configuration =>
 {
     configuration.UseStorage(
         new MySqlStorage(
-            connectionString,
+            hangfireConnectionString,
             new MySqlStorageOptions()));
 });
 

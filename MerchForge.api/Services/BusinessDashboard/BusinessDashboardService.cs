@@ -183,6 +183,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                     {
                         FeatureKey = pf.Feature.Key,
                         FeatureName = pf.Feature.Name,
+                        FeatureDescription = pf.Feature.Description,
                         Limit = pf.Limit,
                     })
                     .ToList(),

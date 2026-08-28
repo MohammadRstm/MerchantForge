@@ -167,6 +167,7 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             {
                 FeatureKey = pf.Feature.Key,
                 FeatureName = pf.Feature.Name,
+                FeatureDescription = pf.Feature.Description,
                 Limit = pf.Limit,
             })
             .ToList(),

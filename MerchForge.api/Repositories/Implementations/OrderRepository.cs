@@ -24,6 +24,7 @@ public class OrderRepository : IOrderRepository
     public async Task<Order> CreateOrderAsync(
         Guid businessId,
         CreateOrderRequest request,
+        Guid? customerId,
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
@@ -41,6 +42,7 @@ public class OrderRepository : IOrderRepository
             {
                 Id = Guid.NewGuid(),
                 BusinessId = businessId,
+                CustomerId = customerId,
                 CustomerName = request.CustomerName.Trim(),
                 CustomerEmail = request.CustomerEmail.Trim(),
                 CustomerPhone = string.IsNullOrWhiteSpace(request.CustomerPhone) ? null : request.CustomerPhone.Trim(),

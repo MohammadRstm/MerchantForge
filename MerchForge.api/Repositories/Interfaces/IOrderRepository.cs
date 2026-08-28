@@ -25,6 +25,7 @@ public interface IOrderRepository
     Task<Order> CreateOrderAsync(
         Guid businessId,
         CreateOrderRequest request,
+        Guid? customerId,
         CancellationToken cancellationToken = default);
 
     /// <summary>Null when the order doesn't exist or belongs to a different business.</summary>

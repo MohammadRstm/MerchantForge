@@ -110,11 +110,12 @@ namespace MerchForge.api.Services.Storefront
         public async Task<StorefrontOrderResponse> CreateOrderAsync(
             Guid businessId,
             CreateOrderRequest request,
+            Guid? customerId,
             CancellationToken cancellationToken = default)
         {
             await EnsureBusinessExistsAsync(businessId, cancellationToken);
 
-            var order = await _orderRepository.CreateOrderAsync(businessId, request, cancellationToken);
+            var order = await _orderRepository.CreateOrderAsync(businessId, request, customerId, cancellationToken);
 
             // Re-read through the same projection GetOrderAsync uses, rather than
             // hand-mapping the just-created entity a second way — one shape, one place

@@ -3,9 +3,11 @@ using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Services.Storefront;
 using MerchForge.api.Services.Storefront.interfaces;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace MerchForge.api.Controllers
 {
@@ -124,7 +126,10 @@ namespace MerchForge.api.Controllers
         /// Places an order from the storefront's cart. No price is trusted from the
         /// client — every line's price and every item's stock are resolved and
         /// checked server-side. No payment is collected or verified here; see
-        /// PaymentStatus's own doc comment.
+        /// PaymentStatus's own doc comment. Guest checkout stays fully anonymous —
+        /// this endpoint only ever *optionally* attaches a customer, never requires
+        /// one: if the caller carries a valid "Customer" Bearer token, the order links
+        /// to that customer; otherwise it's a guest order exactly as before.
         /// </summary>
         [HttpPost("orders")]
         public async Task<ActionResult<StorefrontOrderResponse>> CreateOrder(
@@ -134,9 +139,32 @@ namespace MerchForge.api.Controllers
         {
             await _createOrderValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-            var response = await _storefrontService.CreateOrderAsync(businessId, request, cancellationToken);
+            var customerId = await TryGetAuthenticatedCustomerIdAsync();
+
+            var response = await _storefrontService.CreateOrderAsync(businessId, request, customerId, cancellationToken);
 
             return Ok(response);
+        }
+
+        /// <summary>
+        /// This endpoint is [AllowAnonymous], so nothing requires a customer token —
+        /// but a signed-in customer's storefront calls still send one as a plain
+        /// Bearer header (see the SDK's customerApiClient). Authenticating it by hand
+        /// against the "Customer" scheme, rather than an [Authorize] attribute, is
+        /// what makes attaching it optional instead of mandatory.
+        /// </summary>
+        private async Task<Guid?> TryGetAuthenticatedCustomerIdAsync()
+        {
+            var result = await HttpContext.AuthenticateAsync("Customer");
+
+            if (!result.Succeeded || result.Principal is null)
+            {
+                return null;
+            }
+
+            var id = result.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            return Guid.TryParse(id, out var customerId) ? customerId : null;
         }
 
         /// <summary>

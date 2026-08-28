@@ -111,6 +111,59 @@ namespace MerchForge.api.Repositories.Implementations
             return balance;
         }
 
+        public async Task<BusinessFeatureCredit> ResetToLimitAsync(
+            Guid businessId,
+            string featureKey,
+            int limit,
+            CancellationToken cancellationToken = default)
+        {
+            var balance = await _db.BusinessFeatureCredits
+                .Include(b => b.Feature)
+                .FirstOrDefaultAsync(
+                    b => b.BusinessId == businessId && b.Feature.Key == featureKey,
+                    cancellationToken);
+
+            if (balance is null)
+            {
+                var feature = await _db.Features
+                    .FirstOrDefaultAsync(f => f.Key == featureKey, cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        $"Feature '{featureKey}' does not exist - cannot reset credits for it.");
+
+                balance = new BusinessFeatureCredit
+                {
+                    Id = Guid.NewGuid(),
+                    BusinessId = businessId,
+                    FeatureId = feature.Id,
+                    CreditsRemaining = 0,
+                    CreditsGrantedTotal = 0,
+                };
+
+                await _db.BusinessFeatureCredits.AddAsync(balance, cancellationToken);
+            }
+
+            var delta = limit - balance.CreditsRemaining;
+
+            balance.CreditsRemaining = limit;
+            balance.CreditsGrantedTotal += limit;
+            balance.UpdatedAt = DateTime.UtcNow;
+
+            await _db.FeatureCreditTransactions.AddAsync(
+                new FeatureCreditTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    BusinessFeatureCreditId = balance.Id,
+                    Type = FeatureCreditTransactionType.Reset,
+                    Amount = delta,
+                    BalanceAfter = balance.CreditsRemaining,
+                },
+                cancellationToken);
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return balance;
+        }
+
         public async Task<bool> TryConsumeCreditAsync(
             Guid businessId,
             string featureKey,

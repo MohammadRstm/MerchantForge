@@ -10,6 +10,7 @@ using MerchForge.api.Data;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Exceptions.Auth;
+using MerchForge.api.Jobs.Subscriptions;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
@@ -573,5 +574,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Rolls forward any Active subscription whose billing period has ended and
+// resets its ai.image_editing credits - the only recurring job in the app, so
+// hourly is plenty given periods are monthly/yearly.
+RecurringJob.AddOrUpdate<RenewSubscriptionPeriodsJob>(
+    "renew-subscription-periods",
+    job => job.ExecuteAsync(CancellationToken.None),
+    "0 * * * *");
 
 app.Run();

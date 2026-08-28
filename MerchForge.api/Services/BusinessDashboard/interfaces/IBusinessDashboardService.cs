@@ -37,6 +37,15 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid subscriptionPlanId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Marks the business's Active subscription to end at CurrentPeriodEnd
+        /// instead of renewing - access continues uninterrupted until then.
+        /// Subscribing to any plan afterward replaces it and clears this.
+        /// </summary>
+        Task<BusinessSubscriptionResponse> CancelSubscriptionAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
         // ---- product CRUD ----
 
         Task<ProductFormResponse> GetProductFormAsync(

@@ -1,5 +1,6 @@
 using Hangfire;
 using MerchForge.api.Enums;
+using MerchForge.api.Jobs.Email;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Subscription.interfaces;
 
@@ -20,15 +21,18 @@ public class RenewSubscriptionPeriodsJob
 {
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IFeatureCreditService _featureCreditService;
+    private readonly IBackgroundJobClient _backgroundJobClient;
     private readonly ILogger<RenewSubscriptionPeriodsJob> _logger;
 
     public RenewSubscriptionPeriodsJob(
         ISubscriptionRepository subscriptionRepository,
         IFeatureCreditService featureCreditService,
+        IBackgroundJobClient backgroundJobClient,
         ILogger<RenewSubscriptionPeriodsJob> logger)
     {
         _subscriptionRepository = subscriptionRepository;
         _featureCreditService = featureCreditService;
+        _backgroundJobClient = backgroundJobClient;
         _logger = logger;
     }
 
@@ -40,6 +44,22 @@ public class RenewSubscriptionPeriodsJob
 
         foreach (var subscription in dueSubscriptions)
         {
+            if (subscription.CancelAtPeriodEnd)
+            {
+                subscription.Status = SubscriptionStatus.Cancelled;
+                subscription.UpdatedAt = now;
+
+                _backgroundJobClient.Enqueue<NotifyAdminToTakeWebsiteDownJob>(
+                    job => job.ExecuteAsync(subscription.BusinessId));
+
+                _logger.LogInformation(
+                    "Subscription {SubscriptionId} for business {BusinessId} ended at the owner's request; not renewing.",
+                    subscription.Id,
+                    subscription.BusinessId);
+
+                continue;
+            }
+
             subscription.CurrentPeriodStart = subscription.CurrentPeriodEnd;
             subscription.CurrentPeriodEnd = subscription.SubscriptionPlan.BillingInterval == BillingInterval.Yearly
                 ? subscription.CurrentPeriodStart.AddYears(1)

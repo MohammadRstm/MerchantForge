@@ -283,6 +283,70 @@ public class EmailService : IEmailService
         }
     }
 
+    public async Task SendTakeWebsiteDownNotificationAsync(
+        string adminEmail,
+        string businessName,
+        string websiteUrl,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var message = new MimeMessage();
+
+            message.From.Add(
+                new MailboxAddress(
+                    _options.FromName,
+                    _options.FromEmail));
+
+            message.To.Add(
+                MailboxAddress.Parse(adminEmail));
+
+            message.Subject = $"Take down {businessName}'s website — subscription ended";
+
+            var body = BuildTakeWebsiteDownEmail(businessName, websiteUrl);
+
+            message.Body = new BodyBuilder
+            {
+                HtmlBody = body
+            }.ToMessageBody();
+
+            using var smtpClient = new SmtpClient();
+
+            await smtpClient.ConnectAsync(
+                _options.Host,
+                _options.Port,
+                SecureSocketOptions.StartTls,
+                cancellationToken);
+
+            await smtpClient.AuthenticateAsync(
+                _options.Username,
+                _options.Password,
+                cancellationToken);
+
+            await smtpClient.SendAsync(
+                message,
+                cancellationToken);
+
+            await smtpClient.DisconnectAsync(
+                true,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to send take-website-down notification to {Email}. SMTP Host: {Host}, Port: {Port}",
+                adminEmail,
+                _options.Host,
+                _options.Port);
+            throw new EmailDeliveryException();
+        }
+    }
+
     private static string BuildWebsiteTemplateRequestSubmittedEmail(
         string businessName,
         string ownerFullName,
@@ -360,6 +424,47 @@ public class EmailService : IEmailService
 
                 <p>
                     {finalWebsiteUrl}
+                </p>
+
+                <p>
+                    — MerchForge
+                </p>
+            </body>
+            </html>
+            """;
+    }
+
+    private static string BuildTakeWebsiteDownEmail(
+        string businessName,
+        string websiteUrl)
+    {
+        return $"""
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h2>Subscription ended — take this website down</h2>
+
+                <p>
+                    <strong>{businessName}</strong>'s subscription has run out and was not renewed.
+                    Their storefront should be taken offline.
+                </p>
+
+                <p>
+                    <a href="{websiteUrl}"
+                       style="
+                           display:inline-block;
+                           padding:12px 20px;
+                           background:#ff9b00;
+                           color:white;
+                           text-decoration:none;
+                           border-radius:6px;
+                       ">
+                        View website
+                    </a>
+                </p>
+
+                <p>
+                    {websiteUrl}
                 </p>
 
                 <p>

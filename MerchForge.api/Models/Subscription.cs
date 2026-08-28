@@ -15,6 +15,15 @@ public class Subscription
 
     public DateTime CurrentPeriodEnd { get; set; }
 
+    /// <summary>
+    /// The owner cancelled, but the business keeps full access through the end of
+    /// the already-paid-for period - RenewSubscriptionPeriodsJob checks this
+    /// instead of renewing once CurrentPeriodEnd passes, terminating the
+    /// subscription (Status -> Cancelled) and notifying SuperAdmins to take the
+    /// website down rather than rolling the period forward.
+    /// </summary>
+    public bool CancelAtPeriodEnd { get; set; }
+
     public string? Provider { get; set; }
 
     public string? ExternalSubscriptionId { get; set; }

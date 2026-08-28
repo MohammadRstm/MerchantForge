@@ -149,6 +149,16 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpPost("subscription/cancel")]
+        public async Task<ActionResult<BusinessSubscriptionResponse>> CancelSubscription(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.CancelSubscriptionAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
         // ---- product CRUD ----
 
         /// <summary>

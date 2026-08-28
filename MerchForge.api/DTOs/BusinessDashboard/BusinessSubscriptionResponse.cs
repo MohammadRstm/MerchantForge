@@ -18,5 +18,7 @@ public class BusinessSubscriptionResponse
 
     public DateTime CurrentPeriodEnd { get; set; }
 
+    public bool CancelAtPeriodEnd { get; set; }
+
     public List<PlanFeatureItemResponse> Features { get; set; } = new();
 }

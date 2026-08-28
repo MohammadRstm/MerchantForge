@@ -177,6 +177,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 Status = subscription.Status.ToString(),
                 CurrentPeriodStart = subscription.CurrentPeriodStart,
                 CurrentPeriodEnd = subscription.CurrentPeriodEnd,
+                CancelAtPeriodEnd = subscription.CancelAtPeriodEnd,
                 Features = subscription.SubscriptionPlan.PlanFeatures
                     .Where(pf => pf.Feature.IsActive)
                     .Select(pf => new PlanFeatureItemResponse
@@ -233,6 +234,21 @@ namespace MerchForge.api.Services.BusinessDashboard
             await _subscriptionRepository.SaveChangesAsync(cancellationToken);
 
             await _featureCreditService.ResetImageEditingCreditsForPeriodAsync(businessId, plan.Id, cancellationToken);
+
+            return (await GetSubscriptionAsync(businessId, cancellationToken))!;
+        }
+
+        public async Task<BusinessSubscriptionResponse> CancelSubscriptionAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var subscription = await _subscriptionRepository.GetSubscriptionWithPlanFeaturesAsync(businessId)
+                ?? throw new NoActiveSubscriptionException();
+
+            subscription.CancelAtPeriodEnd = true;
+            subscription.UpdatedAt = DateTime.UtcNow;
+
+            await _subscriptionRepository.SaveChangesAsync(cancellationToken);
 
             return (await GetSubscriptionAsync(businessId, cancellationToken))!;
         }

@@ -93,6 +93,36 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
         return MapDraft(draft);
     }
 
+    public async Task<PublishWebsiteCustomizationResponse> PublishAsync(
+        Guid businessId,
+        CancellationToken cancellationToken = default)
+    {
+        var (droppedKeys, publishedAt) = await _websiteCustomizationRepository.PublishAsync(businessId, cancellationToken);
+
+        return new PublishWebsiteCustomizationResponse
+        {
+            DroppedTemplateFieldKeys = droppedKeys,
+            PublishedAt = publishedAt,
+        };
+    }
+
+    public async Task<RegeneratePreviewTokenResponse> RegeneratePreviewTokenAsync(
+        Guid businessId,
+        CancellationToken cancellationToken = default)
+    {
+        var business = await _websiteCustomizationRepository.GetTrackedBusinessAsync(businessId, cancellationToken)
+            ?? throw new BusinessNotFoundException();
+
+        var draft = await EnsureDraftExistsAsync(business, cancellationToken);
+
+        draft.PreviewToken = GeneratePreviewToken();
+        draft.UpdatedAt = DateTime.UtcNow;
+
+        await _websiteCustomizationRepository.SaveChangesAsync(cancellationToken);
+
+        return new RegeneratePreviewTokenResponse { PreviewToken = draft.PreviewToken };
+    }
+
     private async Task<BusinessWebsiteDraft> EnsureDraftExistsAsync(Business business, CancellationToken cancellationToken)
     {
         var draft = await _websiteCustomizationRepository.GetTrackedDraftAsync(business.Id, cancellationToken);

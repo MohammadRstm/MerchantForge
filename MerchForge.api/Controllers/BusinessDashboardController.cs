@@ -425,5 +425,25 @@ namespace MerchForge.api.Controllers
 
             return Ok(response);
         }
+
+        [HttpPost("website-customization/publish")]
+        public async Task<ActionResult<PublishWebsiteCustomizationResponse>> PublishWebsiteCustomization(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _websiteCustomizationService.PublishAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-customization/preview-token/regenerate")]
+        public async Task<ActionResult<RegeneratePreviewTokenResponse>> RegenerateWebsiteCustomizationPreviewToken(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _websiteCustomizationService.RegeneratePreviewTokenAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
     }
 }

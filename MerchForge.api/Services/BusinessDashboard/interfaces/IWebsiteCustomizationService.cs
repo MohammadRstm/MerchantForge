@@ -19,5 +19,13 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid businessId,
             SaveWebsiteCustomizationDraftRequest request,
             CancellationToken cancellationToken = default);
+
+        Task<PublishWebsiteCustomizationResponse> PublishAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<RegeneratePreviewTokenResponse> RegeneratePreviewTokenAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
     }
 }

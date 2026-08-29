@@ -53,13 +53,15 @@ public interface IOrderRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Persists the new status. When moving into Cancelled, restocks every tracked
-    /// item on the order (reversing CreateOrderAsync's decrement) with a matching
-    /// positive StockMovement row — all in the same transaction as the status change.
+    /// Persists the new status and appends a matching OrderStatusHistory row. When
+    /// moving into Cancelled, restocks every tracked item on the order (reversing
+    /// CreateOrderAsync's decrement) with a matching positive StockMovement row — all
+    /// in the same transaction as the status change.
     /// </summary>
     Task UpdateOrderStatusAsync(
         Order order,
         OrderStatus newStatus,
+        Guid changedByUserId,
         CancellationToken cancellationToken = default);
 
     Task UpdateOrderPaymentStatusAsync(
@@ -73,4 +75,21 @@ public interface IOrderRepository
 
     /// <summary>Whether any OrderItem references this product — guards product deletion (OrderItem.ProductId is Restrict-deleted).</summary>
     Task<bool> HasOrderItemsForProductAsync(Guid productId, CancellationToken cancellationToken = default);
+
+    /// <summary>Global per-status counts plus the "needs attention" signals, unaffected by any list filter.</summary>
+    Task<OrderStatsResponse> GetOrderStatsAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+    /// <summary>Newest first. Throws OrderNotFoundException if the order doesn't exist or isn't this business's.</summary>
+    Task<List<OrderNoteResponse>> GetOrderNotesAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Throws OrderNotFoundException if the order doesn't exist or isn't this business's.</summary>
+    Task<OrderNoteResponse> AddOrderNoteAsync(
+        Guid businessId,
+        Guid orderId,
+        string content,
+        Guid createdByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Oldest first — a lifecycle timeline. Throws OrderNotFoundException if the order doesn't exist or isn't this business's.</summary>
+    Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
 }

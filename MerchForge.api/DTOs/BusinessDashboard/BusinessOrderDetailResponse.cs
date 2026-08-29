@@ -21,6 +21,9 @@ public class BusinessOrderDetailResponse
 {
     public Guid Id { get; set; }
 
+    /// <summary>Null for a guest order — see Order.CustomerId's own doc comment.</summary>
+    public Guid? CustomerId { get; set; }
+
     public string CustomerName { get; set; } = string.Empty;
 
     public string CustomerEmail { get; set; } = string.Empty;
@@ -56,4 +59,14 @@ public class BusinessOrderDetailResponse
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>
+    /// This customer's order count with this business, including this order —
+    /// null when CustomerId is null (a guest order has no identity to look up).
+    /// Scoped to this business only, never platform-wide.
+    /// </summary>
+    public int? CustomerOrderCount { get; set; }
+
+    /// <summary>Null when CustomerId is null, or this is their only order with this business.</summary>
+    public DateTime? CustomerLastOrderAt { get; set; }
 }

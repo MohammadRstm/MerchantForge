@@ -128,6 +128,7 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid businessId,
             Guid orderId,
             OrderStatus status,
+            Guid changedByUserId,
             CancellationToken cancellationToken = default);
 
         Task<BusinessOrderDetailResponse> UpdateOrderPaymentStatusAsync(
@@ -135,5 +136,18 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid orderId,
             PaymentStatus paymentStatus,
             CancellationToken cancellationToken = default);
+
+        Task<OrderStatsResponse> GetOrderStatsAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+        Task<List<OrderNoteResponse>> GetOrderNotesAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
+
+        Task<OrderNoteResponse> AddOrderNoteAsync(
+            Guid businessId,
+            Guid orderId,
+            string content,
+            Guid createdByUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
     }
 }

@@ -31,6 +31,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<OrdersQueryRequest> _ordersQueryValidator;
         private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
         private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
+        private readonly IValidator<CreateOrderNoteRequest> _createOrderNoteValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
         private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
 
@@ -49,6 +50,7 @@ namespace MerchForge.api.Controllers
             IValidator<OrdersQueryRequest> ordersQueryValidator,
             IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
             IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator,
+            IValidator<CreateOrderNoteRequest> createOrderNoteValidator,
             IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
             IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
         {
@@ -66,6 +68,7 @@ namespace MerchForge.api.Controllers
             _ordersQueryValidator = ordersQueryValidator;
             _updateOrderStatusValidator = updateOrderStatusValidator;
             _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
+            _createOrderNoteValidator = createOrderNoteValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
             _subscribeToPlanValidator = subscribeToPlanValidator;
         }
@@ -381,6 +384,16 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("orders/stats")]
+        public async Task<ActionResult<OrderStatsResponse>> GetOrderStats(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetOrderStatsAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
         [HttpGet("orders/{orderId:guid}")]
         public async Task<ActionResult<BusinessOrderDetailResponse>> GetOrder(
             Guid businessId,
@@ -401,8 +414,59 @@ namespace MerchForge.api.Controllers
         {
             await _updateOrderStatusValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+            var changedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(changedByUserId, out var parsedChangedByUserId))
+            {
+                return Unauthorized();
+            }
+
             var response = await _businessDashboardService.UpdateOrderStatusAsync(
-                businessId, orderId, request.Status, cancellationToken);
+                businessId, orderId, request.Status, parsedChangedByUserId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/{orderId:guid}/notes")]
+        public async Task<ActionResult<List<OrderNoteResponse>>> GetOrderNotes(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetOrderNotesAsync(businessId, orderId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("orders/{orderId:guid}/notes")]
+        public async Task<ActionResult<OrderNoteResponse>> AddOrderNote(
+            Guid businessId,
+            Guid orderId,
+            [FromBody] CreateOrderNoteRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createOrderNoteValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var createdByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(createdByUserId, out var parsedCreatedByUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _businessDashboardService.AddOrderNoteAsync(
+                businessId, orderId, request.Content, parsedCreatedByUserId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/{orderId:guid}/status-history")]
+        public async Task<ActionResult<List<OrderStatusHistoryEntryResponse>>> GetOrderStatusHistory(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetOrderStatusHistoryAsync(businessId, orderId, cancellationToken);
 
             return Ok(response);
         }

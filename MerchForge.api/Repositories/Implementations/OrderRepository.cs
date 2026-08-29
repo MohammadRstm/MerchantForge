@@ -134,6 +134,20 @@ public class OrderRepository : IOrderRepository
             order.Currency = business?.Currency ?? "USD";
 
             await _db.Orders.AddAsync(order, cancellationToken);
+
+            await _db.OrderStatusHistories.AddAsync(
+                new OrderStatusHistory
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = order.Id,
+                    Status = OrderStatus.Pending,
+                    // No dashboard user placed this order — same Guid.Empty sentinel
+                    // the stock movements above use for customer/system-driven rows.
+                    ChangedByUserId = Guid.Empty,
+                    CreatedAt = now,
+                },
+                cancellationToken);
+
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
@@ -205,7 +219,20 @@ public class OrderRepository : IOrderRepository
             var pattern = $"%{query.Search.Trim()}%";
 
             baseQuery = baseQuery.Where(o =>
-                EF.Functions.Like(o.CustomerName, pattern) || EF.Functions.Like(o.CustomerEmail, pattern));
+                EF.Functions.Like(o.CustomerName, pattern) ||
+                EF.Functions.Like(o.CustomerEmail, pattern) ||
+                (o.CustomerPhone != null && EF.Functions.Like(o.CustomerPhone, pattern)) ||
+                o.Items.Any(i => EF.Functions.Like(i.ProductTitle, pattern)));
+        }
+
+        if (query.From.HasValue)
+        {
+            baseQuery = baseQuery.Where(o => o.CreatedAt >= query.From.Value);
+        }
+
+        if (query.To.HasValue)
+        {
+            baseQuery = baseQuery.Where(o => o.CreatedAt <= query.To.Value);
         }
 
         var totalCount = await baseQuery.CountAsync(cancellationToken);
@@ -219,6 +246,7 @@ public class OrderRepository : IOrderRepository
                 Id = o.Id,
                 CustomerName = o.CustomerName,
                 CustomerEmail = o.CustomerEmail,
+                CustomerPhone = o.CustomerPhone,
                 Status = o.Status,
                 PaymentStatus = o.PaymentStatus,
                 Total = o.Total,
@@ -242,6 +270,7 @@ public class OrderRepository : IOrderRepository
             .Select(o => new BusinessOrderDetailResponse
             {
                 Id = o.Id,
+                CustomerId = o.CustomerId,
                 CustomerName = o.CustomerName,
                 CustomerEmail = o.CustomerEmail,
                 CustomerPhone = o.CustomerPhone,
@@ -268,6 +297,14 @@ public class OrderRepository : IOrderRepository
                     Quantity = i.Quantity,
                     LineTotal = i.LineTotal,
                 }).ToList(),
+                CustomerOrderCount = o.CustomerId == null
+                    ? null
+                    : _db.Orders.Count(o2 => o2.BusinessId == businessId && o2.CustomerId == o.CustomerId),
+                CustomerLastOrderAt = o.CustomerId == null
+                    ? null
+                    : _db.Orders
+                        .Where(o2 => o2.BusinessId == businessId && o2.CustomerId == o.CustomerId && o2.Id != o.Id)
+                        .Max(o2 => (DateTime?)o2.CreatedAt),
             })
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -285,6 +322,7 @@ public class OrderRepository : IOrderRepository
     public async Task UpdateOrderStatusAsync(
         Order order,
         OrderStatus newStatus,
+        Guid changedByUserId,
         CancellationToken cancellationToken = default)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
@@ -336,6 +374,17 @@ public class OrderRepository : IOrderRepository
             order.Status = newStatus;
             order.UpdatedAt = now;
 
+            await _db.OrderStatusHistories.AddAsync(
+                new OrderStatusHistory
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = order.Id,
+                    Status = newStatus,
+                    ChangedByUserId = changedByUserId,
+                    CreatedAt = now,
+                },
+                cancellationToken);
+
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
@@ -373,5 +422,135 @@ public class OrderRepository : IOrderRepository
     public async Task<bool> HasOrderItemsForProductAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         return await _db.OrderItems.AnyAsync(i => i.ProductId == productId, cancellationToken);
+    }
+
+    public async Task<OrderStatsResponse> GetOrderStatsAsync(Guid businessId, CancellationToken cancellationToken = default)
+    {
+        var staleCutoff = DateTime.UtcNow.AddHours(-24);
+
+        var counts = await _db.Orders
+            .Where(o => o.BusinessId == businessId)
+            .GroupBy(o => o.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        var countsByStatus = counts.ToDictionary(c => c.Status, c => c.Count);
+
+        var oldestPendingOrderCreatedAt = await _db.Orders
+            .Where(o => o.BusinessId == businessId && o.Status == OrderStatus.Pending)
+            .OrderBy(o => o.CreatedAt)
+            .Select(o => (DateTime?)o.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var stalePendingCount = await _db.Orders.CountAsync(
+            o => o.BusinessId == businessId && o.Status == OrderStatus.Pending && o.CreatedAt <= staleCutoff,
+            cancellationToken);
+
+        var recentlyCancelledCount = await _db.Orders.CountAsync(
+            o => o.BusinessId == businessId && o.Status == OrderStatus.Cancelled && o.UpdatedAt >= staleCutoff,
+            cancellationToken);
+
+        return new OrderStatsResponse
+        {
+            TotalCount = countsByStatus.Values.Sum(),
+            PendingCount = countsByStatus.GetValueOrDefault(OrderStatus.Pending),
+            ConfirmedCount = countsByStatus.GetValueOrDefault(OrderStatus.Confirmed),
+            ShippedCount = countsByStatus.GetValueOrDefault(OrderStatus.Shipped),
+            DeliveredCount = countsByStatus.GetValueOrDefault(OrderStatus.Delivered),
+            CancelledCount = countsByStatus.GetValueOrDefault(OrderStatus.Cancelled),
+            StalePendingCount = stalePendingCount,
+            OldestPendingOrderCreatedAt = oldestPendingOrderCreatedAt,
+            RecentlyCancelledCount = recentlyCancelledCount,
+        };
+    }
+
+    public async Task<List<OrderNoteResponse>> GetOrderNotesAsync(
+        Guid businessId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await _db.Orders.AnyAsync(o => o.Id == orderId && o.BusinessId == businessId, cancellationToken))
+        {
+            throw new OrderNotFoundException();
+        }
+
+        return await _db.OrderNotes
+            .AsNoTracking()
+            .Where(n => n.OrderId == orderId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Select(n => new OrderNoteResponse
+            {
+                Id = n.Id,
+                Content = n.Content,
+                CreatedByUserName = _db.Users
+                    .Where(u => u.Id == n.CreatedByUserId)
+                    .Select(u => u.FirstName + " " + u.LastName)
+                    .FirstOrDefault() ?? "Unknown",
+                CreatedAt = n.CreatedAt,
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<OrderNoteResponse> AddOrderNoteAsync(
+        Guid businessId,
+        Guid orderId,
+        string content,
+        Guid createdByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await _db.Orders.AnyAsync(o => o.Id == orderId && o.BusinessId == businessId, cancellationToken))
+        {
+            throw new OrderNotFoundException();
+        }
+
+        var note = new OrderNote
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            Content = content.Trim(),
+            CreatedByUserId = createdByUserId,
+            CreatedAt = DateTime.UtcNow,
+        };
+
+        await _db.OrderNotes.AddAsync(note, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == createdByUserId, cancellationToken);
+
+        return new OrderNoteResponse
+        {
+            Id = note.Id,
+            Content = note.Content,
+            CreatedByUserName = user is null ? "Unknown" : $"{user.FirstName} {user.LastName}",
+            CreatedAt = note.CreatedAt,
+        };
+    }
+
+    public async Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(
+        Guid businessId,
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await _db.Orders.AnyAsync(o => o.Id == orderId && o.BusinessId == businessId, cancellationToken))
+        {
+            throw new OrderNotFoundException();
+        }
+
+        return await _db.OrderStatusHistories
+            .AsNoTracking()
+            .Where(h => h.OrderId == orderId)
+            .OrderBy(h => h.CreatedAt)
+            .Select(h => new OrderStatusHistoryEntryResponse
+            {
+                Status = h.Status,
+                ChangedByUserName = h.ChangedByUserId == Guid.Empty
+                    ? null
+                    : _db.Users
+                        .Where(u => u.Id == h.ChangedByUserId)
+                        .Select(u => u.FirstName + " " + u.LastName)
+                        .FirstOrDefault(),
+                CreatedAt = h.CreatedAt,
+            })
+            .ToListAsync(cancellationToken);
     }
 }

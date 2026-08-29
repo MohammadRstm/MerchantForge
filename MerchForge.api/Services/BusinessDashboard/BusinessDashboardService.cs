@@ -579,6 +579,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             Guid businessId,
             Guid orderId,
             OrderStatus status,
+            Guid changedByUserId,
             CancellationToken cancellationToken = default)
         {
             var order = await _orderRepository.GetTrackedOrderAsync(businessId, orderId, cancellationToken)
@@ -589,7 +590,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new OrderInvalidStatusTransitionException();
             }
 
-            await _orderRepository.UpdateOrderStatusAsync(order, status, cancellationToken);
+            await _orderRepository.UpdateOrderStatusAsync(order, status, changedByUserId, cancellationToken);
 
             return await GetOrderAsync(businessId, orderId, cancellationToken);
         }
@@ -606,6 +607,39 @@ namespace MerchForge.api.Services.BusinessDashboard
             await _orderRepository.UpdateOrderPaymentStatusAsync(order, paymentStatus, cancellationToken);
 
             return await GetOrderAsync(businessId, orderId, cancellationToken);
+        }
+
+        public async Task<OrderStatsResponse> GetOrderStatsAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderStatsAsync(businessId, cancellationToken);
+        }
+
+        public async Task<List<OrderNoteResponse>> GetOrderNotesAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderNotesAsync(businessId, orderId, cancellationToken);
+        }
+
+        public async Task<OrderNoteResponse> AddOrderNoteAsync(
+            Guid businessId,
+            Guid orderId,
+            string content,
+            Guid createdByUserId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.AddOrderNoteAsync(businessId, orderId, content, createdByUserId, cancellationToken);
+        }
+
+        public async Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderStatusHistoryAsync(businessId, orderId, cancellationToken);
         }
 
         private async Task EnsureCategoryIsUsableAsync(

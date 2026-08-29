@@ -553,4 +553,113 @@ public class OrderRepository : IOrderRepository
             })
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<OrderAnalyticsResponse> GetOrderAnalyticsAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default)
+    {
+        // Excludes Cancelled everywhere here - a cancelled order contributes no real
+        // revenue, and counting it as "order volume" would make the Orders trend
+        // diverge from the Revenue trend for a reason the chart can't explain.
+        var granularity = (to - from).TotalDays <= 31
+            ? OrderAnalyticsGranularity.Daily
+            : OrderAnalyticsGranularity.Monthly;
+
+        var baseQuery = _db.Orders.Where(o =>
+            o.BusinessId == businessId &&
+            o.Status != OrderStatus.Cancelled &&
+            o.CreatedAt >= from &&
+            o.CreatedAt <= to);
+
+        // One GROUP BY query either way - only what the bucket key looks like differs.
+        List<OrderAnalyticsPointResponse> points;
+
+        if (granularity == OrderAnalyticsGranularity.Daily)
+        {
+            points = await baseQuery
+                .GroupBy(o => o.CreatedAt.Date)
+                .Select(g => new OrderAnalyticsPointResponse
+                {
+                    Period = g.Key,
+                    OrderCount = g.Count(),
+                    Revenue = g.Sum(o => o.Total),
+                })
+                .OrderBy(p => p.Period)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            // Reconstructing a DateTime from g.Key.Year/g.Key.Month inside the
+            // server-evaluated Select isn't translatable by the MySQL provider - it
+            // materializes as raw (Year, Month) instead, and new DateTime(...) only
+            // happens client-side afterward, on what's already a small, in-memory list.
+            var monthlyBuckets = await baseQuery
+                .GroupBy(o => new { o.CreatedAt.Year, o.CreatedAt.Month })
+                .Select(g => new
+                {
+                    g.Key.Year,
+                    g.Key.Month,
+                    OrderCount = g.Count(),
+                    Revenue = g.Sum(o => o.Total),
+                })
+                .ToListAsync(cancellationToken);
+
+            points = monthlyBuckets
+                .Select(b => new OrderAnalyticsPointResponse
+                {
+                    Period = new DateTime(b.Year, b.Month, 1),
+                    OrderCount = b.OrderCount,
+                    Revenue = b.Revenue,
+                })
+                .OrderBy(p => p.Period)
+                .ToList();
+        }
+
+        // Summed from the already-fetched buckets rather than a second query - the
+        // buckets exactly partition [from, to], so this is exact, not an estimate.
+        var currentTotals = new OrderAnalyticsPeriodTotalsResponse
+        {
+            OrderCount = points.Sum(p => p.OrderCount),
+            Revenue = points.Sum(p => p.Revenue),
+        };
+
+        // The equal-length window immediately preceding [from, to], with no overlap.
+        var span = to - from;
+        var previousTo = from.AddTicks(-1);
+        var previousFrom = previousTo - span;
+
+        var previousTotals = await _db.Orders
+            .Where(o =>
+                o.BusinessId == businessId &&
+                o.Status != OrderStatus.Cancelled &&
+                o.CreatedAt >= previousFrom &&
+                o.CreatedAt <= previousTo)
+            .GroupBy(o => 1)
+            .Select(g => new OrderAnalyticsPeriodTotalsResponse
+            {
+                OrderCount = g.Count(),
+                Revenue = g.Sum(o => o.Total),
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? new OrderAnalyticsPeriodTotalsResponse();
+
+        return new OrderAnalyticsResponse
+        {
+            Granularity = granularity,
+            Points = points,
+            CurrentPeriod = currentTotals,
+            PreviousPeriod = previousTotals,
+            // Null rather than a percentage against zero - see the DTO's own doc comment.
+            RevenueChangePercent = previousTotals.Revenue > 0
+                ? Math.Round((currentTotals.Revenue - previousTotals.Revenue) / previousTotals.Revenue * 100, 1)
+                : null,
+            OrderCountChangePercent = previousTotals.OrderCount > 0
+                ? Math.Round(
+                    (decimal)(currentTotals.OrderCount - previousTotals.OrderCount) / previousTotals.OrderCount * 100,
+                    1)
+                : null,
+        };
+    }
 }

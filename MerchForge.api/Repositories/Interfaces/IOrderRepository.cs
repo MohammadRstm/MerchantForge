@@ -92,4 +92,16 @@ public interface IOrderRepository
 
     /// <summary>Oldest first — a lifecycle timeline. Throws OrderNotFoundException if the order doesn't exist or isn't this business's.</summary>
     Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Orders-and-revenue-over-time for the analytics chart, aggregated in SQL (one
+    /// GROUP BY for the requested range's buckets, one plain aggregate for the
+    /// preceding equal-length period) — never loads individual orders into memory to
+    /// sum them client-side, regardless of how many orders exist.
+    /// </summary>
+    Task<OrderAnalyticsResponse> GetOrderAnalyticsAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default);
 }

@@ -32,6 +32,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
         private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
         private readonly IValidator<CreateOrderNoteRequest> _createOrderNoteValidator;
+        private readonly IValidator<OrderAnalyticsQueryRequest> _orderAnalyticsQueryValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
         private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
 
@@ -51,6 +52,7 @@ namespace MerchForge.api.Controllers
             IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
             IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator,
             IValidator<CreateOrderNoteRequest> createOrderNoteValidator,
+            IValidator<OrderAnalyticsQueryRequest> orderAnalyticsQueryValidator,
             IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
             IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
         {
@@ -69,6 +71,7 @@ namespace MerchForge.api.Controllers
             _updateOrderStatusValidator = updateOrderStatusValidator;
             _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
             _createOrderNoteValidator = createOrderNoteValidator;
+            _orderAnalyticsQueryValidator = orderAnalyticsQueryValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
             _subscribeToPlanValidator = subscribeToPlanValidator;
         }
@@ -467,6 +470,19 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _businessDashboardService.GetOrderStatusHistoryAsync(businessId, orderId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/analytics")]
+        public async Task<ActionResult<OrderAnalyticsResponse>> GetOrderAnalytics(
+            Guid businessId,
+            [FromQuery] OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _orderAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetOrderAnalyticsAsync(businessId, query, cancellationToken);
 
             return Ok(response);
         }

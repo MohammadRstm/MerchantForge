@@ -149,5 +149,10 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             CancellationToken cancellationToken = default);
 
         Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
+
+        Task<OrderAnalyticsResponse> GetOrderAnalyticsAsync(
+            Guid businessId,
+            OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default);
     }
 }

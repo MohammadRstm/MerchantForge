@@ -1,4 +1,5 @@
 using MerchForge.api.DTOs.Subscriptions;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Subscriptions;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Subscription.interfaces;
@@ -9,13 +10,16 @@ public class FeatureCreditService : IFeatureCreditService
 {
     private readonly IFeatureCreditRepository _repository;
     private readonly ISubscriptionService _subscriptionService;
+    private readonly ISubscriptionRepository _subscriptionRepository;
 
     public FeatureCreditService(
         IFeatureCreditRepository repository,
-        ISubscriptionService subscriptionService)
+        ISubscriptionService subscriptionService,
+        ISubscriptionRepository subscriptionRepository)
     {
         _repository = repository;
         _subscriptionService = subscriptionService;
+        _subscriptionRepository = subscriptionRepository;
     }
 
     public async Task<List<FeatureCreditOverviewResponse>> GetOverviewAsync(
@@ -99,5 +103,21 @@ public class FeatureCreditService : IFeatureCreditService
         }
 
         return await _repository.TryConsumeCreditAsync(businessId, featureKey, reference, cancellationToken);
+    }
+
+    public async Task ResetImageEditingCreditsForPeriodAsync(
+        Guid businessId,
+        Guid subscriptionPlanId,
+        CancellationToken cancellationToken = default)
+    {
+        var limit = await _subscriptionRepository.GetPlanFeatureLimitAsync(
+            subscriptionPlanId, FeatureKeys.AiImageEditing, cancellationToken);
+
+        if (limit is not int limitValue)
+        {
+            return;
+        }
+
+        await _repository.ResetToLimitAsync(businessId, FeatureKeys.AiImageEditing, limitValue, cancellationToken);
     }
 }

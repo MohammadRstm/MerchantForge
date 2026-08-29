@@ -1,6 +1,8 @@
+using MerchForge.api.DTOs.BusinessDashboard;
+
 namespace MerchForge.api.DTOs.Subscriptions;
 
-public class SubscriptionPlanResponse
+public class SubscriptionPlanDetailResponse
 {
     public Guid Id { get; set; }
 
@@ -17,4 +19,9 @@ public class SubscriptionPlanResponse
     public bool IsActive { get; set; }
 
     public bool IsCustom { get; set; }
+
+    /// <summary>Businesses currently on this plan with an Active subscription — informational, so an admin can see the impact before deactivating it.</summary>
+    public int ActiveSubscriberCount { get; set; }
+
+    public List<PlanFeatureItemResponse> Features { get; set; } = new();
 }

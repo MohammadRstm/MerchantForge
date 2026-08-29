@@ -57,5 +57,18 @@ namespace MerchForge.api.Repositories.Interfaces
             string featureKey,
             string? reference,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Sets a business's balance for a feature to exactly `limit` (creating the
+        /// balance row if this is the business's first grant for it) and appends a
+        /// Reset ledger entry — used for a plan's per-billing-period credit
+        /// allotment, which resets rather than accumulates. Unlike GrantCreditsAsync,
+        /// this is not a top-up: the new balance replaces the old one.
+        /// </summary>
+        Task<BusinessFeatureCredit> ResetToLimitAsync(
+            Guid businessId,
+            string featureKey,
+            int limit,
+            CancellationToken cancellationToken = default);
     }
 }

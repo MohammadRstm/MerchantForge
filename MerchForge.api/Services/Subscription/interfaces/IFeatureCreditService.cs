@@ -34,4 +34,16 @@ public interface IFeatureCreditService
         string featureKey,
         string? reference,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resets the business's ai.image_editing balance to the plan's per-period
+    /// allotment (a no-op if the plan doesn't grant a limited amount - i.e. it
+    /// doesn't include the feature, or includes it unlimited). Called once at
+    /// checkout for the initial grant, and by the renewal job at each billing
+    /// period rollover.
+    /// </summary>
+    Task ResetImageEditingCreditsForPeriodAsync(
+        Guid businessId,
+        Guid subscriptionPlanId,
+        CancellationToken cancellationToken = default);
 }

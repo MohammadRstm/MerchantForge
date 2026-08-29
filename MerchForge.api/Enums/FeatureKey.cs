@@ -7,5 +7,7 @@
         public const string WhatsApp = "whatsapp";
         public const string AiProductGeneration = "ai.product_generation";
         public const string AiImageEditing = "ai.image_editing";
+        public const string WebsiteCustomizationBasic = "website_customization.basic";
+        public const string WebsiteCustomizationAdvanced = "website_customization.advanced";
     }
 }

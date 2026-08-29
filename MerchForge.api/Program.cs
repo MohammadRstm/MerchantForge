@@ -10,6 +10,7 @@ using MerchForge.api.Data;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Exceptions.Auth;
+using MerchForge.api.Jobs.Subscriptions;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
@@ -107,11 +108,18 @@ builder.Services.AddDbContext<MerchForgeDbContext>(options =>
 });
 
 // Add job queue
+// Hangfire.MySqlStorage relies on MySQL user-defined variables (e.g. @rownum) internally,
+// so its connection string must opt in to them explicitly.
+var hangfireConnectionString = new MySqlConnector.MySqlConnectionStringBuilder(connectionString)
+{
+    AllowUserVariables = true,
+}.ConnectionString;
+
 builder.Services.AddHangfire(configuration =>
 {
     configuration.UseStorage(
         new MySqlStorage(
-            connectionString,
+            hangfireConnectionString,
             new MySqlStorageOptions()));
 });
 
@@ -291,6 +299,7 @@ builder.Services.AddScoped<ICustomerAuthService, CustomerAuthService>();
 // Subscription Services
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IFeatureCreditService, FeatureCreditService>();
+builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
 
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -469,6 +478,26 @@ builder.Services.AddAuthorization(options =>
                 ));
         });
 
+    options.AddPolicy(
+        AuthorizationPolicies.WebsiteCustomizationBasic,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                     FeatureKeys.WebsiteCustomizationBasic
+                ));
+        });
+
+    options.AddPolicy(
+        AuthorizationPolicies.WebsiteCustomizationAdvanced,
+        policy =>
+        {
+            policy.AddRequirements(
+                new FeatureRequirement(
+                     FeatureKeys.WebsiteCustomizationAdvanced
+                ));
+        });
+
     // add more policies as more services are added
 });
 
@@ -486,6 +515,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+builder.Services.AddScoped<ISubscriptionPlanRepository, SubscriptionPlanRepository>();
 builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
@@ -553,5 +583,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Rolls forward any Active subscription whose billing period has ended and
+// resets its ai.image_editing credits - the only recurring job in the app, so
+// hourly is plenty given periods are monthly/yearly.
+RecurringJob.AddOrUpdate<RenewSubscriptionPeriodsJob>(
+    "renew-subscription-periods",
+    job => job.ExecuteAsync(CancellationToken.None),
+    "0 * * * *");
 
 app.Run();

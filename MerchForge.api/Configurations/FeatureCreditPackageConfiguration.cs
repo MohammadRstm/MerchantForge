@@ -51,6 +51,16 @@ public class FeatureCreditPackageConfiguration
         // these exact numbers, only to the package id a purchase references. Image
         // editing is priced at fewer credits per dollar than product generation: a
         // single edit call costs meaningfully more than a text turn.
+        //
+        // ai.product_generation's two packages are deactivated, not deleted:
+        // it's unlimited on every paid plan now (see PlanFeatureConfiguration),
+        // so a separate purchase path for it no longer makes sense
+        // (Feature.SupportsCreditPurchase = false already hides these from any
+        // purchase UI) - but a hard delete would violate the FK from
+        // FeatureCreditTransaction.FeatureCreditPackageId for any business that
+        // already bought one, destroying real ledger history. Same
+        // retire-via-IsActive convention already used for WebsiteTemplate/
+        // ProductAttributeDefinition rows elsewhere in this codebase.
         builder.HasData(
             new FeatureCreditPackage
             {
@@ -60,7 +70,7 @@ public class FeatureCreditPackageConfiguration
                 Credits = 50,
                 Price = 5m,
                 Currency = "USD",
-                IsActive = true,
+                IsActive = false,
                 CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
                 UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
             },
@@ -72,7 +82,7 @@ public class FeatureCreditPackageConfiguration
                 Credits = 200,
                 Price = 15m,
                 Currency = "USD",
-                IsActive = true,
+                IsActive = false,
                 CreatedAt = BusinessDomainConfiguration.SeedTimestamp,
                 UpdatedAt = BusinessDomainConfiguration.SeedTimestamp,
             },

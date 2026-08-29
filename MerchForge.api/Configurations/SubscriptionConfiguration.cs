@@ -30,6 +30,10 @@ public class SubscriptionConfiguration
         builder.Property(x => x.CurrentPeriodEnd)
             .IsRequired();
 
+        builder.Property(x => x.CancelAtPeriodEnd)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(x => x.Provider)
             .HasMaxLength(50);
 

@@ -1,12 +1,15 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Common;
+using MerchForge.api.Services.Subscription.interfaces;
 
 namespace MerchForge.api.Services.BusinessDashboard;
 
@@ -14,13 +17,16 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
 {
     private readonly IWebsiteCustomizationRepository _websiteCustomizationRepository;
     private readonly IDashboardRepository _dashboardRepository;
+    private readonly ISubscriptionService _subscriptionService;
 
     public WebsiteCustomizationService(
         IWebsiteCustomizationRepository websiteCustomizationRepository,
-        IDashboardRepository dashboardRepository)
+        IDashboardRepository dashboardRepository,
+        ISubscriptionService subscriptionService)
     {
         _websiteCustomizationRepository = websiteCustomizationRepository;
         _dashboardRepository = dashboardRepository;
+        _subscriptionService = subscriptionService;
     }
 
     public async Task<List<WebsiteTemplateCustomizableComponentResponse>> GetCatalogueAsync(
@@ -67,8 +73,31 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
                 await _dashboardRepository.GetActiveCustomizableComponentsForTemplateAsync(templateId, cancellationToken))
             : new Dictionary<string, WebsiteCustomizationValuesBuilder.FieldRule>();
 
-        var templateFields = WebsiteCustomizationValuesBuilder.Build(rules, request.TemplateFields);
-        draft.TemplateFieldsWebsiteTemplateId = business.WebsiteTemplateId;
+        var newTemplateFields = WebsiteCustomizationValuesBuilder.Build(rules, request.TemplateFields);
+        var newSocialLinks = WriteSocialLinks(request.SocialLinks);
+        var newBusinessHours = WriteBusinessHours(request.BusinessHours);
+
+        var hasAdvancedAccess = await _subscriptionService.HasFeatureAsync(
+            businessId, FeatureKeys.WebsiteCustomizationAdvanced);
+
+        if (hasAdvancedAccess)
+        {
+            draft.SocialLinks = newSocialLinks;
+            draft.BusinessHours = newBusinessHours;
+            draft.TemplateFieldsDraft = newTemplateFields;
+            draft.TemplateFieldsWebsiteTemplateId = business.WebsiteTemplateId;
+        }
+        else if (!JsonDocumentsEqual(newSocialLinks, draft.SocialLinks)
+            || !JsonDocumentsEqual(newBusinessHours, draft.BusinessHours)
+            || !JsonDocumentsEqual(newTemplateFields, draft.TemplateFieldsDraft))
+        {
+            // Not entitled to website_customization.advanced. A downgraded business
+            // must still be able to keep re-saving the rest of its draft (basic
+            // fields) even though the "complete snapshot" payload still carries its
+            // old advanced-field values unchanged -- only reject when the incoming
+            // advanced values actually differ from what's already stored.
+            throw new WebsiteCustomizationAdvancedFeatureRequiredException();
+        }
 
         draft.Tagline = Clean(request.Tagline);
         draft.Description = Clean(request.Description);
@@ -83,10 +112,7 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
         draft.State = Clean(request.State);
         draft.PostalCode = Clean(request.PostalCode);
         draft.Country = Clean(request.Country);
-        draft.SocialLinks = WriteSocialLinks(request.SocialLinks);
-        draft.BusinessHours = WriteBusinessHours(request.BusinessHours);
         draft.PrimaryColor = request.PrimaryColor?.Trim().ToUpperInvariant() is { Length: > 0 } color ? color : null;
-        draft.TemplateFieldsDraft = templateFields;
         draft.UpdatedAt = DateTime.UtcNow;
 
         await _websiteCustomizationRepository.SaveChangesAsync(cancellationToken);
@@ -232,6 +258,23 @@ public class WebsiteCustomizationService : IWebsiteCustomizationService
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool JsonDocumentsEqual(JsonDocument? a, JsonDocument? b)
+    {
+        if (a is null && b is null)
+        {
+            return true;
+        }
+
+        if (a is null || b is null)
+        {
+            return false;
+        }
+
+        return JsonNode.DeepEquals(
+            JsonNode.Parse(a.RootElement.GetRawText()),
+            JsonNode.Parse(b.RootElement.GetRawText()));
+    }
 
     private static JsonDocument? WriteSocialLinks(SocialLinksDto? dto)
     {

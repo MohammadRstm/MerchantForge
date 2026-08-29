@@ -29,4 +29,10 @@ public interface IEmailService
         string businessName,
         string finalWebsiteUrl,
         CancellationToken cancellationToken = default);
+
+    Task SendTakeWebsiteDownNotificationAsync(
+        string adminEmail,
+        string businessName,
+        string websiteUrl,
+        CancellationToken cancellationToken = default);
 }

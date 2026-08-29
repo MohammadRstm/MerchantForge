@@ -32,6 +32,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
         private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
+        private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -48,7 +49,8 @@ namespace MerchForge.api.Controllers
             IValidator<OrdersQueryRequest> ordersQueryValidator,
             IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
             IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator,
-            IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator)
+            IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
+            IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
@@ -65,6 +67,7 @@ namespace MerchForge.api.Controllers
             _updateOrderStatusValidator = updateOrderStatusValidator;
             _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
+            _subscribeToPlanValidator = subscribeToPlanValidator;
         }
 
         [HttpGet("stats")]
@@ -128,6 +131,30 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _businessDashboardService.GetSubscriptionAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("subscription")]
+        public async Task<ActionResult<BusinessSubscriptionResponse>> SubscribeToPlan(
+            Guid businessId,
+            [FromBody] SubscribeToPlanRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _subscribeToPlanValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _businessDashboardService.SubscribeToPlanAsync(
+                businessId, request.SubscriptionPlanId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("subscription/cancel")]
+        public async Task<ActionResult<BusinessSubscriptionResponse>> CancelSubscription(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.CancelSubscriptionAsync(businessId, cancellationToken);
 
             return Ok(response);
         }
@@ -398,6 +425,7 @@ namespace MerchForge.api.Controllers
         // ---- website customization ----
 
         [HttpGet("website-customization/catalogue")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<List<WebsiteTemplateCustomizableComponentResponse>>> GetWebsiteCustomizationCatalogue(
             Guid businessId,
             CancellationToken cancellationToken)
@@ -408,6 +436,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpGet("website-customization/draft")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<WebsiteCustomizationDraftResponse>> GetWebsiteCustomizationDraft(
             Guid businessId,
             CancellationToken cancellationToken)
@@ -418,6 +447,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPut("website-customization/draft")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<WebsiteCustomizationDraftResponse>> SaveWebsiteCustomizationDraft(
             Guid businessId,
             [FromBody] SaveWebsiteCustomizationDraftRequest request,
@@ -432,6 +462,7 @@ namespace MerchForge.api.Controllers
 
         [HttpPost("website-customization/image")]
         [RequestSizeLimit(6 * 1024 * 1024)]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<UploadWebsiteCustomizationImageResponse>> UploadWebsiteCustomizationImage(
             Guid businessId,
             IFormFile file,
@@ -444,6 +475,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("website-customization/publish")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<PublishWebsiteCustomizationResponse>> PublishWebsiteCustomization(
             Guid businessId,
             CancellationToken cancellationToken)
@@ -454,6 +486,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("website-customization/preview-token/regenerate")]
+        [Authorize(Policy = AuthorizationPolicies.WebsiteCustomizationBasic)]
         public async Task<ActionResult<RegeneratePreviewTokenResponse>> RegenerateWebsiteCustomizationPreviewToken(
             Guid businessId,
             CancellationToken cancellationToken)

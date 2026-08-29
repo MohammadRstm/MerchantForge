@@ -43,10 +43,18 @@ namespace MerchForge.api.Services.Subscription
                 return false;
             }
 
+            // Limit == null is what "unlimited, bundled in the plan" actually means
+            // (see this method's own doc comment) - a feature can be on the plan with
+            // a numeric Limit (e.g. ai.image_editing's 40/150/400 credits/period),
+            // in which case it's still metered against the credit ledger like any
+            // other credit-based feature, just pre-funded by ResetImageEditingCreditsForPeriodAsync
+            // instead of a manual purchase. Treating plan-membership alone as
+            // "unlimited" here made every metered plan feature un-meterable.
             return subscription.SubscriptionPlan.PlanFeatures
                 .Any(pf =>
                     pf.Feature.IsActive &&
-                    pf.Feature.Key == featureKey);
+                    pf.Feature.Key == featureKey &&
+                    pf.Limit == null);
         }
 
     }

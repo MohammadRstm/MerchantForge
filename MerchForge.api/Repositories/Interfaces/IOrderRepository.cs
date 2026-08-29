@@ -104,4 +104,23 @@ public interface IOrderRepository
         DateTime from,
         DateTime to,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Orders-and-revenue-over-time for products — same aggregation shape and
+    /// bucketing rule as GetOrderAnalyticsAsync, but sourced from OrderItem
+    /// (Revenue/UnitsSold are LineTotal/Quantity sums, not Order.Total) so it can
+    /// optionally scope to one product. Excludes Cancelled orders throughout. When
+    /// productId is given, also computes that product's all-time totals.
+    /// </summary>
+    Task<ProductAnalyticsResponse> GetProductAnalyticsAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        Guid? productId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>All-time, excludes Cancelled orders — powers the Products page's catalog overview.</summary>
+    Task<(int UnitsSold, decimal Revenue)> GetAllTimeProductSalesTotalsAsync(
+        Guid businessId,
+        CancellationToken cancellationToken = default);
 }

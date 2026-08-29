@@ -33,6 +33,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
         private readonly IValidator<CreateOrderNoteRequest> _createOrderNoteValidator;
         private readonly IValidator<OrderAnalyticsQueryRequest> _orderAnalyticsQueryValidator;
+        private readonly IValidator<ProductAnalyticsQueryRequest> _productAnalyticsQueryValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
         private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
 
@@ -53,6 +54,7 @@ namespace MerchForge.api.Controllers
             IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator,
             IValidator<CreateOrderNoteRequest> createOrderNoteValidator,
             IValidator<OrderAnalyticsQueryRequest> orderAnalyticsQueryValidator,
+            IValidator<ProductAnalyticsQueryRequest> productAnalyticsQueryValidator,
             IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
             IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
         {
@@ -72,6 +74,7 @@ namespace MerchForge.api.Controllers
             _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
             _createOrderNoteValidator = createOrderNoteValidator;
             _orderAnalyticsQueryValidator = orderAnalyticsQueryValidator;
+            _productAnalyticsQueryValidator = productAnalyticsQueryValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
             _subscribeToPlanValidator = subscribeToPlanValidator;
         }
@@ -252,6 +255,42 @@ namespace MerchForge.api.Controllers
             var imageUrl = await _productImageService.SaveAsync(businessId, file, cancellationToken);
 
             return Ok(new ProductImageUploadResponse { ImageUrl = imageUrl });
+        }
+
+        [HttpGet("products/analytics/overview")]
+        public async Task<ActionResult<ProductCatalogOverviewResponse>> GetProductCatalogOverview(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetProductCatalogOverviewAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("products/analytics")]
+        public async Task<ActionResult<ProductAnalyticsResponse>> GetProductAnalytics(
+            Guid businessId,
+            [FromQuery] ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _productAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetProductAnalyticsAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("products/performance")]
+        public async Task<ActionResult<ProductPerformanceResponse>> GetProductPerformance(
+            Guid businessId,
+            [FromQuery] ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _productAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetProductPerformanceAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
         }
 
         // ---- website template requests ----

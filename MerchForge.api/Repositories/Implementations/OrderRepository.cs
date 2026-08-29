@@ -662,4 +662,162 @@ public class OrderRepository : IOrderRepository
                 : null,
         };
     }
+
+    public async Task<ProductAnalyticsResponse> GetProductAnalyticsAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        Guid? productId,
+        CancellationToken cancellationToken = default)
+    {
+        var granularity = (to - from).TotalDays <= 31
+            ? OrderAnalyticsGranularity.Daily
+            : OrderAnalyticsGranularity.Monthly;
+
+        var baseQuery = _db.OrderItems.Where(i =>
+            i.Order.BusinessId == businessId &&
+            i.Order.Status != OrderStatus.Cancelled &&
+            i.Order.CreatedAt >= from &&
+            i.Order.CreatedAt <= to &&
+            (productId == null || i.ProductId == productId));
+
+        List<ProductAnalyticsPointResponse> points;
+
+        if (granularity == OrderAnalyticsGranularity.Daily)
+        {
+            points = await baseQuery
+                .GroupBy(i => i.Order.CreatedAt.Date)
+                .Select(g => new ProductAnalyticsPointResponse
+                {
+                    Period = g.Key,
+                    Revenue = g.Sum(i => i.LineTotal),
+                    UnitsSold = g.Sum(i => i.Quantity),
+                    OrderCount = g.Select(i => i.OrderId).Distinct().Count(),
+                })
+                .OrderBy(p => p.Period)
+                .ToListAsync(cancellationToken);
+        }
+        else
+        {
+            // Same fix as GetOrderAnalyticsAsync: reconstructing a DateTime from
+            // g.Key.Year/g.Key.Month inside the server-evaluated Select isn't
+            // translatable by the MySQL provider, so the (Year, Month) pair is
+            // materialized first and the DateTime built client-side afterward.
+            var monthlyBuckets = await baseQuery
+                .GroupBy(i => new { i.Order.CreatedAt.Year, i.Order.CreatedAt.Month })
+                .Select(g => new
+                {
+                    g.Key.Year,
+                    g.Key.Month,
+                    Revenue = g.Sum(i => i.LineTotal),
+                    UnitsSold = g.Sum(i => i.Quantity),
+                    OrderCount = g.Select(i => i.OrderId).Distinct().Count(),
+                })
+                .ToListAsync(cancellationToken);
+
+            points = monthlyBuckets
+                .Select(b => new ProductAnalyticsPointResponse
+                {
+                    Period = new DateTime(b.Year, b.Month, 1),
+                    Revenue = b.Revenue,
+                    UnitsSold = b.UnitsSold,
+                    OrderCount = b.OrderCount,
+                })
+                .OrderBy(p => p.Period)
+                .ToList();
+        }
+
+        // Summed from the already-fetched buckets, not a second query - they exactly
+        // partition [from, to]. OrderCount is the one field this can't do exactly
+        // right for (an order spanning two buckets - impossible here since a bucket
+        // is a whole day/month - or containing items from two different bucket-worthy
+        // dates, which can't happen either), so summing bucket order counts is exact.
+        var currentTotals = new ProductAnalyticsPeriodTotalsResponse
+        {
+            Revenue = points.Sum(p => p.Revenue),
+            UnitsSold = points.Sum(p => p.UnitsSold),
+            OrderCount = points.Sum(p => p.OrderCount),
+        };
+
+        var span = to - from;
+        var previousTo = from.AddTicks(-1);
+        var previousFrom = previousTo - span;
+
+        var previousTotals = await GetProductPeriodTotalsAsync(businessId, previousFrom, previousTo, productId, cancellationToken);
+
+        ProductAllTimeTotalsResponse? allTime = null;
+
+        if (productId.HasValue)
+        {
+            var allTimeTotals = await GetProductPeriodTotalsAsync(
+                businessId, DateTime.MinValue, DateTime.MaxValue, productId, cancellationToken);
+
+            allTime = new ProductAllTimeTotalsResponse
+            {
+                Revenue = allTimeTotals.Revenue,
+                UnitsSold = allTimeTotals.UnitsSold,
+                OrderCount = allTimeTotals.OrderCount,
+                AverageUnitsPerOrder = allTimeTotals.OrderCount > 0
+                    ? Math.Round((decimal)allTimeTotals.UnitsSold / allTimeTotals.OrderCount, 1)
+                    : null,
+            };
+        }
+
+        return new ProductAnalyticsResponse
+        {
+            Granularity = granularity,
+            Points = points,
+            CurrentPeriod = currentTotals,
+            PreviousPeriod = previousTotals,
+            RevenueChangePercent = previousTotals.Revenue > 0
+                ? Math.Round((currentTotals.Revenue - previousTotals.Revenue) / previousTotals.Revenue * 100, 1)
+                : null,
+            UnitsSoldChangePercent = previousTotals.UnitsSold > 0
+                ? Math.Round(
+                    (decimal)(currentTotals.UnitsSold - previousTotals.UnitsSold) / previousTotals.UnitsSold * 100, 1)
+                : null,
+            OrderCountChangePercent = previousTotals.OrderCount > 0
+                ? Math.Round(
+                    (decimal)(currentTotals.OrderCount - previousTotals.OrderCount) / previousTotals.OrderCount * 100,
+                    1)
+                : null,
+            AllTime = allTime,
+        };
+    }
+
+    private async Task<ProductAnalyticsPeriodTotalsResponse> GetProductPeriodTotalsAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        Guid? productId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _db.OrderItems
+            .Where(i =>
+                i.Order.BusinessId == businessId &&
+                i.Order.Status != OrderStatus.Cancelled &&
+                i.Order.CreatedAt >= from &&
+                i.Order.CreatedAt <= to &&
+                (productId == null || i.ProductId == productId))
+            .GroupBy(i => 1)
+            .Select(g => new ProductAnalyticsPeriodTotalsResponse
+            {
+                Revenue = g.Sum(i => i.LineTotal),
+                UnitsSold = g.Sum(i => i.Quantity),
+                OrderCount = g.Select(i => i.OrderId).Distinct().Count(),
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return result ?? new ProductAnalyticsPeriodTotalsResponse();
+    }
+
+    public async Task<(int UnitsSold, decimal Revenue)> GetAllTimeProductSalesTotalsAsync(
+        Guid businessId,
+        CancellationToken cancellationToken = default)
+    {
+        var totals = await GetProductPeriodTotalsAsync(
+            businessId, DateTime.MinValue, DateTime.MaxValue, null, cancellationToken);
+
+        return (totals.UnitsSold, totals.Revenue);
+    }
 }

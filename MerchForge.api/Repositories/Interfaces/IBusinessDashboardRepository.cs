@@ -113,6 +113,19 @@ namespace MerchForge.api.Repositories.Interfaces
             Product product,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Every product in the catalog with its current- and previous-period sales
+        /// (zero for products with no sales in a given window) plus a category
+        /// roll-up — one bounded, catalog-sized query set the frontend derives every
+        /// product-performance view (top products, revenue distribution, best
+        /// sellers, needs-attention, zero-sales, category breakdown) from.
+        /// </summary>
+        Task<ProductPerformanceResponse> GetProductPerformanceAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
         // ---- website template ----
 
         /// <summary>Null when the business doesn't exist. WebsiteTemplate* fields are null when no template has been chosen.</summary>

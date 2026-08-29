@@ -437,6 +437,106 @@ namespace MerchForge.api.Repositories.Implementations
             await _db.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task<ProductPerformanceResponse> GetProductPerformanceAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            var products = await _db.Products
+                .Where(p => p.BusinessId == businessId)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Title,
+                    p.ImageUrl,
+                    CategoryName = p.Category.Name,
+                    p.Price,
+                    p.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+
+            var span = to - from;
+            var previousTo = from.AddTicks(-1);
+            var previousFrom = previousTo - span;
+
+            var currentSales = await GetProductSalesByProductAsync(businessId, from, to, cancellationToken);
+            var previousSales = await GetProductSalesByProductAsync(businessId, previousFrom, previousTo, cancellationToken);
+
+            var entries = products
+                .Select(p =>
+                {
+                    var current = currentSales.GetValueOrDefault(p.Id);
+                    var previous = previousSales.GetValueOrDefault(p.Id);
+
+                    return new ProductPerformanceEntryResponse
+                    {
+                        ProductId = p.Id,
+                        Title = p.Title,
+                        ImageUrl = p.ImageUrl,
+                        CategoryName = p.CategoryName,
+                        Price = p.Price,
+                        UnitsSold = current.UnitsSold,
+                        Revenue = current.Revenue,
+                        OrderCount = current.OrderCount,
+                        PreviousUnitsSold = previous.UnitsSold,
+                        PreviousRevenue = previous.Revenue,
+                        UnitsSoldChangePercent = previous.UnitsSold > 0
+                            ? Math.Round((decimal)(current.UnitsSold - previous.UnitsSold) / previous.UnitsSold * 100, 1)
+                            : null,
+                        RevenueChangePercent = previous.Revenue > 0
+                            ? Math.Round((current.Revenue - previous.Revenue) / previous.Revenue * 100, 1)
+                            : null,
+                        CreatedAt = p.CreatedAt,
+                    };
+                })
+                .ToList();
+
+            var categories = entries
+                .GroupBy(e => e.CategoryName)
+                .Select(g => new CategoryPerformanceEntryResponse
+                {
+                    CategoryName = g.Key,
+                    ProductCount = g.Count(),
+                    UnitsSold = g.Sum(e => e.UnitsSold),
+                    Revenue = g.Sum(e => e.Revenue),
+                })
+                .OrderByDescending(c => c.Revenue)
+                .ToList();
+
+            return new ProductPerformanceResponse
+            {
+                Products = entries,
+                Categories = categories,
+                TotalRevenue = entries.Sum(e => e.Revenue),
+            };
+        }
+
+        private async Task<Dictionary<Guid, (int UnitsSold, decimal Revenue, int OrderCount)>> GetProductSalesByProductAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken)
+        {
+            var rows = await _db.OrderItems
+                .Where(i =>
+                    i.Order.BusinessId == businessId &&
+                    i.Order.Status != OrderStatus.Cancelled &&
+                    i.Order.CreatedAt >= from &&
+                    i.Order.CreatedAt <= to)
+                .GroupBy(i => i.ProductId)
+                .Select(g => new
+                {
+                    ProductId = g.Key,
+                    UnitsSold = g.Sum(i => i.Quantity),
+                    Revenue = g.Sum(i => i.LineTotal),
+                    OrderCount = g.Select(i => i.OrderId).Distinct().Count(),
+                })
+                .ToListAsync(cancellationToken);
+
+            return rows.ToDictionary(r => r.ProductId, r => (r.UnitsSold, r.Revenue, r.OrderCount));
+        }
+
         // ---- website template ----
 
         public async Task<(Guid? BusinessDomainId, string? DomainName, Guid? WebsiteTemplateId, string? WebsiteTemplateName,

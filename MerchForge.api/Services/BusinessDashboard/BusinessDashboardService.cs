@@ -378,6 +378,41 @@ namespace MerchForge.api.Services.BusinessDashboard
             await _businessDashboardRepository.DeleteProductAsync(product, cancellationToken);
         }
 
+        public async Task<ProductCatalogOverviewResponse> GetProductCatalogOverviewAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var totalProducts = await _businessDashboardRepository.CountProductsAsync(businessId, cancellationToken);
+            var priceStats = await _businessDashboardRepository.GetProductPriceStatsAsync(businessId, cancellationToken);
+            var (unitsSold, revenue) = await _orderRepository.GetAllTimeProductSalesTotalsAsync(businessId, cancellationToken);
+
+            return new ProductCatalogOverviewResponse
+            {
+                TotalProducts = totalProducts,
+                TotalUnitsSold = unitsSold,
+                ProductRevenue = revenue,
+                AverageProductPrice = priceStats.Average,
+            };
+        }
+
+        public async Task<ProductAnalyticsResponse> GetProductAnalyticsAsync(
+            Guid businessId,
+            ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetProductAnalyticsAsync(
+                businessId, query.From, query.To, query.ProductId, cancellationToken);
+        }
+
+        public async Task<ProductPerformanceResponse> GetProductPerformanceAsync(
+            Guid businessId,
+            ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardRepository.GetProductPerformanceAsync(
+                businessId, query.From, query.To, cancellationToken);
+        }
+
         // ---- website template requests ----
 
         public async Task<WebsiteTemplateOptionsResponse> GetWebsiteTemplateOptionsAsync(

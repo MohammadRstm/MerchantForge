@@ -119,11 +119,22 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
         Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
             Guid businessId,
             int take,
+            Guid? productId = null,
             CancellationToken cancellationToken = default);
 
         Task UpdateLowStockThresholdAsync(
             Guid businessId,
             int lowStockThreshold,
+            CancellationToken cancellationToken = default);
+
+        Task<InventoryAnalyticsResponse> GetInventoryAnalyticsAsync(
+            Guid businessId,
+            InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<InventoryPerformanceResponse> GetInventoryPerformanceAsync(
+            Guid businessId,
+            InventoryAnalyticsQueryRequest query,
             CancellationToken cancellationToken = default);
 
         // ---- orders ----

@@ -98,7 +98,9 @@ namespace MerchForge.api.Repositories.Implementations
                     CompareAtPrice = p.CompareAtPrice,
                     ImageUrl = p.ImageUrl,
                     StockQuantity = p.StockQuantity,
+                    Sku = p.Sku,
                     CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt,
                 })
                 .ToListAsync(cancellationToken);
         }
@@ -161,7 +163,8 @@ namespace MerchForge.api.Repositories.Implementations
             {
                 var pattern = $"%{query.Search.Trim()}%";
 
-                baseQuery = baseQuery.Where(p => EF.Functions.Like(p.Title, pattern));
+                baseQuery = baseQuery.Where(p =>
+                    EF.Functions.Like(p.Title, pattern) || (p.Sku != null && EF.Functions.Like(p.Sku, pattern)));
             }
 
             if (!string.IsNullOrWhiteSpace(query.Category))
@@ -196,7 +199,9 @@ namespace MerchForge.api.Repositories.Implementations
                 CompareAtPrice = p.CompareAtPrice,
                 ImageUrl = p.ImageUrl,
                 StockQuantity = p.StockQuantity,
+                Sku = p.Sku,
                 CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt,
             });
 
             projected = query.SortBy switch
@@ -208,6 +213,18 @@ namespace MerchForge.api.Repositories.Implementations
                 ProductSortField.Price => query.SortDescending
                     ? projected.OrderByDescending(x => x.Price)
                     : projected.OrderBy(x => x.Price),
+
+                // Nulls (untracked) sort last regardless of direction - an untracked
+                // product has no stock level to rank by, so it shouldn't jump to the
+                // front of a "lowest stock first" sort just because EF/SQL treats
+                // NULL as smallest by default.
+                ProductSortField.StockQuantity => query.SortDescending
+                    ? projected.OrderByDescending(x => x.StockQuantity.HasValue).ThenByDescending(x => x.StockQuantity)
+                    : projected.OrderByDescending(x => x.StockQuantity.HasValue).ThenBy(x => x.StockQuantity),
+
+                ProductSortField.UpdatedAt => query.SortDescending
+                    ? projected.OrderByDescending(x => x.UpdatedAt)
+                    : projected.OrderBy(x => x.UpdatedAt),
 
                 _ => query.SortDescending
                     ? projected.OrderByDescending(x => x.CreatedAt)
@@ -707,11 +724,12 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
             Guid businessId,
             int take,
+            Guid? productId = null,
             CancellationToken cancellationToken = default)
         {
             return await _db.StockMovements
                 .AsNoTracking()
-                .Where(m => m.BusinessId == businessId)
+                .Where(m => m.BusinessId == businessId && (productId == null || m.ProductId == productId))
                 .OrderByDescending(m => m.CreatedAt)
                 .Take(take)
                 .Join(
@@ -729,6 +747,240 @@ namespace MerchForge.api.Repositories.Implementations
                         CreatedAt = m.CreatedAt,
                     })
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<InventoryAnalyticsResponse> GetInventoryAnalyticsAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            var granularity = (to - from).TotalDays <= 31
+                ? OrderAnalyticsGranularity.Daily
+                : OrderAnalyticsGranularity.Monthly;
+
+            var unitsSoldByPeriod = await GetUnitsSoldByPeriodAsync(businessId, from, to, granularity, cancellationToken);
+            var movementsByPeriod = await GetStockMovementsByPeriodAsync(businessId, from, to, granularity, cancellationToken);
+
+            // Union of both sources' periods - a bucket can have sales with no manual
+            // stock movement that day, or vice versa (a restock with no sales yet).
+            var periods = unitsSoldByPeriod.Keys.Union(movementsByPeriod.Keys).OrderBy(p => p);
+
+            var points = periods
+                .Select(period =>
+                {
+                    var (added, removed) = movementsByPeriod.GetValueOrDefault(period);
+                    return new InventoryAnalyticsPointResponse
+                    {
+                        Period = period,
+                        UnitsSold = unitsSoldByPeriod.GetValueOrDefault(period),
+                        StockAdded = added,
+                        StockRemoved = removed,
+                    };
+                })
+                .ToList();
+
+            var currentTotals = new InventoryAnalyticsPeriodTotalsResponse
+            {
+                UnitsSold = points.Sum(p => p.UnitsSold),
+                StockAdded = points.Sum(p => p.StockAdded),
+                StockRemoved = points.Sum(p => p.StockRemoved),
+            };
+
+            var span = to - from;
+            var previousTo = from.AddTicks(-1);
+            var previousFrom = previousTo - span;
+
+            var previousTotals = await GetInventoryPeriodTotalsAsync(businessId, previousFrom, previousTo, cancellationToken);
+
+            return new InventoryAnalyticsResponse
+            {
+                Granularity = granularity,
+                Points = points,
+                CurrentPeriod = currentTotals,
+                PreviousPeriod = previousTotals,
+                UnitsSoldChangePercent = previousTotals.UnitsSold > 0
+                    ? Math.Round((decimal)(currentTotals.UnitsSold - previousTotals.UnitsSold) / previousTotals.UnitsSold * 100, 1)
+                    : null,
+            };
+        }
+
+        private async Task<Dictionary<DateTime, int>> GetUnitsSoldByPeriodAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            OrderAnalyticsGranularity granularity,
+            CancellationToken cancellationToken)
+        {
+            var baseQuery = _db.OrderItems.Where(i =>
+                i.Order.BusinessId == businessId &&
+                i.Order.Status != OrderStatus.Cancelled &&
+                i.Order.CreatedAt >= from &&
+                i.Order.CreatedAt <= to);
+
+            if (granularity == OrderAnalyticsGranularity.Daily)
+            {
+                var rows = await baseQuery
+                    .GroupBy(i => i.Order.CreatedAt.Date)
+                    .Select(g => new { Period = g.Key, UnitsSold = g.Sum(i => i.Quantity) })
+                    .ToListAsync(cancellationToken);
+
+                return rows.ToDictionary(r => r.Period, r => r.UnitsSold);
+            }
+
+            // Reconstructing a DateTime from g.Key.Year/g.Key.Month inside the
+            // server-evaluated Select isn't translatable by the MySQL provider - see
+            // the identical fix in OrderRepository.GetProductAnalyticsAsync.
+            var monthlyRows = await baseQuery
+                .GroupBy(i => new { i.Order.CreatedAt.Year, i.Order.CreatedAt.Month })
+                .Select(g => new { g.Key.Year, g.Key.Month, UnitsSold = g.Sum(i => i.Quantity) })
+                .ToListAsync(cancellationToken);
+
+            return monthlyRows.ToDictionary(r => new DateTime(r.Year, r.Month, 1), r => r.UnitsSold);
+        }
+
+        private async Task<Dictionary<DateTime, (int Added, int Removed)>> GetStockMovementsByPeriodAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            OrderAnalyticsGranularity granularity,
+            CancellationToken cancellationToken)
+        {
+            var baseQuery = _db.StockMovements.Where(m =>
+                m.BusinessId == businessId && m.CreatedAt >= from && m.CreatedAt <= to);
+
+            if (granularity == OrderAnalyticsGranularity.Daily)
+            {
+                var rows = await baseQuery
+                    .GroupBy(m => m.CreatedAt.Date)
+                    .Select(g => new
+                    {
+                        Period = g.Key,
+                        Added = g.Where(m => m.Amount > 0).Sum(m => (int?)m.Amount) ?? 0,
+                        Removed = g.Where(m => m.Amount < 0).Sum(m => (int?)m.Amount) ?? 0,
+                    })
+                    .ToListAsync(cancellationToken);
+
+                return rows.ToDictionary(r => r.Period, r => (r.Added, -r.Removed));
+            }
+
+            var monthlyRows = await baseQuery
+                .GroupBy(m => new { m.CreatedAt.Year, m.CreatedAt.Month })
+                .Select(g => new
+                {
+                    g.Key.Year,
+                    g.Key.Month,
+                    Added = g.Where(m => m.Amount > 0).Sum(m => (int?)m.Amount) ?? 0,
+                    Removed = g.Where(m => m.Amount < 0).Sum(m => (int?)m.Amount) ?? 0,
+                })
+                .ToListAsync(cancellationToken);
+
+            return monthlyRows.ToDictionary(r => new DateTime(r.Year, r.Month, 1), r => (r.Added, -r.Removed));
+        }
+
+        private async Task<InventoryAnalyticsPeriodTotalsResponse> GetInventoryPeriodTotalsAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken)
+        {
+            var unitsSold = await _db.OrderItems
+                .Where(i =>
+                    i.Order.BusinessId == businessId &&
+                    i.Order.Status != OrderStatus.Cancelled &&
+                    i.Order.CreatedAt >= from &&
+                    i.Order.CreatedAt <= to)
+                .SumAsync(i => (int?)i.Quantity, cancellationToken) ?? 0;
+
+            var movements = await _db.StockMovements
+                .Where(m => m.BusinessId == businessId && m.CreatedAt >= from && m.CreatedAt <= to)
+                .GroupBy(m => 1)
+                .Select(g => new
+                {
+                    Added = g.Where(m => m.Amount > 0).Sum(m => (int?)m.Amount) ?? 0,
+                    Removed = g.Where(m => m.Amount < 0).Sum(m => (int?)m.Amount) ?? 0,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return new InventoryAnalyticsPeriodTotalsResponse
+            {
+                UnitsSold = unitsSold,
+                StockAdded = movements?.Added ?? 0,
+                StockRemoved = -(movements?.Removed ?? 0),
+            };
+        }
+
+        public async Task<InventoryPerformanceResponse> GetInventoryPerformanceAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            int lowStockThreshold,
+            CancellationToken cancellationToken = default)
+        {
+            var products = await _db.Products
+                .Where(p => p.BusinessId == businessId)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Title,
+                    p.ImageUrl,
+                    CategoryName = p.Category.Name,
+                    p.StockQuantity,
+                    p.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+
+            var sales = await GetProductSalesByProductAsync(businessId, from, to, cancellationToken);
+
+            // All-time last-sale date per product, independent of the selected period -
+            // "dead stock" framing shouldn't flip depending on which range is picked.
+            var lastSaleByProduct = await _db.OrderItems
+                .Where(i => i.Order.BusinessId == businessId && i.Order.Status != OrderStatus.Cancelled)
+                .GroupBy(i => i.ProductId)
+                .Select(g => new { ProductId = g.Key, LastSaleAt = g.Max(i => i.Order.CreatedAt) })
+                .ToDictionaryAsync(r => r.ProductId, r => (DateTime?)r.LastSaleAt, cancellationToken);
+
+            var entries = products
+                .Select(p =>
+                {
+                    var sale = sales.GetValueOrDefault(p.Id);
+
+                    return new InventoryProductPerformanceEntryResponse
+                    {
+                        ProductId = p.Id,
+                        Title = p.Title,
+                        ImageUrl = p.ImageUrl,
+                        CategoryName = p.CategoryName,
+                        StockQuantity = p.StockQuantity,
+                        UnitsSold = sale.UnitsSold,
+                        Revenue = sale.Revenue,
+                        LastSaleAt = lastSaleByProduct.GetValueOrDefault(p.Id),
+                        CreatedAt = p.CreatedAt,
+                    };
+                })
+                .ToList();
+
+            var categories = entries
+                .GroupBy(e => e.CategoryName)
+                .Select(g => new InventoryCategoryPerformanceEntryResponse
+                {
+                    CategoryName = g.Key,
+                    TrackedProductCount = g.Count(e => e.StockQuantity != null),
+                    UntrackedProductCount = g.Count(e => e.StockQuantity == null),
+                    UnitsInStock = g.Sum(e => e.StockQuantity ?? 0),
+                    UnitsSold = g.Sum(e => e.UnitsSold),
+                    Revenue = g.Sum(e => e.Revenue),
+                    LowStockCount = g.Count(e => e.StockQuantity is int q && q > 0 && q <= lowStockThreshold),
+                    OutOfStockCount = g.Count(e => e.StockQuantity == 0),
+                })
+                .OrderByDescending(c => c.UnitsInStock)
+                .ToList();
+
+            return new InventoryPerformanceResponse
+            {
+                Products = entries,
+                Categories = categories,
+            };
         }
     }
 }

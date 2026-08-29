@@ -536,7 +536,9 @@ namespace MerchForge.api.Services.BusinessDashboard
                     CompareAtPrice = product.CompareAtPrice,
                     ImageUrl = product.ImageUrl,
                     StockQuantity = product.StockQuantity,
+                    Sku = product.Sku,
                     CreatedAt = product.CreatedAt,
+                    UpdatedAt = product.UpdatedAt,
                 },
                 Movement = new StockMovementResponse
                 {
@@ -564,9 +566,10 @@ namespace MerchForge.api.Services.BusinessDashboard
         public async Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
             Guid businessId,
             int take,
+            Guid? productId = null,
             CancellationToken cancellationToken = default)
         {
-            return await _businessDashboardRepository.GetRecentStockMovementsAsync(businessId, take, cancellationToken);
+            return await _businessDashboardRepository.GetRecentStockMovementsAsync(businessId, take, productId, cancellationToken);
         }
 
         public async Task UpdateLowStockThresholdAsync(
@@ -581,6 +584,26 @@ namespace MerchForge.api.Services.BusinessDashboard
             {
                 throw new BusinessNotFoundException();
             }
+        }
+
+        public async Task<InventoryAnalyticsResponse> GetInventoryAnalyticsAsync(
+            Guid businessId,
+            InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardRepository.GetInventoryAnalyticsAsync(businessId, query.From, query.To, cancellationToken);
+        }
+
+        public async Task<InventoryPerformanceResponse> GetInventoryPerformanceAsync(
+            Guid businessId,
+            InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var threshold = await _businessDashboardRepository.GetLowStockThresholdAsync(businessId, cancellationToken)
+                ?? throw new BusinessNotFoundException();
+
+            return await _businessDashboardRepository.GetInventoryPerformanceAsync(
+                businessId, query.From, query.To, threshold, cancellationToken);
         }
 
         // ---- orders ----

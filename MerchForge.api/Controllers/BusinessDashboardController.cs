@@ -34,6 +34,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<CreateOrderNoteRequest> _createOrderNoteValidator;
         private readonly IValidator<OrderAnalyticsQueryRequest> _orderAnalyticsQueryValidator;
         private readonly IValidator<ProductAnalyticsQueryRequest> _productAnalyticsQueryValidator;
+        private readonly IValidator<InventoryAnalyticsQueryRequest> _inventoryAnalyticsQueryValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
         private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
 
@@ -55,6 +56,7 @@ namespace MerchForge.api.Controllers
             IValidator<CreateOrderNoteRequest> createOrderNoteValidator,
             IValidator<OrderAnalyticsQueryRequest> orderAnalyticsQueryValidator,
             IValidator<ProductAnalyticsQueryRequest> productAnalyticsQueryValidator,
+            IValidator<InventoryAnalyticsQueryRequest> inventoryAnalyticsQueryValidator,
             IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
             IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
         {
@@ -75,6 +77,7 @@ namespace MerchForge.api.Controllers
             _createOrderNoteValidator = createOrderNoteValidator;
             _orderAnalyticsQueryValidator = orderAnalyticsQueryValidator;
             _productAnalyticsQueryValidator = productAnalyticsQueryValidator;
+            _inventoryAnalyticsQueryValidator = inventoryAnalyticsQueryValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
             _subscribeToPlanValidator = subscribeToPlanValidator;
         }
@@ -385,6 +388,7 @@ namespace MerchForge.api.Controllers
         public async Task<ActionResult<List<StockMovementResponse>>> GetRecentStockMovements(
             Guid businessId,
             [FromQuery] int take,
+            [FromQuery] Guid? productId,
             CancellationToken cancellationToken)
         {
             // Same "clamp rather than validate" treatment as an unset paging size
@@ -392,7 +396,7 @@ namespace MerchForge.api.Controllers
             var boundedTake = take is < 1 or > 100 ? 20 : take;
 
             var response = await _businessDashboardService.GetRecentStockMovementsAsync(
-                businessId, boundedTake, cancellationToken);
+                businessId, boundedTake, productId, cancellationToken);
 
             return Ok(response);
         }
@@ -409,6 +413,32 @@ namespace MerchForge.api.Controllers
                 businessId, request.LowStockThreshold, cancellationToken);
 
             return NoContent();
+        }
+
+        [HttpGet("inventory/analytics")]
+        public async Task<ActionResult<InventoryAnalyticsResponse>> GetInventoryAnalytics(
+            Guid businessId,
+            [FromQuery] InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _inventoryAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetInventoryAnalyticsAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("inventory/performance")]
+        public async Task<ActionResult<InventoryPerformanceResponse>> GetInventoryPerformance(
+            Guid businessId,
+            [FromQuery] InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _inventoryAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetInventoryPerformanceAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
         }
 
         // ---- orders ----

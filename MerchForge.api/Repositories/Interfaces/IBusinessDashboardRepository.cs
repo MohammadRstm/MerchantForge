@@ -175,9 +175,24 @@ namespace MerchForge.api.Repositories.Interfaces
             int lowStockThreshold,
             CancellationToken cancellationToken = default);
 
+        /// <summary>productId narrows to one product's activity (the product detail modal); null is the business-wide recent-activity feed.</summary>
         Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
             Guid businessId,
             int take,
+            Guid? productId = null,
+            CancellationToken cancellationToken = default);
+
+        Task<InventoryAnalyticsResponse> GetInventoryAnalyticsAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
+        Task<InventoryPerformanceResponse> GetInventoryPerformanceAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            int lowStockThreshold,
             CancellationToken cancellationToken = default);
     }
 }

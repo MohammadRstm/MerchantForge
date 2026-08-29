@@ -17,5 +17,9 @@ public class BusinessProductResponse
     /// <summary>Null means inventory isn't tracked for this product.</summary>
     public int? StockQuantity { get; set; }
 
+    public string? Sku { get; set; }
+
     public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
 }

@@ -183,5 +183,10 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid businessId,
             OrderAnalyticsQueryRequest query,
             CancellationToken cancellationToken = default);
+
+        Task<CustomerSnapshotResponse> GetCustomerSnapshotAsync(
+            Guid businessId,
+            OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default);
     }
 }

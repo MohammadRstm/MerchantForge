@@ -566,6 +566,19 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("customers/snapshot")]
+        public async Task<ActionResult<CustomerSnapshotResponse>> GetCustomerSnapshot(
+            Guid businessId,
+            [FromQuery] OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _orderAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetCustomerSnapshotAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
         [HttpPut("orders/{orderId:guid}/payment-status")]
         public async Task<ActionResult<BusinessOrderDetailResponse>> UpdateOrderPaymentStatus(
             Guid businessId,

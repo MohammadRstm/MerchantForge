@@ -731,6 +731,14 @@ namespace MerchForge.api.Services.BusinessDashboard
             return await _orderRepository.GetOrderAnalyticsAsync(businessId, query.From, query.To, cancellationToken);
         }
 
+        public async Task<CustomerSnapshotResponse> GetCustomerSnapshotAsync(
+            Guid businessId,
+            OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetCustomerSnapshotAsync(businessId, query.From, query.To, cancellationToken);
+        }
+
         private async Task EnsureCategoryIsUsableAsync(
             Guid businessId,
             Guid categoryId,

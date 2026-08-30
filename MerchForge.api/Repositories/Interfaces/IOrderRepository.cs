@@ -123,4 +123,11 @@ public interface IOrderRepository
     Task<(int UnitsSold, decimal Revenue)> GetAllTimeProductSalesTotalsAsync(
         Guid businessId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Distinct-buyer counts for the Overview page — aggregated in SQL via GROUP BY/HAVING, never by loading orders into memory.</summary>
+    Task<CustomerSnapshotResponse> GetCustomerSnapshotAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default);
 }

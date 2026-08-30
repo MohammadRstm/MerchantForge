@@ -820,4 +820,33 @@ public class OrderRepository : IOrderRepository
 
         return (totals.UnitsSold, totals.Revenue);
     }
+
+    public async Task<CustomerSnapshotResponse> GetCustomerSnapshotAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default)
+    {
+        // Excludes Cancelled, matching every other analytics query here.
+        var baseQuery = _db.Orders.Where(o => o.BusinessId == businessId && o.Status != OrderStatus.Cancelled);
+
+        var totalCustomers = await baseQuery
+            .Select(o => o.CustomerEmail)
+            .Distinct()
+            .CountAsync(cancellationToken);
+
+        // A HAVING clause on each email's earliest order date - stays a single
+        // server-side aggregate rather than pulling every customer's first-order
+        // date into memory to filter client-side.
+        var newCustomersInPeriod = await baseQuery
+            .GroupBy(o => o.CustomerEmail)
+            .Where(g => g.Min(o => o.CreatedAt) >= from && g.Min(o => o.CreatedAt) <= to)
+            .CountAsync(cancellationToken);
+
+        return new CustomerSnapshotResponse
+        {
+            TotalCustomers = totalCustomers,
+            NewCustomersInPeriod = newCustomersInPeriod,
+        };
+    }
 }

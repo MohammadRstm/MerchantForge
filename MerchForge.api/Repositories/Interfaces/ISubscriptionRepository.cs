@@ -29,6 +29,11 @@ namespace MerchForge.api.Repositories.Interfaces
             DateTime now,
             CancellationToken cancellationToken = default);
 
+        /// <summary>Every Subscription row the business has ever had, newest first — the prior row on a plan switch is marked Cancelled rather than deleted, so this is a real (if coarse) change history with no new persistence needed.</summary>
+        Task<List<Subscription>> GetSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
         Task<SubscriptionPlan?> GetPlanAsync(
             Guid subscriptionPlanId,
             CancellationToken cancellationToken = default);

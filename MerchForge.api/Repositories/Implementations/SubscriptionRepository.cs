@@ -61,6 +61,17 @@
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<Subscription>> GetSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.Subscriptions
+                .Include(s => s.SubscriptionPlan)
+                .Where(s => s.BusinessId == businessId)
+                .OrderByDescending(s => s.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<SubscriptionPlan?> GetPlanAsync(
             Guid subscriptionPlanId,
             CancellationToken cancellationToken = default)

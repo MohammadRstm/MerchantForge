@@ -46,6 +46,10 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
             Guid businessId,
             CancellationToken cancellationToken = default);
 
+        Task<List<SubscriptionHistoryEntryResponse>> GetSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
         // ---- product CRUD ----
 
         Task<ProductFormResponse> GetProductFormAsync(

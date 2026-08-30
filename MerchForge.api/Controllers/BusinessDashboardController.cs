@@ -171,6 +171,16 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("subscription/history")]
+        public async Task<ActionResult<List<SubscriptionHistoryEntryResponse>>> GetSubscriptionHistory(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetSubscriptionHistoryAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
         // ---- product CRUD ----
 
         /// <summary>

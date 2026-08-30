@@ -253,6 +253,29 @@ namespace MerchForge.api.Services.BusinessDashboard
             return (await GetSubscriptionAsync(businessId, cancellationToken))!;
         }
 
+        public async Task<List<SubscriptionHistoryEntryResponse>> GetSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionHistoryAsync(businessId, cancellationToken);
+
+            return subscriptions
+                .Select(s => new SubscriptionHistoryEntryResponse
+                {
+                    Id = s.Id,
+                    PlanName = s.SubscriptionPlan.Name,
+                    Price = s.SubscriptionPlan.Price,
+                    Currency = s.SubscriptionPlan.Currency,
+                    BillingInterval = s.SubscriptionPlan.BillingInterval.ToString(),
+                    Status = s.Status.ToString(),
+                    CurrentPeriodStart = s.CurrentPeriodStart,
+                    CurrentPeriodEnd = s.CurrentPeriodEnd,
+                    CancelAtPeriodEnd = s.CancelAtPeriodEnd,
+                    CreatedAt = s.CreatedAt,
+                })
+                .ToList();
+        }
+
         // ---- product CRUD ----
 
         public async Task<ProductFormResponse> GetProductFormAsync(

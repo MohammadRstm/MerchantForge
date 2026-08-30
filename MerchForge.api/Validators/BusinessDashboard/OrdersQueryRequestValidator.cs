@@ -14,5 +14,9 @@ public class OrdersQueryRequestValidator : PagedQueryValidator<OrdersQueryReques
 
         RuleFor(x => x.Search)
             .MaximumLength(255);
+
+        RuleFor(x => x.To)
+            .GreaterThanOrEqualTo(x => x.From)
+            .When(x => x.From.HasValue && x.To.HasValue);
     }
 }

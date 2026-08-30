@@ -253,6 +253,29 @@ namespace MerchForge.api.Services.BusinessDashboard
             return (await GetSubscriptionAsync(businessId, cancellationToken))!;
         }
 
+        public async Task<List<SubscriptionHistoryEntryResponse>> GetSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var subscriptions = await _subscriptionRepository.GetSubscriptionHistoryAsync(businessId, cancellationToken);
+
+            return subscriptions
+                .Select(s => new SubscriptionHistoryEntryResponse
+                {
+                    Id = s.Id,
+                    PlanName = s.SubscriptionPlan.Name,
+                    Price = s.SubscriptionPlan.Price,
+                    Currency = s.SubscriptionPlan.Currency,
+                    BillingInterval = s.SubscriptionPlan.BillingInterval.ToString(),
+                    Status = s.Status.ToString(),
+                    CurrentPeriodStart = s.CurrentPeriodStart,
+                    CurrentPeriodEnd = s.CurrentPeriodEnd,
+                    CancelAtPeriodEnd = s.CancelAtPeriodEnd,
+                    CreatedAt = s.CreatedAt,
+                })
+                .ToList();
+        }
+
         // ---- product CRUD ----
 
         public async Task<ProductFormResponse> GetProductFormAsync(
@@ -378,6 +401,41 @@ namespace MerchForge.api.Services.BusinessDashboard
             await _businessDashboardRepository.DeleteProductAsync(product, cancellationToken);
         }
 
+        public async Task<ProductCatalogOverviewResponse> GetProductCatalogOverviewAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var totalProducts = await _businessDashboardRepository.CountProductsAsync(businessId, cancellationToken);
+            var priceStats = await _businessDashboardRepository.GetProductPriceStatsAsync(businessId, cancellationToken);
+            var (unitsSold, revenue) = await _orderRepository.GetAllTimeProductSalesTotalsAsync(businessId, cancellationToken);
+
+            return new ProductCatalogOverviewResponse
+            {
+                TotalProducts = totalProducts,
+                TotalUnitsSold = unitsSold,
+                ProductRevenue = revenue,
+                AverageProductPrice = priceStats.Average,
+            };
+        }
+
+        public async Task<ProductAnalyticsResponse> GetProductAnalyticsAsync(
+            Guid businessId,
+            ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetProductAnalyticsAsync(
+                businessId, query.From, query.To, query.ProductId, cancellationToken);
+        }
+
+        public async Task<ProductPerformanceResponse> GetProductPerformanceAsync(
+            Guid businessId,
+            ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardRepository.GetProductPerformanceAsync(
+                businessId, query.From, query.To, cancellationToken);
+        }
+
         // ---- website template requests ----
 
         public async Task<WebsiteTemplateOptionsResponse> GetWebsiteTemplateOptionsAsync(
@@ -501,7 +559,9 @@ namespace MerchForge.api.Services.BusinessDashboard
                     CompareAtPrice = product.CompareAtPrice,
                     ImageUrl = product.ImageUrl,
                     StockQuantity = product.StockQuantity,
+                    Sku = product.Sku,
                     CreatedAt = product.CreatedAt,
+                    UpdatedAt = product.UpdatedAt,
                 },
                 Movement = new StockMovementResponse
                 {
@@ -529,9 +589,10 @@ namespace MerchForge.api.Services.BusinessDashboard
         public async Task<List<StockMovementResponse>> GetRecentStockMovementsAsync(
             Guid businessId,
             int take,
+            Guid? productId = null,
             CancellationToken cancellationToken = default)
         {
-            return await _businessDashboardRepository.GetRecentStockMovementsAsync(businessId, take, cancellationToken);
+            return await _businessDashboardRepository.GetRecentStockMovementsAsync(businessId, take, productId, cancellationToken);
         }
 
         public async Task UpdateLowStockThresholdAsync(
@@ -546,6 +607,26 @@ namespace MerchForge.api.Services.BusinessDashboard
             {
                 throw new BusinessNotFoundException();
             }
+        }
+
+        public async Task<InventoryAnalyticsResponse> GetInventoryAnalyticsAsync(
+            Guid businessId,
+            InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardRepository.GetInventoryAnalyticsAsync(businessId, query.From, query.To, cancellationToken);
+        }
+
+        public async Task<InventoryPerformanceResponse> GetInventoryPerformanceAsync(
+            Guid businessId,
+            InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var threshold = await _businessDashboardRepository.GetLowStockThresholdAsync(businessId, cancellationToken)
+                ?? throw new BusinessNotFoundException();
+
+            return await _businessDashboardRepository.GetInventoryPerformanceAsync(
+                businessId, query.From, query.To, threshold, cancellationToken);
         }
 
         // ---- orders ----
@@ -579,6 +660,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             Guid businessId,
             Guid orderId,
             OrderStatus status,
+            Guid changedByUserId,
             CancellationToken cancellationToken = default)
         {
             var order = await _orderRepository.GetTrackedOrderAsync(businessId, orderId, cancellationToken)
@@ -589,7 +671,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new OrderInvalidStatusTransitionException();
             }
 
-            await _orderRepository.UpdateOrderStatusAsync(order, status, cancellationToken);
+            await _orderRepository.UpdateOrderStatusAsync(order, status, changedByUserId, cancellationToken);
 
             return await GetOrderAsync(businessId, orderId, cancellationToken);
         }
@@ -606,6 +688,55 @@ namespace MerchForge.api.Services.BusinessDashboard
             await _orderRepository.UpdateOrderPaymentStatusAsync(order, paymentStatus, cancellationToken);
 
             return await GetOrderAsync(businessId, orderId, cancellationToken);
+        }
+
+        public async Task<OrderStatsResponse> GetOrderStatsAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderStatsAsync(businessId, cancellationToken);
+        }
+
+        public async Task<List<OrderNoteResponse>> GetOrderNotesAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderNotesAsync(businessId, orderId, cancellationToken);
+        }
+
+        public async Task<OrderNoteResponse> AddOrderNoteAsync(
+            Guid businessId,
+            Guid orderId,
+            string content,
+            Guid createdByUserId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.AddOrderNoteAsync(businessId, orderId, content, createdByUserId, cancellationToken);
+        }
+
+        public async Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderStatusHistoryAsync(businessId, orderId, cancellationToken);
+        }
+
+        public async Task<OrderAnalyticsResponse> GetOrderAnalyticsAsync(
+            Guid businessId,
+            OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderAnalyticsAsync(businessId, query.From, query.To, cancellationToken);
+        }
+
+        public async Task<CustomerSnapshotResponse> GetCustomerSnapshotAsync(
+            Guid businessId,
+            OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetCustomerSnapshotAsync(businessId, query.From, query.To, cancellationToken);
         }
 
         private async Task EnsureCategoryIsUsableAsync(

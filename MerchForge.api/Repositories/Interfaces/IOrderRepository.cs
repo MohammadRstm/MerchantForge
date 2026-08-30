@@ -53,13 +53,15 @@ public interface IOrderRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Persists the new status. When moving into Cancelled, restocks every tracked
-    /// item on the order (reversing CreateOrderAsync's decrement) with a matching
-    /// positive StockMovement row — all in the same transaction as the status change.
+    /// Persists the new status and appends a matching OrderStatusHistory row. When
+    /// moving into Cancelled, restocks every tracked item on the order (reversing
+    /// CreateOrderAsync's decrement) with a matching positive StockMovement row — all
+    /// in the same transaction as the status change.
     /// </summary>
     Task UpdateOrderStatusAsync(
         Order order,
         OrderStatus newStatus,
+        Guid changedByUserId,
         CancellationToken cancellationToken = default);
 
     Task UpdateOrderPaymentStatusAsync(
@@ -73,4 +75,59 @@ public interface IOrderRepository
 
     /// <summary>Whether any OrderItem references this product — guards product deletion (OrderItem.ProductId is Restrict-deleted).</summary>
     Task<bool> HasOrderItemsForProductAsync(Guid productId, CancellationToken cancellationToken = default);
+
+    /// <summary>Global per-status counts plus the "needs attention" signals, unaffected by any list filter.</summary>
+    Task<OrderStatsResponse> GetOrderStatsAsync(Guid businessId, CancellationToken cancellationToken = default);
+
+    /// <summary>Newest first. Throws OrderNotFoundException if the order doesn't exist or isn't this business's.</summary>
+    Task<List<OrderNoteResponse>> GetOrderNotesAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>Throws OrderNotFoundException if the order doesn't exist or isn't this business's.</summary>
+    Task<OrderNoteResponse> AddOrderNoteAsync(
+        Guid businessId,
+        Guid orderId,
+        string content,
+        Guid createdByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Oldest first — a lifecycle timeline. Throws OrderNotFoundException if the order doesn't exist or isn't this business's.</summary>
+    Task<List<OrderStatusHistoryEntryResponse>> GetOrderStatusHistoryAsync(Guid businessId, Guid orderId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Orders-and-revenue-over-time for the analytics chart, aggregated in SQL (one
+    /// GROUP BY for the requested range's buckets, one plain aggregate for the
+    /// preceding equal-length period) — never loads individual orders into memory to
+    /// sum them client-side, regardless of how many orders exist.
+    /// </summary>
+    Task<OrderAnalyticsResponse> GetOrderAnalyticsAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Orders-and-revenue-over-time for products — same aggregation shape and
+    /// bucketing rule as GetOrderAnalyticsAsync, but sourced from OrderItem
+    /// (Revenue/UnitsSold are LineTotal/Quantity sums, not Order.Total) so it can
+    /// optionally scope to one product. Excludes Cancelled orders throughout. When
+    /// productId is given, also computes that product's all-time totals.
+    /// </summary>
+    Task<ProductAnalyticsResponse> GetProductAnalyticsAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        Guid? productId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>All-time, excludes Cancelled orders — powers the Products page's catalog overview.</summary>
+    Task<(int UnitsSold, decimal Revenue)> GetAllTimeProductSalesTotalsAsync(
+        Guid businessId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Distinct-buyer counts for the Overview page — aggregated in SQL via GROUP BY/HAVING, never by loading orders into memory.</summary>
+    Task<CustomerSnapshotResponse> GetCustomerSnapshotAsync(
+        Guid businessId,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default);
 }

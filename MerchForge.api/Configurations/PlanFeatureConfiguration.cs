@@ -30,11 +30,11 @@ public class PlanFeatureConfiguration
             .HasForeignKey(x => x.FeatureId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Limit stays null (no cap) for every feature except ai.image_editing,
-        // where it's read by the credit-reset job as "credits granted per billing
-        // period" - a new meaning layered on this previously-unused column, never
-        // consulted by HasPlanFeatureAsync's own binary "is this feature on the
-        // plan at all" check.
+        // Limit stays null (no cap) for every feature except ai.image_editing, where
+        // it's read two ways: by the credit-reset job as "credits granted per billing
+        // period", and by HasPlanFeatureAsync as "this is a metered feature, not an
+        // unlimited one" - a non-null Limit here means usage is tracked against the
+        // credit ledger even though it's bundled in the plan, not free-and-unlimited.
         builder.HasData(
             // Starter
             new PlanFeature { SubscriptionPlanId = SubscriptionPlanConfiguration.StarterMonthlyId, FeatureId = FeatureConfiguration.AiProductGenerationId, Limit = null },

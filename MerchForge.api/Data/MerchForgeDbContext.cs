@@ -43,6 +43,10 @@ namespace MerchForge.api.Data
 
         public DbSet<OrderItem> OrderItems => Set<OrderItem>();
 
+        public DbSet<OrderNote> OrderNotes => Set<OrderNote>();
+
+        public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
+
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         public DbSet<Customer> Customers => Set<Customer>();

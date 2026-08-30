@@ -31,6 +31,10 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<OrdersQueryRequest> _ordersQueryValidator;
         private readonly IValidator<UpdateOrderStatusRequest> _updateOrderStatusValidator;
         private readonly IValidator<UpdateOrderPaymentStatusRequest> _updateOrderPaymentStatusValidator;
+        private readonly IValidator<CreateOrderNoteRequest> _createOrderNoteValidator;
+        private readonly IValidator<OrderAnalyticsQueryRequest> _orderAnalyticsQueryValidator;
+        private readonly IValidator<ProductAnalyticsQueryRequest> _productAnalyticsQueryValidator;
+        private readonly IValidator<InventoryAnalyticsQueryRequest> _inventoryAnalyticsQueryValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
         private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
 
@@ -49,6 +53,10 @@ namespace MerchForge.api.Controllers
             IValidator<OrdersQueryRequest> ordersQueryValidator,
             IValidator<UpdateOrderStatusRequest> updateOrderStatusValidator,
             IValidator<UpdateOrderPaymentStatusRequest> updateOrderPaymentStatusValidator,
+            IValidator<CreateOrderNoteRequest> createOrderNoteValidator,
+            IValidator<OrderAnalyticsQueryRequest> orderAnalyticsQueryValidator,
+            IValidator<ProductAnalyticsQueryRequest> productAnalyticsQueryValidator,
+            IValidator<InventoryAnalyticsQueryRequest> inventoryAnalyticsQueryValidator,
             IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
             IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
         {
@@ -66,6 +74,10 @@ namespace MerchForge.api.Controllers
             _ordersQueryValidator = ordersQueryValidator;
             _updateOrderStatusValidator = updateOrderStatusValidator;
             _updateOrderPaymentStatusValidator = updateOrderPaymentStatusValidator;
+            _createOrderNoteValidator = createOrderNoteValidator;
+            _orderAnalyticsQueryValidator = orderAnalyticsQueryValidator;
+            _productAnalyticsQueryValidator = productAnalyticsQueryValidator;
+            _inventoryAnalyticsQueryValidator = inventoryAnalyticsQueryValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
             _subscribeToPlanValidator = subscribeToPlanValidator;
         }
@@ -159,6 +171,16 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("subscription/history")]
+        public async Task<ActionResult<List<SubscriptionHistoryEntryResponse>>> GetSubscriptionHistory(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetSubscriptionHistoryAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
         // ---- product CRUD ----
 
         /// <summary>
@@ -246,6 +268,42 @@ namespace MerchForge.api.Controllers
             var imageUrl = await _productImageService.SaveAsync(businessId, file, cancellationToken);
 
             return Ok(new ProductImageUploadResponse { ImageUrl = imageUrl });
+        }
+
+        [HttpGet("products/analytics/overview")]
+        public async Task<ActionResult<ProductCatalogOverviewResponse>> GetProductCatalogOverview(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetProductCatalogOverviewAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("products/analytics")]
+        public async Task<ActionResult<ProductAnalyticsResponse>> GetProductAnalytics(
+            Guid businessId,
+            [FromQuery] ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _productAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetProductAnalyticsAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("products/performance")]
+        public async Task<ActionResult<ProductPerformanceResponse>> GetProductPerformance(
+            Guid businessId,
+            [FromQuery] ProductAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _productAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetProductPerformanceAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
         }
 
         // ---- website template requests ----
@@ -340,6 +398,7 @@ namespace MerchForge.api.Controllers
         public async Task<ActionResult<List<StockMovementResponse>>> GetRecentStockMovements(
             Guid businessId,
             [FromQuery] int take,
+            [FromQuery] Guid? productId,
             CancellationToken cancellationToken)
         {
             // Same "clamp rather than validate" treatment as an unset paging size
@@ -347,7 +406,7 @@ namespace MerchForge.api.Controllers
             var boundedTake = take is < 1 or > 100 ? 20 : take;
 
             var response = await _businessDashboardService.GetRecentStockMovementsAsync(
-                businessId, boundedTake, cancellationToken);
+                businessId, boundedTake, productId, cancellationToken);
 
             return Ok(response);
         }
@@ -366,6 +425,32 @@ namespace MerchForge.api.Controllers
             return NoContent();
         }
 
+        [HttpGet("inventory/analytics")]
+        public async Task<ActionResult<InventoryAnalyticsResponse>> GetInventoryAnalytics(
+            Guid businessId,
+            [FromQuery] InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _inventoryAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetInventoryAnalyticsAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("inventory/performance")]
+        public async Task<ActionResult<InventoryPerformanceResponse>> GetInventoryPerformance(
+            Guid businessId,
+            [FromQuery] InventoryAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _inventoryAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetInventoryPerformanceAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
         // ---- orders ----
 
         [HttpGet("orders")]
@@ -377,6 +462,16 @@ namespace MerchForge.api.Controllers
             await _ordersQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
 
             var response = await _businessDashboardService.GetOrdersAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/stats")]
+        public async Task<ActionResult<OrderStatsResponse>> GetOrderStats(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetOrderStatsAsync(businessId, cancellationToken);
 
             return Ok(response);
         }
@@ -401,8 +496,85 @@ namespace MerchForge.api.Controllers
         {
             await _updateOrderStatusValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+            var changedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(changedByUserId, out var parsedChangedByUserId))
+            {
+                return Unauthorized();
+            }
+
             var response = await _businessDashboardService.UpdateOrderStatusAsync(
-                businessId, orderId, request.Status, cancellationToken);
+                businessId, orderId, request.Status, parsedChangedByUserId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/{orderId:guid}/notes")]
+        public async Task<ActionResult<List<OrderNoteResponse>>> GetOrderNotes(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetOrderNotesAsync(businessId, orderId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("orders/{orderId:guid}/notes")]
+        public async Task<ActionResult<OrderNoteResponse>> AddOrderNote(
+            Guid businessId,
+            Guid orderId,
+            [FromBody] CreateOrderNoteRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createOrderNoteValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var createdByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(createdByUserId, out var parsedCreatedByUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _businessDashboardService.AddOrderNoteAsync(
+                businessId, orderId, request.Content, parsedCreatedByUserId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/{orderId:guid}/status-history")]
+        public async Task<ActionResult<List<OrderStatusHistoryEntryResponse>>> GetOrderStatusHistory(
+            Guid businessId,
+            Guid orderId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _businessDashboardService.GetOrderStatusHistoryAsync(businessId, orderId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("orders/analytics")]
+        public async Task<ActionResult<OrderAnalyticsResponse>> GetOrderAnalytics(
+            Guid businessId,
+            [FromQuery] OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _orderAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetOrderAnalyticsAsync(businessId, query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/snapshot")]
+        public async Task<ActionResult<CustomerSnapshotResponse>> GetCustomerSnapshot(
+            Guid businessId,
+            [FromQuery] OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _orderAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _businessDashboardService.GetCustomerSnapshotAsync(businessId, query, cancellationToken);
 
             return Ok(response);
         }

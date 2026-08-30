@@ -11,6 +11,8 @@ public class BusinessOrderResponse
 
     public string CustomerEmail { get; set; } = string.Empty;
 
+    public string? CustomerPhone { get; set; }
+
     public OrderStatus Status { get; set; }
 
     public PaymentStatus PaymentStatus { get; set; }

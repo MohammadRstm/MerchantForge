@@ -4,5 +4,7 @@ public enum ProductSortField
 {
     CreatedAt,
     Title,
-    Price
+    Price,
+    StockQuantity,
+    UpdatedAt,
 }

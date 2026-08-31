@@ -12,6 +12,7 @@ using MerchForge.api.Exceptions;
 using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Jobs.Subscriptions;
 using MerchForge.api.Models;
+using MerchForge.api.RateLimiting;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth;
@@ -44,12 +45,14 @@ using MerchForge.api.Services.Subscription.interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -176,6 +179,65 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod()
             .AllowCredentials();
     });
+});
+
+// Rate limiting. Every policy is partitioned by an identity/resource boundary
+// appropriate to what it protects — never one global limit — so that throttling
+// one caller/business/storefront can never affect another. See
+// RateLimitPartitions.cs for the partition-key logic itself and why each policy
+// reads the boundary it does.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        return ValueTask.CompletedTask;
+    };
+
+    // Pre-authentication endpoints: login, signup, refresh, the one-time
+    // SuperAdmin bootstrap. Partitioned per client IP — there is no authenticated
+    // identity yet — conservative enough to slow down credential
+    // stuffing/brute-force attempts without blocking normal mistyped-password
+    // retries.
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetClientIpPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    // AI endpoints call paid external providers. Partitioned per business (never
+    // globally, never per IP) so one business's burst — even one on a
+    // plan-unlimited tier, where the credit gate itself doesn't apply — can never
+    // exhaust shared thread/connection capacity or degrade the app for every
+    // other business.
+    options.AddPolicy("ai", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetBusinessPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    // Public storefront catalog reads. Partitioned per business so one
+    // storefront being scraped or hammered can't degrade another business's
+    // storefront traffic.
+    options.AddPolicy("storefront", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetStorefrontBusinessPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -328,6 +390,15 @@ builder.Services.AddScoped<IStorefrontService, StorefrontService>();
 // Onboarding Services
 builder.Services.AddScoped<IDomainService, DomainService>();
 
+// Every AI provider HttpClient below shares this budget, replacing HttpClient's
+// 100-second default. A hung provider request would otherwise hold a request
+// thread/connection open for up to 100s with no feature-specific limit; on
+// timeout, the existing broad catch in each AI service (ProductAiService,
+// ImageEditingService, ImageSuggestionService) already normalizes the resulting
+// TaskCanceledException into a clean, user-facing "try again" error rather than
+// leaking it as a generic 500.
+var aiProviderTimeout = TimeSpan.FromSeconds(30);
+
 // AI product creation.
 //
 // The provider is chosen once, here: when no API key is configured the app
@@ -341,8 +412,10 @@ var aiOptions = builder.Configuration.GetSection(AiOptions.SectionName).Get<AiOp
 
 if (aiOptions.IsConfigured)
 {
-    builder.Services.AddHttpClient<IProductAiConversationClient, OpenAiProductAiConversationClient>();
-    builder.Services.AddHttpClient<IAiTranscriptionService, OpenAiTranscriptionService>();
+    builder.Services.AddHttpClient<IProductAiConversationClient, OpenAiProductAiConversationClient>(
+        client => client.Timeout = aiProviderTimeout);
+    builder.Services.AddHttpClient<IAiTranscriptionService, OpenAiTranscriptionService>(
+        client => client.Timeout = aiProviderTimeout);
 }
 else
 {
@@ -364,8 +437,10 @@ var geminiOptions = builder.Configuration.GetSection(GeminiOptions.SectionName).
 
 if (geminiOptions.IsConfigured)
 {
-    builder.Services.AddHttpClient<IProductImageEditingClient, GeminiImageEditingClient>();
-    builder.Services.AddHttpClient<IProductImageSuggestionClient, GeminiImageSuggestionClient>();
+    builder.Services.AddHttpClient<IProductImageEditingClient, GeminiImageEditingClient>(
+        client => client.Timeout = aiProviderTimeout);
+    builder.Services.AddHttpClient<IProductImageSuggestionClient, GeminiImageSuggestionClient>(
+        client => client.Timeout = aiProviderTimeout);
 }
 else
 {
@@ -581,6 +656,7 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 

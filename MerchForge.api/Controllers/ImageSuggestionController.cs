@@ -5,6 +5,7 @@ using MerchForge.api.DTOs.ProductAi;
 using MerchForge.api.Services.ImageSuggestion.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MerchForge.api.Controllers
 {
@@ -20,6 +21,7 @@ namespace MerchForge.api.Controllers
     [ApiController]
     [Authorize(Policy = AuthorizationPolicies.BusinessOwner)]
     [Authorize(Policy = AuthorizationPolicies.AiImageEditing)]
+    [EnableRateLimiting("ai")]
     public class ImageSuggestionController : ControllerBase
     {
         private readonly IImageSuggestionService _imageSuggestionService;

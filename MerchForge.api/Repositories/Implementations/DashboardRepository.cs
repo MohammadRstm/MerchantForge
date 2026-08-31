@@ -123,6 +123,30 @@ namespace MerchForge.api.Repositories.Implementations
                 .CountAsync(cancellationToken);
         }
 
+        public async Task<int> CountOrdersAsync(CancellationToken cancellationToken = default)
+        {
+            return await _db.Orders.CountAsync(o => o.Status != OrderStatus.Cancelled, cancellationToken);
+        }
+
+        public async Task<int> CountBusinessesCreatedSinceAsync(DateTime since, CancellationToken cancellationToken = default)
+        {
+            return await _db.Businesses.CountAsync(b => b.CreatedAt >= since, cancellationToken);
+        }
+
+        public async Task<List<CurrencyTotalResponse>> GetRecordedOrderRevenueByCurrencyAsync(CancellationToken cancellationToken = default)
+        {
+            return await _db.Orders
+                .Where(o => o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => o.Currency)
+                .Select(g => new CurrencyTotalResponse
+                {
+                    Currency = g.Key,
+                    Total = g.Sum(o => o.Total),
+                    OrderCount = g.Count(),
+                })
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<List<DashboardBusinessResponse>> GetRecentBusinessesAsync(int take, CancellationToken cancellationToken = default)
         {
             return await _db.Businesses
@@ -271,15 +295,17 @@ namespace MerchForge.api.Repositories.Implementations
 
             var totalCount = await baseQuery.CountAsync(cancellationToken);
 
-            var projected = baseQuery.Select(b => new DashboardBusinessResponse
+            var projected = baseQuery.Select(b => new
             {
-                Id = b.Id,
-                Name = b.Name,
+                b.Id,
+                b.Name,
                 OwnerFullName = b.Owner.FirstName + " " + b.Owner.LastName,
                 OwnerEmail = b.Owner.Email,
+                DomainName = b.BusinessDomain != null ? b.BusinessDomain.Name : null,
                 MemberCount = b.Members.Count,
                 ProductCount = b.Products.Count,
-                CreatedAt = b.CreatedAt,
+                b.Currency,
+                b.CreatedAt,
             });
 
             projected = query.SortBy switch
@@ -301,10 +327,67 @@ namespace MerchForge.api.Repositories.Implementations
                     : projected.OrderBy(x => x.CreatedAt),
             };
 
-            var items = await projected
+            var page = await projected
                 .Skip((query.Page - 1) * query.PageSize)
                 .Take(query.PageSize)
                 .ToListAsync(cancellationToken);
+
+            // Order/revenue and plan info are batch-fetched for just this page's
+            // businesses (2 extra bounded queries, not one per row) - the same
+            // pattern GetUsersAsync already uses for memberships/sessions below.
+            var businessIds = page.Select(b => b.Id).ToList();
+
+            var orderAggregates = (await _db.Orders
+                .Where(o => businessIds.Contains(o.BusinessId) && o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => o.BusinessId)
+                .Select(g => new
+                {
+                    BusinessId = g.Key,
+                    Count = g.Count(),
+                    Revenue = g.Sum(o => o.Total),
+                    LastOrderAt = g.Max(o => o.CreatedAt),
+                })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(x => x.BusinessId);
+
+            // Fetched, not translated to SQL as "latest per business" - grouped and
+            // taken first (already CreatedAt-descending) in memory instead, since
+            // enum properties like Status/BillingInterval can't be .ToString()'d
+            // inside a query that still needs to execute in SQL.
+            var latestSubscriptionByBusiness = (await _db.Subscriptions
+                .Where(s => businessIds.Contains(s.BusinessId))
+                .Include(s => s.SubscriptionPlan)
+                .OrderByDescending(s => s.CreatedAt)
+                .ToListAsync(cancellationToken))
+                .GroupBy(s => s.BusinessId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var items = page
+                .Select(b =>
+                {
+                    var hasOrders = orderAggregates.TryGetValue(b.Id, out var orders);
+                    var hasSubscription = latestSubscriptionByBusiness.TryGetValue(b.Id, out var subscription);
+
+                    return new DashboardBusinessResponse
+                    {
+                        Id = b.Id,
+                        Name = b.Name,
+                        OwnerFullName = b.OwnerFullName,
+                        OwnerEmail = b.OwnerEmail,
+                        DomainName = b.DomainName,
+                        MemberCount = b.MemberCount,
+                        ProductCount = b.ProductCount,
+                        OrderCount = hasOrders ? orders!.Count : 0,
+                        RecordedRevenue = hasOrders ? orders!.Revenue : 0m,
+                        RevenueCurrency = b.Currency,
+                        LastOrderAt = hasOrders ? orders!.LastOrderAt : null,
+                        PlanName = hasSubscription ? subscription!.SubscriptionPlan.Name : null,
+                        BillingInterval = hasSubscription ? subscription!.SubscriptionPlan.BillingInterval.ToString() : null,
+                        SubscriptionStatus = hasSubscription ? subscription!.Status.ToString() : null,
+                        CreatedAt = b.CreatedAt,
+                    };
+                })
+                .ToList();
 
             return (items, totalCount);
         }
@@ -456,23 +539,6 @@ namespace MerchForge.api.Repositories.Implementations
                 .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
         }
 
-        public async Task<List<BusinessFeatureCreditResponse>> GetBusinessFeatureCreditsAsync(
-            Guid businessId,
-            CancellationToken cancellationToken = default)
-        {
-            return await _db.BusinessFeatureCredits
-                .AsNoTracking()
-                .Where(fc => fc.BusinessId == businessId)
-                .Select(fc => new BusinessFeatureCreditResponse
-                {
-                    FeatureKey = fc.Feature.Key,
-                    FeatureName = fc.Feature.Name,
-                    CreditsRemaining = fc.CreditsRemaining,
-                    CreditsGrantedTotal = fc.CreditsGrantedTotal,
-                })
-                .ToListAsync(cancellationToken);
-        }
-
         // ---- website templates ----
 
         public async Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default)
@@ -560,6 +626,16 @@ namespace MerchForge.api.Repositories.Implementations
             CancellationToken cancellationToken = default)
         {
             var baseQuery = _db.Customers.AsQueryable();
+
+            if (query.BusinessId.HasValue)
+            {
+                var customerIdsForBusiness = _db.Orders
+                    .Where(o => o.BusinessId == query.BusinessId.Value && o.CustomerId != null)
+                    .Select(o => o.CustomerId!.Value)
+                    .Distinct();
+
+                baseQuery = baseQuery.Where(c => customerIdsForBusiness.Contains(c.Id));
+            }
 
             if (!string.IsNullOrWhiteSpace(query.Search))
             {

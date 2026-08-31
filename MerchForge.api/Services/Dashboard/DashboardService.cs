@@ -3,6 +3,7 @@ using Hangfire;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.DTOs.Subscriptions;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.BusinessDashboard;
@@ -14,16 +15,21 @@ using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Dashboard.interfaces;
 using MerchForge.api.Services.Onboarding.interfaces;
+using MerchForge.api.Services.Subscription.interfaces;
 
 namespace MerchForge.api.Services.Dashboard
 {
     public class DashboardService : IDashboardService
     {
         private const int StatsTimeSeriesMonths = 6;
+        private const int BusinessesAddedRecentlyWindowDays = 30;
 
         private readonly IDashboardRepository _dashboardRepository;
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
+        private readonly IOrderRepository _orderRepository;
+        private readonly IFeatureCreditService _featureCreditService;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
         private readonly IWebsiteTemplateImageService _websiteTemplateImageService;
@@ -34,6 +40,9 @@ namespace MerchForge.api.Services.Dashboard
             IDashboardRepository dashboardRepository,
             IBusinessDashboardRepository businessDashboardRepository,
             ISubscriptionRepository subscriptionRepository,
+            ISubscriptionPlanRepository subscriptionPlanRepository,
+            IOrderRepository orderRepository,
+            IFeatureCreditService featureCreditService,
             IRefreshTokenRepository refreshTokenRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
             IWebsiteTemplateImageService websiteTemplateImageService,
@@ -43,6 +52,9 @@ namespace MerchForge.api.Services.Dashboard
             _dashboardRepository = dashboardRepository;
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
+            _subscriptionPlanRepository = subscriptionPlanRepository;
+            _orderRepository = orderRepository;
+            _featureCreditService = featureCreditService;
             _refreshTokenRepository = refreshTokenRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
             _websiteTemplateImageService = websiteTemplateImageService;
@@ -65,6 +77,10 @@ namespace MerchForge.api.Services.Dashboard
             var (pendingRequests, completedRequests) =
                 await _dashboardRepository.GetWebsiteTemplateRequestStatusCountsAsync(cancellationToken);
             var activeSessionCount = await _dashboardRepository.CountActiveSessionsAsync(cancellationToken);
+            var totalOrders = await _dashboardRepository.CountOrdersAsync(cancellationToken);
+            var businessesAddedRecently = await _dashboardRepository.CountBusinessesCreatedSinceAsync(
+                now.AddDays(-BusinessesAddedRecentlyWindowDays), cancellationToken);
+            var recordedOrderRevenue = await _dashboardRepository.GetRecordedOrderRevenueByCurrencyAsync(cancellationToken);
 
             var usersBySystemRole = await _dashboardRepository.GetUserCountsBySystemRoleAsync(cancellationToken);
             var businessUsersByRole = await _dashboardRepository.GetBusinessUserCountsByRoleAsync(cancellationToken);
@@ -85,6 +101,9 @@ namespace MerchForge.api.Services.Dashboard
                 PendingWebsiteTemplateRequests = pendingRequests,
                 CompletedWebsiteTemplateRequests = completedRequests,
                 ActiveSessionCount = activeSessionCount,
+                TotalOrders = totalOrders,
+                BusinessesAddedRecently = businessesAddedRecently,
+                RecordedOrderRevenue = recordedOrderRevenue,
 
                 UsersBySystemRole = usersBySystemRole,
                 BusinessUsersByRole = businessUsersByRole,
@@ -167,7 +186,11 @@ namespace MerchForge.api.Services.Dashboard
             var draftsByStatus = await _businessDashboardRepository.GetProductDraftsByStatusAsync(businessId, cancellationToken);
             var requests = await _websiteTemplateRequestRepository.GetForBusinessAsync(businessId, cancellationToken);
             var subscription = await _subscriptionRepository.GetLatestSubscriptionWithPlanFeaturesAsync(businessId, cancellationToken);
-            var featureCredits = await _dashboardRepository.GetBusinessFeatureCreditsAsync(businessId, cancellationToken);
+            var featureCredits = await _featureCreditService.GetOverviewAsync(businessId, cancellationToken);
+
+            int? activeSubscriberCountForPlan = subscription is null
+                ? null
+                : await _subscriptionPlanRepository.CountActiveSubscribersAsync(subscription.SubscriptionPlanId, cancellationToken);
 
             return new BusinessDetailResponse
             {
@@ -179,6 +202,17 @@ namespace MerchForge.api.Services.Dashboard
                 Locale = business.Locale,
                 ContactEmail = business.ContactEmail,
                 ContactPhone = business.ContactPhone,
+                Tagline = business.Tagline,
+                WhatsAppNumber = business.WhatsAppNumber,
+                AddressLine1 = business.AddressLine1,
+                AddressLine2 = business.AddressLine2,
+                City = business.City,
+                State = business.State,
+                PostalCode = business.PostalCode,
+                Country = business.Country,
+                SocialLinks = ReadSocialLinks(business.SocialLinks),
+                BusinessHours = ReadBusinessHours(business.BusinessHours),
+                PrimaryColor = business.PrimaryColor,
                 BusinessDomainId = business.BusinessDomainId,
                 DomainName = business.BusinessDomain?.Name,
                 CreatedAt = business.CreatedAt,
@@ -206,10 +240,21 @@ namespace MerchForge.api.Services.Dashboard
                 WebsiteTemplateRequests = requests,
 
                 Subscription = subscription is null ? null : MapSubscription(subscription),
+                ActiveSubscriberCountForPlan = activeSubscriberCountForPlan,
 
                 FeatureCredits = featureCredits,
             };
         }
+
+        private static SocialLinksDto? ReadSocialLinks(JsonDocument? document) =>
+            document is null
+                ? null
+                : JsonSerializer.Deserialize<SocialLinksDto>(document.RootElement.GetRawText());
+
+        private static BusinessHoursDto? ReadBusinessHours(JsonDocument? document) =>
+            document is null
+                ? null
+                : JsonSerializer.Deserialize<BusinessHoursDto>(document.RootElement.GetRawText());
 
         private static BusinessSubscriptionResponse MapSubscription(Models.Subscription subscription)
         {
@@ -248,6 +293,58 @@ namespace MerchForge.api.Services.Dashboard
             {
                 RevokedSessionsCount = revokedCount
             };
+        }
+
+        // ---- business analytics (reuses the same repository methods the Owner Dashboard calls) ----
+
+        public async Task<OrderAnalyticsResponse> GetBusinessOrderAnalyticsAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetOrderAnalyticsAsync(businessId, from, to, cancellationToken);
+        }
+
+        public async Task<List<BusinessOrderResponse>> GetBusinessRecentOrdersAsync(
+            Guid businessId,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+        {
+            var (items, _) = await _orderRepository.GetOrdersAsync(
+                businessId,
+                new OrdersQueryRequest { Page = 1, PageSize = pageSize },
+                cancellationToken);
+
+            return items;
+        }
+
+        public async Task<InventorySummaryResponse> GetBusinessInventorySummaryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            var threshold = await _businessDashboardRepository.GetLowStockThresholdAsync(businessId, cancellationToken)
+                ?? throw new BusinessNotFoundException();
+
+            return await _businessDashboardRepository.GetInventorySummaryAsync(businessId, threshold, cancellationToken);
+        }
+
+        public async Task<ProductPerformanceResponse> GetBusinessProductPerformanceAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardRepository.GetProductPerformanceAsync(businessId, from, to, cancellationToken);
+        }
+
+        public async Task<CustomerSnapshotResponse> GetBusinessCustomerSnapshotAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default)
+        {
+            return await _orderRepository.GetCustomerSnapshotAsync(businessId, from, to, cancellationToken);
         }
 
         public async Task<List<ProductFormFieldResponse>> GetBusinessMetadataShapeAsync(

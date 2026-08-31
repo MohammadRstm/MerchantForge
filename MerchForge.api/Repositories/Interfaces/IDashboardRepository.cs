@@ -30,6 +30,14 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<int> CountActiveSessionsAsync(CancellationToken cancellationToken = default);
 
+        /// <summary>Platform-wide, excludes Cancelled orders.</summary>
+        Task<int> CountOrdersAsync(CancellationToken cancellationToken = default);
+
+        Task<int> CountBusinessesCreatedSinceAsync(DateTime since, CancellationToken cancellationToken = default);
+
+        /// <summary>Recorded order totals grouped by currency — see CurrencyTotalResponse's own doc comment for why.</summary>
+        Task<List<CurrencyTotalResponse>> GetRecordedOrderRevenueByCurrencyAsync(CancellationToken cancellationToken = default);
+
         Task<List<DashboardBusinessResponse>> GetRecentBusinessesAsync(int take, CancellationToken cancellationToken = default);
 
         Task<List<DateTime>> GetBusinessCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
@@ -51,10 +59,6 @@ namespace MerchForge.api.Repositories.Interfaces
 
         /// <summary>Loads a tracked entity for the metadata-shape mutation.</summary>
         Task<Business?> GetTrackedBusinessAsync(Guid businessId, CancellationToken cancellationToken = default);
-
-        Task<List<BusinessFeatureCreditResponse>> GetBusinessFeatureCreditsAsync(
-            Guid businessId,
-            CancellationToken cancellationToken = default);
 
         /// <summary>The active fields a business's domain allows products to carry — what a metadata-shape edit may choose keys from.</summary>
         Task<List<ProductAttributeDefinition>> GetActiveAttributeDefinitionsForDomainAsync(

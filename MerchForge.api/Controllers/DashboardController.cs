@@ -20,6 +20,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UsersQueryRequest> _usersQueryValidator;
         private readonly IValidator<BusinessesQueryRequest> _businessesQueryValidator;
         private readonly IValidator<CustomersQueryRequest> _customersQueryValidator;
+        private readonly IValidator<OrderAnalyticsQueryRequest> _orderAnalyticsQueryValidator;
         private readonly IValidator<CreateWebsiteTemplateRequest> _createWebsiteTemplateValidator;
         private readonly IValidator<UpdateWebsiteTemplateRequest> _updateWebsiteTemplateValidator;
         private readonly IValidator<WebsiteTemplateRequestsQueryRequest> _websiteTemplateRequestsQueryValidator;
@@ -35,6 +36,7 @@ namespace MerchForge.api.Controllers
             IValidator<UsersQueryRequest> usersQueryValidator,
             IValidator<BusinessesQueryRequest> businessesQueryValidator,
             IValidator<CustomersQueryRequest> customersQueryValidator,
+            IValidator<OrderAnalyticsQueryRequest> orderAnalyticsQueryValidator,
             IValidator<CreateWebsiteTemplateRequest> createWebsiteTemplateValidator,
             IValidator<UpdateWebsiteTemplateRequest> updateWebsiteTemplateValidator,
             IValidator<WebsiteTemplateRequestsQueryRequest> websiteTemplateRequestsQueryValidator,
@@ -49,6 +51,7 @@ namespace MerchForge.api.Controllers
             _usersQueryValidator = usersQueryValidator;
             _businessesQueryValidator = businessesQueryValidator;
             _customersQueryValidator = customersQueryValidator;
+            _orderAnalyticsQueryValidator = orderAnalyticsQueryValidator;
             _updateWebsiteTemplateValidator = updateWebsiteTemplateValidator;
             _createWebsiteTemplateValidator = createWebsiteTemplateValidator;
             _websiteTemplateRequestsQueryValidator = websiteTemplateRequestsQueryValidator;
@@ -129,6 +132,72 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _dashboardService.RevokeBusinessSessionsAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- business analytics ----
+
+        [HttpGet("businesses/{businessId:guid}/orders/analytics")]
+        public async Task<ActionResult<OrderAnalyticsResponse>> GetBusinessOrderAnalytics(
+            Guid businessId,
+            [FromQuery] OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _orderAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetBusinessOrderAnalyticsAsync(
+                businessId, query.From, query.To, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/{businessId:guid}/orders/recent")]
+        public async Task<ActionResult<List<BusinessOrderResponse>>> GetBusinessRecentOrders(
+            Guid businessId,
+            [FromQuery] int pageSize,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetBusinessRecentOrdersAsync(
+                businessId, pageSize is > 0 and <= 50 ? pageSize : 10, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/{businessId:guid}/inventory/summary")]
+        public async Task<ActionResult<InventorySummaryResponse>> GetBusinessInventorySummary(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetBusinessInventorySummaryAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/{businessId:guid}/products/performance")]
+        public async Task<ActionResult<ProductPerformanceResponse>> GetBusinessProductPerformance(
+            Guid businessId,
+            [FromQuery] OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _orderAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetBusinessProductPerformanceAsync(
+                businessId, query.From, query.To, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/{businessId:guid}/customers/snapshot")]
+        public async Task<ActionResult<CustomerSnapshotResponse>> GetBusinessCustomerSnapshot(
+            Guid businessId,
+            [FromQuery] OrderAnalyticsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _orderAnalyticsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetBusinessCustomerSnapshotAsync(
+                businessId, query.From, query.To, cancellationToken);
 
             return Ok(response);
         }

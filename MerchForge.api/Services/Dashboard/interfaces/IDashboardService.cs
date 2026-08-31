@@ -30,6 +30,35 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             Guid businessId,
             CancellationToken cancellationToken = default);
 
+        // ---- business analytics (reuses the same repository methods the Owner Dashboard calls) ----
+
+        Task<OrderAnalyticsResponse> GetBusinessOrderAnalyticsAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
+        Task<List<BusinessOrderResponse>> GetBusinessRecentOrdersAsync(
+            Guid businessId,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+
+        Task<InventorySummaryResponse> GetBusinessInventorySummaryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<ProductPerformanceResponse> GetBusinessProductPerformanceAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
+        Task<CustomerSnapshotResponse> GetBusinessCustomerSnapshotAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
         Task<List<ProductFormFieldResponse>> GetBusinessMetadataShapeAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);

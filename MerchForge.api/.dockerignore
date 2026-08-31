@@ -1,0 +1,11 @@
+bin/
+obj/
+**/bin/
+**/obj/
+.vs/
+*.user
+wwwroot/uploads/
+appsettings.Development.json
+.env
+.env.*
+!.env.example

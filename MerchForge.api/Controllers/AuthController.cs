@@ -2,6 +2,7 @@ using MerchForge.api.Configurations;
 using MerchForge.api.DTOs.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using FluentValidation;
 using MerchForge.api.Validators.Auth;
 using Microsoft.Extensions.Options;
@@ -15,21 +16,25 @@ namespace MerchForge.api.Controllers
         private readonly IAuthService _authService;
         private readonly IValidator<LoginRequest> _loginValidator;
         private readonly IValidator<CompleteBusinessOwnerRegistrationRequest> _completeBusinessOwnerRegistrationRequestValidator;
+        private readonly IValidator<RegisterSuperAdminRequest> _registerSuperAdminValidator;
         private readonly RefreshTokenOptions _refreshTokenOptions;
 
         public AuthController(
             IAuthService authService,
             IValidator<LoginRequest> loginValidator,
             IValidator<CompleteBusinessOwnerRegistrationRequest> completeBusinessOwnerRegistrationRequestValidator,
+            IValidator<RegisterSuperAdminRequest> registerSuperAdminValidator,
             IOptions<RefreshTokenOptions> refreshTokenOptions)
         {
             _authService = authService;
             _loginValidator = loginValidator;
             _completeBusinessOwnerRegistrationRequestValidator = completeBusinessOwnerRegistrationRequestValidator;
+            _registerSuperAdminValidator = registerSuperAdminValidator;
             _refreshTokenOptions = refreshTokenOptions.Value;
         }
 
         [HttpPost("login")]
+        [EnableRateLimiting("auth")]
         public async Task<ActionResult<LoginResponse>> Login(
             [FromBody] LoginRequest request,
             CancellationToken cancellationToken)
@@ -46,10 +51,13 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("register/superAdmin")]
+        [EnableRateLimiting("auth")]
         public async Task<ActionResult<AuthResponse>> RegsiterSuperAdmin(
             [FromBody] RegisterSuperAdminRequest request,
             CancellationToken cancellationToken)
         {
+            await _registerSuperAdminValidator.ValidateAndThrowAsync(request, cancellationToken);
+
             var (response, refreshToken) = await _authService.RegisterSuperAdmin(
                 request,
                 cancellationToken);
@@ -60,6 +68,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("refresh")]
+        [EnableRateLimiting("auth")]
         public async Task<ActionResult<LoginResponse>> Refresh(
             CancellationToken cancellationToken)
         {

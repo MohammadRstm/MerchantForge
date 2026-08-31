@@ -10,6 +10,7 @@ using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
 using MerchForge.api.Services.Onboarding.interfaces;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace MerchForge.UnitTests.Services;
@@ -43,7 +44,8 @@ public class AuthServiceTests
             _refreshTokenService.Object,
             _invitationService.Object,
             _businessRepository.Object,
-            _domainService.Object);
+            _domainService.Object,
+            NullLogger<AuthService>.Instance);
 
         _jwtService.Setup(s => s.GenerateAccessToken(It.IsAny<User>())).ReturnsAsync("access-token");
         _jwtService.Setup(s => s.GetExpirationTime()).Returns(DateTime.UtcNow.AddMinutes(15));

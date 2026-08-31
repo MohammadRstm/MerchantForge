@@ -26,19 +26,22 @@ public class CustomerAuthService : ICustomerAuthService
     // of "hash-and-store a single-use opaque token" logic rather than adding a
     // repository layer around it.
     private readonly MerchForgeDbContext _db;
+    private readonly ILogger<CustomerAuthService> _logger;
 
     public CustomerAuthService(
         ICustomerRepository customerRepository,
         IPasswordHasher<Customer> passwordHasher,
         ICustomerJwtService customerJwtService,
         ICustomerRefreshTokenService customerRefreshTokenService,
-        MerchForgeDbContext db)
+        MerchForgeDbContext db,
+        ILogger<CustomerAuthService> logger)
     {
         _customerRepository = customerRepository;
         _passwordHasher = passwordHasher;
         _customerJwtService = customerJwtService;
         _customerRefreshTokenService = customerRefreshTokenService;
         _db = db;
+        _logger = logger;
     }
 
     public async Task<(CustomerSessionResponse Response, string RefreshToken)> SignupAsync(
@@ -79,6 +82,7 @@ public class CustomerAuthService : ICustomerAuthService
 
         if (customer is null)
         {
+            _logger.LogWarning("Failed customer login attempt for {Email}.", request.Email);
             throw new InvalidCustomerCredentialsException();
         }
 
@@ -86,8 +90,11 @@ public class CustomerAuthService : ICustomerAuthService
 
         if (result == PasswordVerificationResult.Failed)
         {
+            _logger.LogWarning("Failed customer login attempt for {Email}.", request.Email);
             throw new InvalidCustomerCredentialsException();
         }
+
+        _logger.LogInformation("Customer login succeeded for {Email}.", request.Email);
 
         var (refreshToken, _) = await _customerRefreshTokenService.CreateAsync(customer, cancellationToken);
 
@@ -104,6 +111,7 @@ public class CustomerAuthService : ICustomerAuthService
 
         if (tokenEntity is null)
         {
+            _logger.LogWarning("Customer refresh attempted with an invalid or expired refresh token.");
             throw new InvalidCustomerRefreshTokenException();
         }
 
@@ -126,6 +134,8 @@ public class CustomerAuthService : ICustomerAuthService
         }
 
         await _customerRefreshTokenService.RevokeAsync(tokenEntity, cancellationToken);
+
+        _logger.LogInformation("Customer session revoked (logout) for customer {CustomerId}.", tokenEntity.CustomerId);
     }
 
     public async Task<CustomerSessionResponse> RedeemExchangeCodeAsync(

@@ -11,6 +11,7 @@ using MerchForge.api.DTOs.Error;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Exceptions.Auth;
+using MerchForge.api.HealthChecks;
 using MerchForge.api.Jobs.Subscriptions;
 using MerchForge.api.Models;
 using MerchForge.api.RateLimiting;
@@ -111,6 +112,9 @@ builder.Services.AddDbContext<MerchForgeDbContext>(options =>
         mySqlOptions => mySqlOptions.UseMicrosoftJson());
 });
 
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database");
+
 // Add job queue
 // Hangfire.MySqlStorage relies on MySQL user-defined variables (e.g. @rownum) internally,
 // so its connection string must opt in to them explicitly.
@@ -194,6 +198,23 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = (context, cancellationToken) =>
     {
         context.HttpContext.Response.Headers.RetryAfter = "60";
+
+        // Logged only for the "auth" policy - a rejected login/registration
+        // attempt is a real security-relevant event worth an audit trail; ai/
+        // storefront throttling is just capacity protection, not worth one.
+        var policyName = context.HttpContext.GetEndpoint()?.Metadata
+            .GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+
+        if (policyName == "auth")
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            var clientIp = RateLimitPartitions.GetClientIpPartitionKey(context.HttpContext);
+
+            logger.LogWarning(
+                "Rate limit exceeded on the auth policy from {ClientIp} for {Path}.",
+                clientIp,
+                context.HttpContext.Request.Path);
+        }
 
         // Same ApiErrorResponse shape GlobalExceptionHandler already uses for every
         // other error, so the frontend's existing error parsing picks this up with
@@ -674,6 +695,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 // Rolls forward any Active subscription whose billing period has ended and
 // resets its ai.image_editing credits - the only recurring job in the app, so

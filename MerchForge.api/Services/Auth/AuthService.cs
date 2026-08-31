@@ -25,6 +25,7 @@ public class AuthService : IAuthService
     private readonly IInvitationService _invitationService;
     private readonly IBusinessRepository _businessRepository;
     private readonly IDomainService _domainService;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUserRepository userRepository,
@@ -33,7 +34,8 @@ public class AuthService : IAuthService
         IRefreshTokenService refreshTokenService,
         IInvitationService invitationService,
         IBusinessRepository businessRepository,
-        IDomainService domainService)
+        IDomainService domainService,
+        ILogger<AuthService> logger)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
@@ -42,6 +44,7 @@ public class AuthService : IAuthService
         _invitationService = invitationService;
         _businessRepository = businessRepository;
         _domainService = domainService;
+        _logger = logger;
     }
     public async Task<(LoginResponse Response, string RefreshToken)> LoginAsync(
         LoginRequest request,
@@ -51,6 +54,10 @@ public class AuthService : IAuthService
 
         if (user is null)
         {
+            // Same log line either way (see below) - never confirms whether the
+            // email itself exists, matching the identical exception both branches
+            // already throw.
+            _logger.LogWarning("Failed login attempt for {Email}.", request.Email);
             throw new InvalidCredentialsException();
         }
 
@@ -62,8 +69,11 @@ public class AuthService : IAuthService
 
         if (result == PasswordVerificationResult.Failed)
         {
+            _logger.LogWarning("Failed login attempt for {Email}.", request.Email);
             throw new InvalidCredentialsException();
         }
+
+        _logger.LogInformation("Login succeeded for {Email}.", request.Email);
 
         var (refreshToken, _) =
               await _refreshTokenService.CreateAsync(
@@ -104,6 +114,10 @@ public class AuthService : IAuthService
 
         if(refreshTokenEntity is null)
         {
+            // Never logs the token itself - an invalid/expired/reused refresh
+            // token is exactly the kind of event worth a record of, but the token
+            // value has no diagnostic use once it's already established as invalid.
+            _logger.LogWarning("Refresh attempted with an invalid or expired refresh token.");
             throw new InvalidRefreshTokenException();
         }
 
@@ -297,6 +311,8 @@ public class AuthService : IAuthService
         await _refreshTokenService.RevokeAsync(
             token,
             cancellationToken);
+
+        _logger.LogInformation("Session revoked (logout) for user {UserId}.", token.UserId);
     }
 
     private async Task<AuthResponse> CreateAuthResponse(

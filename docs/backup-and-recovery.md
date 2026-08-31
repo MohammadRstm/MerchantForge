@@ -13,11 +13,10 @@ a live database. `scripts/restore-db.sh` replays a dump file back into the
 database (with a confirmation prompt, since it's destructive to whatever is
 currently there).
 
-Both scripts target the database via `docker compose exec mysql`, matching the
-Docker Compose stack this project ships (`docker-compose.yml`). The mechanism
-- `mysqldump`/`mysql` - works identically against any real MySQL/MariaDB
-server; only the `docker compose exec` wrapper is compose-specific. Whichever
-hosting provider is eventually chosen may also offer its own managed
+Both scripts target any directly reachable MySQL/MariaDB instance via the
+`mysqldump`/`mysql` CLI clients, connecting over `DB_HOST`/`DB_PORT` (default
+`127.0.0.1:3306`, overridable via the environment or a local `.env` file).
+Whichever hosting provider is eventually chosen may also offer its own managed
 backup/point-in-time-recovery feature - if so, prefer that for production and
 keep these scripts as the documented, tested fallback / what local development
 actually uses.
@@ -64,20 +63,21 @@ scripts/backup-db.sh
 
 # 2. Deliberately destroy data - simulating what a backup exists to recover
 #    from. Do this against a database you can afford to lose, obviously.
-docker compose exec mysql mysql -uroot -p"$DB_ROOT_PASSWORD" \
+mysql -h "$DB_HOST" -P "$DB_PORT" -uroot -p"$DB_ROOT_PASSWORD" \
     -e "DROP DATABASE merchforge; CREATE DATABASE merchforge;"
 
 # 3. Restore from the backup just taken.
 scripts/restore-db.sh backups/merchforge-<timestamp>.sql
 
-# 4. Confirm the data is actually back (e.g. log in as the demo owner seeded
-#    by scripts/seed-demo-business.sh and confirm the business still exists).
+# 4. Confirm the data is actually back (e.g. log in as a known seeded account
+#    and confirm the business still exists).
 ```
 
-This exact drill was run once, locally, against the docker-compose stack, to
-confirm the mechanism genuinely works end to end (not just that the scripts
-run without erroring) - see the roadmap's Phase 8 verification notes for the
-result. It should be re-run any time the backup/restore scripts change, and
-periodically in whatever real environment this ends up deployed to - a backup
-process that silently stopped working is worse than no backup process, since
-it looks fine until the moment it's needed.
+This drill has **not** yet actually been executed end to end - only the
+scripts' syntax has been checked (`bash -n`), and the mechanism (`mysqldump`/
+`mysql`) is standard enough to trust in isolation, but that is not the same as
+a proven restore. It should be run for real against whatever database this
+ends up deployed against before that deployment is trusted for production, and
+re-run any time the backup/restore scripts change - a backup process that
+silently stopped working is worse than no backup process, since it looks fine
+until the moment it's needed.

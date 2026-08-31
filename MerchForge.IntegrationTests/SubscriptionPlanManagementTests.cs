@@ -1,12 +1,23 @@
 using FluentAssertions;
+using MerchForge.api.Data;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
+using MerchForge.api.Services.Audit;
+using MerchForge.api.Services.Audit.interfaces;
+using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Subscription;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace MerchForge.IntegrationTests;
+
+/// <summary>No request context in an integration test - always "no acting user", same as an unauthenticated/system call.</summary>
+internal class NullCurrentUserAccessor : ICurrentUserAccessor
+{
+    public Guid? UserId => null;
+}
 
 /// <summary>
 /// The Super Admin Plans &amp; Subscriptions enhancement's new aggregation and
@@ -36,6 +47,11 @@ public class SubscriptionPlanManagementTests : IClassFixture<CatalogDatabaseFixt
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
+
+    private static SubscriptionPlanService CreatePlanService(MerchForgeDbContext db) => new(
+        new SubscriptionPlanRepository(db),
+        new AuditLogService(new AuditLogRepository(db), NullLogger<AuditLogService>.Instance),
+        new NullCurrentUserAccessor());
 
     private static SubscriptionPlan MakePlan(string name, BillingInterval interval, decimal price, bool isActive = true) => new()
     {
@@ -79,7 +95,7 @@ public class SubscriptionPlanManagementTests : IClassFixture<CatalogDatabaseFixt
 
         await db.SaveChangesAsync();
 
-        var service = new SubscriptionPlanService(new SubscriptionPlanRepository(db));
+        var service = CreatePlanService(db);
         var groups = await service.GetGroupsAsync();
 
         var group = groups.Single(g => g.Name == tierName);
@@ -103,7 +119,7 @@ public class SubscriptionPlanManagementTests : IClassFixture<CatalogDatabaseFixt
         db.SubscriptionPlans.Add(monthly);
         await db.SaveChangesAsync();
 
-        var service = new SubscriptionPlanService(new SubscriptionPlanRepository(db));
+        var service = CreatePlanService(db);
         var groups = await service.GetGroupsAsync();
 
         var group = groups.Single(g => g.Name == tierName);
@@ -117,9 +133,8 @@ public class SubscriptionPlanManagementTests : IClassFixture<CatalogDatabaseFixt
         var tierName = $"Stats-Tier-{Guid.NewGuid():N}";
 
         await using var db = _fixture.CreateContext();
-        var repository = new SubscriptionPlanRepository(db);
 
-        var statsBefore = await new SubscriptionPlanService(repository).GetStatsAsync();
+        var statsBefore = await CreatePlanService(db).GetStatsAsync();
 
         var monthly = MakePlan(tierName, BillingInterval.Monthly, 15m);
         var yearly = MakePlan(tierName, BillingInterval.Yearly, 150m, isActive: false);
@@ -132,7 +147,7 @@ public class SubscriptionPlanManagementTests : IClassFixture<CatalogDatabaseFixt
 
         await db.SaveChangesAsync();
 
-        var statsAfter = await new SubscriptionPlanService(repository).GetStatsAsync();
+        var statsAfter = await CreatePlanService(db).GetStatsAsync();
 
         (statsAfter.TotalPlans - statsBefore.TotalPlans).Should().Be(1, "one new distinct tier Name added");
         (statsAfter.ActivePlans - statsBefore.ActivePlans).Should().Be(1, "the tier counts active because its Monthly interval is active, even though Yearly isn't");

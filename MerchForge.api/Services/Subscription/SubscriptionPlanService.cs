@@ -5,6 +5,8 @@ using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Subscriptions;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Audit.interfaces;
+using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Subscription.interfaces;
 
 namespace MerchForge.api.Services.Subscription;
@@ -12,10 +14,17 @@ namespace MerchForge.api.Services.Subscription;
 public class SubscriptionPlanService : ISubscriptionPlanService
 {
     private readonly ISubscriptionPlanRepository _repository;
+    private readonly IAuditLogService _auditLogService;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
-    public SubscriptionPlanService(ISubscriptionPlanRepository repository)
+    public SubscriptionPlanService(
+        ISubscriptionPlanRepository repository,
+        IAuditLogService auditLogService,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _repository = repository;
+        _auditLogService = auditLogService;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<List<SubscriptionPlanResponse>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -170,6 +179,13 @@ public class SubscriptionPlanService : ISubscriptionPlanService
 
         var created = await _repository.CreateAsync(plan, cancellationToken);
 
+        await _auditLogService.LogAsync(
+            AuditEventType.Subscription, "SubscriptionPlanCreated",
+            $"Created subscription plan \"{created.Name}\" ({created.BillingInterval}).",
+            success: true, actorUserId: _currentUserAccessor.UserId,
+            entityType: "SubscriptionPlan", entityId: created.Id,
+            cancellationToken: cancellationToken);
+
         return MapPlan(created);
     }
 
@@ -196,6 +212,13 @@ public class SubscriptionPlanService : ISubscriptionPlanService
             cancellationToken)
             ?? throw new SubscriptionPlanNotFoundException();
 
+        await _auditLogService.LogAsync(
+            AuditEventType.Subscription, "SubscriptionPlanUpdated",
+            $"Updated subscription plan \"{updated.Name}\" ({updated.BillingInterval}).",
+            success: true, actorUserId: _currentUserAccessor.UserId,
+            entityType: "SubscriptionPlan", entityId: updated.Id,
+            cancellationToken: cancellationToken);
+
         return MapPlan(updated);
     }
 
@@ -206,6 +229,13 @@ public class SubscriptionPlanService : ISubscriptionPlanService
     {
         var updated = await _repository.SetActiveAsync(id, isActive, cancellationToken)
             ?? throw new SubscriptionPlanNotFoundException();
+
+        await _auditLogService.LogAsync(
+            AuditEventType.Subscription, isActive ? "SubscriptionPlanReactivated" : "SubscriptionPlanDeactivated",
+            $"{(isActive ? "Reactivated" : "Deactivated")} subscription plan \"{updated.Name}\" ({updated.BillingInterval}).",
+            success: true, actorUserId: _currentUserAccessor.UserId,
+            entityType: "SubscriptionPlan", entityId: updated.Id,
+            cancellationToken: cancellationToken);
 
         return MapPlan(updated);
     }

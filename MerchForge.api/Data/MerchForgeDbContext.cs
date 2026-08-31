@@ -69,6 +69,8 @@ namespace MerchForge.api.Data
         public DbSet<UserRole> SystemRoles => Set<UserRole>();
         public DbSet<BusinessUserRole> BusinessUserRoles => Set<BusinessUserRole>();
 
+        public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

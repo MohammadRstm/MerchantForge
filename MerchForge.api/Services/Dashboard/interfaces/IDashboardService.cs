@@ -1,3 +1,4 @@
+using MerchForge.api.DTOs.Audit;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
@@ -13,10 +14,40 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             UsersQueryRequest query,
             CancellationToken cancellationToken = default);
 
+        Task<DashboardUserDetailResponse> GetUserDetailAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default);
+
         Task<RevokeUserSessionsResponse> RevokeUserSessionsAsync(
             Guid targetUserId,
             Guid actingUserId,
             CancellationToken cancellationToken = default);
+
+        Task<DashboardUserDetailResponse> DisableUserAsync(
+            Guid targetUserId,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<DashboardUserDetailResponse> EnableUserAsync(
+            Guid targetUserId,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<RevokeUserSessionsResponse> RevokeAllSessionsAsync(
+            Guid actingUserId,
+            CancellationToken cancellationToken = default);
+
+        // ---- audit / security ----
+
+        Task<PagedResult<AuditLogResponse>> GetAuditLogsAsync(
+            AuditLogQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<SecurityOverviewResponse> GetSecurityOverviewAsync(CancellationToken cancellationToken = default);
+
+        Task<FailedLoginStatsResponse> GetFailedLoginStatsAsync(CancellationToken cancellationToken = default);
+
+        Task<List<SecurityAlertResponse>> GetSecurityAlertsAsync(CancellationToken cancellationToken = default);
 
         Task<PagedResult<DashboardBusinessResponse>> GetBusinessesAsync(
             BusinessesQueryRequest query,

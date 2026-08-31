@@ -20,6 +20,13 @@ public class User
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    // Null = active. Set = disabled, and records when. The user cannot
+    // authenticate while this is set (checked in AuthService.LoginAsync).
+    public DateTime? DisabledAt { get; set; }
+
+    // The Super Admin who disabled this account, for accountability. Cleared
+    // together with DisabledAt on re-enable, so it never outlives the state it describes.
+    public Guid? DisabledByUserId { get; set; }
 
     // Navigation properties
     public ICollection<BusinessUser> BusinessMemberships { get; set; }
@@ -27,4 +34,6 @@ public class User
 
     public ICollection<RefreshToken> RefreshTokens { get; set; }
     = new List<RefreshToken>();
+
+    public User? DisabledByUser { get; set; }
 }

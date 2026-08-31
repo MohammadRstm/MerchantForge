@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FluentValidation;
 using MerchForge.api.Authorization;
+using MerchForge.api.DTOs.Audit;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
@@ -32,6 +33,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> _updateCustomizableComponentValidator;
         private readonly IValidator<SubscriptionsQueryRequest> _subscriptionsQueryValidator;
         private readonly IValidator<ChangeSubscriptionRequest> _changeSubscriptionValidator;
+        private readonly IValidator<AuditLogQueryRequest> _auditLogQueryValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -49,7 +51,8 @@ namespace MerchForge.api.Controllers
             IValidator<CreateWebsiteTemplateCustomizableComponentRequest> createCustomizableComponentValidator,
             IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> updateCustomizableComponentValidator,
             IValidator<SubscriptionsQueryRequest> subscriptionsQueryValidator,
-            IValidator<ChangeSubscriptionRequest> changeSubscriptionValidator)
+            IValidator<ChangeSubscriptionRequest> changeSubscriptionValidator,
+            IValidator<AuditLogQueryRequest> auditLogQueryValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -67,6 +70,13 @@ namespace MerchForge.api.Controllers
             _updateCustomizableComponentValidator = updateCustomizableComponentValidator;
             _subscriptionsQueryValidator = subscriptionsQueryValidator;
             _changeSubscriptionValidator = changeSubscriptionValidator;
+            _auditLogQueryValidator = auditLogQueryValidator;
+        }
+
+        private bool TryGetActingUserId(out Guid actingUserId)
+        {
+            var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(claim, out actingUserId);
         }
 
         [HttpGet("stats")]
@@ -90,22 +100,115 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("users/{userId:guid}")]
+        public async Task<ActionResult<DashboardUserDetailResponse>> GetUserDetail(
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetUserDetailAsync(userId, cancellationToken);
+
+            return Ok(response);
+        }
+
         [HttpPost("users/{userId:guid}/revoke-sessions")]
         public async Task<ActionResult<RevokeUserSessionsResponse>> RevokeUserSessions(
             Guid userId,
             CancellationToken cancellationToken)
         {
-            var actingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (!Guid.TryParse(actingUserId, out var parsedActingUserId))
+            if (!TryGetActingUserId(out var actingUserId))
             {
                 return Unauthorized();
             }
 
             var response = await _dashboardService.RevokeUserSessionsAsync(
                 userId,
-                parsedActingUserId,
+                actingUserId,
                 cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("users/{userId:guid}/disable")]
+        public async Task<ActionResult<DashboardUserDetailResponse>> DisableUser(
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            if (!TryGetActingUserId(out var actingUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _dashboardService.DisableUserAsync(userId, actingUserId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("users/{userId:guid}/enable")]
+        public async Task<ActionResult<DashboardUserDetailResponse>> EnableUser(
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            if (!TryGetActingUserId(out var actingUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _dashboardService.EnableUserAsync(userId, actingUserId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("sessions/revoke-all")]
+        public async Task<ActionResult<RevokeUserSessionsResponse>> RevokeAllSessions(
+            CancellationToken cancellationToken)
+        {
+            if (!TryGetActingUserId(out var actingUserId))
+            {
+                return Unauthorized();
+            }
+
+            var response = await _dashboardService.RevokeAllSessionsAsync(actingUserId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- audit / security ----
+
+        [HttpGet("audit-logs")]
+        public async Task<ActionResult<PagedResult<AuditLogResponse>>> GetAuditLogs(
+            [FromQuery] AuditLogQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _auditLogQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetAuditLogsAsync(query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("security/overview")]
+        public async Task<ActionResult<SecurityOverviewResponse>> GetSecurityOverview(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetSecurityOverviewAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("security/failed-logins")]
+        public async Task<ActionResult<FailedLoginStatsResponse>> GetFailedLoginStats(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetFailedLoginStatsAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("security/alerts")]
+        public async Task<ActionResult<List<SecurityAlertResponse>>> GetSecurityAlerts(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetSecurityAlertsAsync(cancellationToken);
 
             return Ok(response);
         }

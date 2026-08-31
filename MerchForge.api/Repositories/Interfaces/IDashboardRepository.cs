@@ -50,6 +50,12 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<bool> UserExistsAsync(Guid userId, CancellationToken cancellationToken = default);
 
+        /// <summary>Null when no user with this id exists.</summary>
+        Task<DashboardUserDetailResponse?> GetUserDetailAsync(Guid userId, CancellationToken cancellationToken = default);
+
+        /// <summary>Loads a tracked entity for a disable/enable mutation.</summary>
+        Task<User?> GetTrackedUserAsync(Guid userId, CancellationToken cancellationToken = default);
+
         Task<(List<DashboardBusinessResponse> Items, int TotalCount)> GetBusinessesAsync(
             BusinessesQueryRequest query,
             CancellationToken cancellationToken = default);

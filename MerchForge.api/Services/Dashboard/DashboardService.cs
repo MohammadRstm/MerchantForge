@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Hangfire;
+using MerchForge.api.DTOs.Audit;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
@@ -12,6 +13,7 @@ using MerchForge.api.Exceptions.WebsiteTemplateRequests;
 using MerchForge.api.Jobs.Email;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Audit.interfaces;
 using MerchForge.api.Services.Common;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Dashboard.interfaces;
@@ -24,6 +26,7 @@ namespace MerchForge.api.Services.Dashboard
     {
         private const int StatsTimeSeriesMonths = 6;
         private const int BusinessesAddedRecentlyWindowDays = 30;
+        private const int UserRecentActivityTake = 20;
 
         private readonly IDashboardRepository _dashboardRepository;
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
@@ -37,6 +40,8 @@ namespace MerchForge.api.Services.Dashboard
         private readonly IWebsiteTemplateImageService _websiteTemplateImageService;
         private readonly IDomainService _domainService;
         private readonly IBackgroundJobClient _backgroundJobClient;
+        private readonly IAuditLogService _auditLogService;
+        private readonly ICurrentUserAccessor _currentUserAccessor;
 
         public DashboardService(
             IDashboardRepository dashboardRepository,
@@ -50,7 +55,9 @@ namespace MerchForge.api.Services.Dashboard
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
             IWebsiteTemplateImageService websiteTemplateImageService,
             IDomainService domainService,
-            IBackgroundJobClient backgroundJobClient)
+            IBackgroundJobClient backgroundJobClient,
+            IAuditLogService auditLogService,
+            ICurrentUserAccessor currentUserAccessor)
         {
             _dashboardRepository = dashboardRepository;
             _businessDashboardRepository = businessDashboardRepository;
@@ -64,6 +71,8 @@ namespace MerchForge.api.Services.Dashboard
             _websiteTemplateImageService = websiteTemplateImageService;
             _domainService = domainService;
             _backgroundJobClient = backgroundJobClient;
+            _auditLogService = auditLogService;
+            _currentUserAccessor = currentUserAccessor;
         }
 
         public async Task<DashboardStatsResponse> GetPlatformStatsAsync(CancellationToken cancellationToken = default)
@@ -153,6 +162,107 @@ namespace MerchForge.api.Services.Dashboard
             }
 
             var revokedCount = await _refreshTokenRepository.RevokeAllForUserAsync(targetUserId, cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.UserManagement, "UserSessionRevoked",
+                $"Revoked {revokedCount} session(s) for a user.",
+                success: true, actorUserId: actingUserId,
+                entityType: "User", entityId: targetUserId,
+                cancellationToken: cancellationToken);
+
+            return new RevokeUserSessionsResponse
+            {
+                RevokedSessionsCount = revokedCount
+            };
+        }
+
+        public async Task<DashboardUserDetailResponse> GetUserDetailAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            var detail = await _dashboardRepository.GetUserDetailAsync(userId, cancellationToken)
+                ?? throw new UserNotFoundException();
+
+            detail.RecentActivity = await _auditLogService.GetUserActivityAsync(userId, UserRecentActivityTake, cancellationToken);
+
+            return detail;
+        }
+
+        public async Task<DashboardUserDetailResponse> DisableUserAsync(
+            Guid targetUserId,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default)
+        {
+            if (targetUserId == actingUserId)
+            {
+                throw new CannotDisableOwnAccountException();
+            }
+
+            var user = await _dashboardRepository.GetTrackedUserAsync(targetUserId, cancellationToken)
+                ?? throw new UserNotFoundException();
+
+            if (user.DisabledAt is null)
+            {
+                user.DisabledAt = DateTime.UtcNow;
+                user.DisabledByUserId = actingUserId;
+                user.UpdatedAt = DateTime.UtcNow;
+
+                await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+                // A disabled account can't authenticate again, but any session it
+                // already holds must be cut off too - the same revoke path Force
+                // Logout uses.
+                await _refreshTokenRepository.RevokeAllForUserAsync(targetUserId, cancellationToken);
+
+                await _auditLogService.LogAsync(
+                    AuditEventType.UserManagement, "UserDisabled",
+                    $"Disabled account for {user.Email}.",
+                    success: true, actorUserId: actingUserId,
+                    entityType: "User", entityId: targetUserId,
+                    cancellationToken: cancellationToken);
+            }
+
+            return await GetUserDetailAsync(targetUserId, cancellationToken);
+        }
+
+        public async Task<DashboardUserDetailResponse> EnableUserAsync(
+            Guid targetUserId,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default)
+        {
+            var user = await _dashboardRepository.GetTrackedUserAsync(targetUserId, cancellationToken)
+                ?? throw new UserNotFoundException();
+
+            if (user.DisabledAt is not null)
+            {
+                user.DisabledAt = null;
+                user.DisabledByUserId = null;
+                user.UpdatedAt = DateTime.UtcNow;
+
+                await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+                await _auditLogService.LogAsync(
+                    AuditEventType.UserManagement, "UserEnabled",
+                    $"Re-enabled account for {user.Email}.",
+                    success: true, actorUserId: actingUserId,
+                    entityType: "User", entityId: targetUserId,
+                    cancellationToken: cancellationToken);
+            }
+
+            return await GetUserDetailAsync(targetUserId, cancellationToken);
+        }
+
+        public async Task<RevokeUserSessionsResponse> RevokeAllSessionsAsync(
+            Guid actingUserId,
+            CancellationToken cancellationToken = default)
+        {
+            var revokedCount = await _refreshTokenRepository.RevokeAllAsync(actingUserId, cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.Security, "AllSessionsRevoked",
+                $"Revoked {revokedCount} session(s) platform-wide.",
+                success: true, actorUserId: actingUserId,
+                cancellationToken: cancellationToken);
 
             return new RevokeUserSessionsResponse
             {
@@ -292,6 +402,13 @@ namespace MerchForge.api.Services.Dashboard
                 ?? throw new BusinessNotFoundException();
 
             var revokedCount = await _refreshTokenRepository.RevokeAllForBusinessAsync(business.Id, cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.UserManagement, "UserSessionRevoked",
+                $"Revoked {revokedCount} session(s) for {business.Name}'s members.",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "Business", entityId: businessId, businessId: businessId,
+                cancellationToken: cancellationToken);
 
             return new RevokeUserSessionsResponse
             {
@@ -765,6 +882,13 @@ namespace MerchForge.api.Services.Dashboard
 
             await _dashboardRepository.SaveChangesAsync(cancellationToken);
 
+            await _auditLogService.LogAsync(
+                AuditEventType.Template, "WebsiteTemplateUpdated",
+                $"Updated website template \"{template.Label}\".",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "WebsiteTemplate", entityId: websiteTemplateId,
+                cancellationToken: cancellationToken);
+
             return await MapToResponseAsync(websiteTemplateId, cancellationToken);
         }
 
@@ -781,6 +905,13 @@ namespace MerchForge.api.Services.Dashboard
             template.UpdatedAt = DateTime.UtcNow;
 
             await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.Template, "WebsiteTemplateDeactivated",
+                $"Deactivated website template \"{template.Label}\".",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "WebsiteTemplate", entityId: websiteTemplateId,
+                cancellationToken: cancellationToken);
 
             return await MapToResponseAsync(websiteTemplateId, cancellationToken);
         }
@@ -954,14 +1085,58 @@ namespace MerchForge.api.Services.Dashboard
             Guid subscriptionPlanId,
             CancellationToken cancellationToken = default)
         {
-            return await _businessDashboardService.SubscribeToPlanAsync(businessId, subscriptionPlanId, cancellationToken);
+            var result = await _businessDashboardService.SubscribeToPlanAsync(businessId, subscriptionPlanId, cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.Subscription, "BusinessSubscriptionChanged",
+                $"Changed a business's subscription to {result.PlanName} ({result.BillingInterval}).",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "Business", entityId: businessId, businessId: businessId,
+                cancellationToken: cancellationToken);
+
+            return result;
         }
 
         public async Task<BusinessSubscriptionResponse> CancelBusinessSubscriptionAsync(
             Guid businessId,
             CancellationToken cancellationToken = default)
         {
-            return await _businessDashboardService.CancelSubscriptionAsync(businessId, cancellationToken);
+            var result = await _businessDashboardService.CancelSubscriptionAsync(businessId, cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.Subscription, "BusinessSubscriptionCancelled",
+                "Cancelled a business's subscription.",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "Business", entityId: businessId, businessId: businessId,
+                cancellationToken: cancellationToken);
+
+            return result;
+        }
+
+        // ---- audit / security ----
+
+        public Task<PagedResult<AuditLogResponse>> GetAuditLogsAsync(
+            AuditLogQueryRequest query, CancellationToken cancellationToken = default)
+        {
+            return _auditLogService.GetLogsAsync(query, cancellationToken);
+        }
+
+        public async Task<SecurityOverviewResponse> GetSecurityOverviewAsync(CancellationToken cancellationToken = default)
+        {
+            var overview = await _auditLogService.GetSecurityOverviewAsync(cancellationToken);
+            overview.ActiveSessions = await _dashboardRepository.CountActiveSessionsAsync(cancellationToken);
+
+            return overview;
+        }
+
+        public Task<FailedLoginStatsResponse> GetFailedLoginStatsAsync(CancellationToken cancellationToken = default)
+        {
+            return _auditLogService.GetFailedLoginStatsAsync(cancellationToken);
+        }
+
+        public Task<List<SecurityAlertResponse>> GetSecurityAlertsAsync(CancellationToken cancellationToken = default)
+        {
+            return _auditLogService.GetSecurityAlertsAsync(cancellationToken);
         }
     }
 }

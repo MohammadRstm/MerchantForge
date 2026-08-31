@@ -185,6 +185,8 @@ namespace MerchForge.api.Repositories.Implementations
             UsersQueryRequest query,
             CancellationToken cancellationToken = default)
         {
+            var now = DateTime.UtcNow;
+
             var baseQuery =
                 from u in _db.Users
                 join r in _db.SystemRoles on u.SystemRoleId equals r.Id
@@ -197,12 +199,42 @@ namespace MerchForge.api.Repositories.Implementations
                 baseQuery = baseQuery.Where(x =>
                     EF.Functions.Like(x.User.FirstName, pattern) ||
                     EF.Functions.Like(x.User.LastName, pattern) ||
-                    EF.Functions.Like(x.User.Email, pattern));
+                    EF.Functions.Like(x.User.Email, pattern) ||
+                    _db.BusinessUsers.Any(bu => bu.UserId == x.User.Id && EF.Functions.Like(bu.Business.Name, pattern)));
             }
 
             if (query.SystemRole.HasValue)
             {
                 baseQuery = baseQuery.Where(x => x.Role == query.SystemRole.Value);
+            }
+
+            if (query.BusinessRole.HasValue)
+            {
+                // Each BusinessRole is seeded as exactly one BusinessUserRole row, so
+                // resolving its id once and matching on RoleId avoids a nested EXISTS
+                // with its own enum join.
+                var roleId = await _db.BusinessUserRoles
+                    .Where(r => r.Role == query.BusinessRole.Value)
+                    .Select(r => r.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                baseQuery = baseQuery.Where(x =>
+                    _db.BusinessUsers.Any(bu => bu.UserId == x.User.Id && bu.RoleId == roleId));
+            }
+
+            if (query.HasActiveSession.HasValue)
+            {
+                var hasSession = query.HasActiveSession.Value;
+
+                baseQuery = baseQuery.Where(x =>
+                    _db.RefreshTokens.Any(rt => rt.UserId == x.User.Id && rt.RevokedAt == null && rt.ExpiresAt > now) == hasSession);
+            }
+
+            if (query.IsDisabled.HasValue)
+            {
+                var isDisabled = query.IsDisabled.Value;
+
+                baseQuery = baseQuery.Where(x => (x.User.DisabledAt != null) == isDisabled);
             }
 
             var totalCount = await baseQuery.CountAsync(cancellationToken);
@@ -216,6 +248,17 @@ namespace MerchForge.api.Repositories.Implementations
                 UserSortField.Email => query.SortDescending
                     ? baseQuery.OrderByDescending(x => x.User.Email)
                     : baseQuery.OrderBy(x => x.User.Email),
+
+                // Alphabetical by the persisted role string ("Admin" < "SuperAdmin" <
+                // "User"), not by privilege level - a simple, predictable sort rather
+                // than a bespoke severity ordering for a rarely-sorted column.
+                UserSortField.SystemRole => query.SortDescending
+                    ? baseQuery.OrderByDescending(x => x.Role)
+                    : baseQuery.OrderBy(x => x.Role),
+
+                UserSortField.HasActiveSession => query.SortDescending
+                    ? baseQuery.OrderByDescending(x => _db.RefreshTokens.Any(rt => rt.UserId == x.User.Id && rt.RevokedAt == null && rt.ExpiresAt > now))
+                    : baseQuery.OrderBy(x => _db.RefreshTokens.Any(rt => rt.UserId == x.User.Id && rt.RevokedAt == null && rt.ExpiresAt > now)),
 
                 _ => query.SortDescending
                     ? baseQuery.OrderByDescending(x => x.User.CreatedAt)
@@ -232,23 +275,25 @@ namespace MerchForge.api.Repositories.Implementations
                     x.User.LastName,
                     x.User.Email,
                     x.User.CreatedAt,
+                    x.User.DisabledAt,
                     SystemRole = x.Role
                 })
                 .ToListAsync(cancellationToken);
 
             var userIds = page.Select(x => x.Id).ToList();
 
-            var memberships = await (
+            // Grouped, not ToDictionary-per-user - a user can belong to more than one
+            // business (composite key on BusinessUser allows it), so a naive
+            // single-row-per-user dictionary would throw the moment that happens.
+            var membershipsByUser = (await (
                 from bu in _db.BusinessUsers
                 join b in _db.Businesses on bu.BusinessId equals b.Id
                 join bur in _db.BusinessUserRoles on bu.RoleId equals bur.Id
                 where userIds.Contains(bu.UserId)
-                select new { bu.UserId, BusinessName = b.Name, BusinessRole = bur.Role }
-            ).ToListAsync(cancellationToken);
-
-            var membershipLookup = memberships.ToDictionary(m => m.UserId);
-
-            var now = DateTime.UtcNow;
+                select new { bu.UserId, BusinessName = b.Name, BusinessRole = bur.Role, bu.CreatedAt }
+            ).ToListAsync(cancellationToken))
+                .GroupBy(m => m.UserId)
+                .ToDictionary(g => g.Key, g => g.OrderBy(m => m.CreatedAt).ToList());
 
             var activeSessionUserIds = (await _db.RefreshTokens
                 .Where(rt => userIds.Contains(rt.UserId) && rt.RevokedAt == null && rt.ExpiresAt > now)
@@ -258,17 +303,25 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToHashSet();
 
             var items = page
-                .Select(u => new DashboardUserResponse
+                .Select(u =>
                 {
-                    Id = u.Id,
-                    FirstName = u.FirstName,
-                    LastName = u.LastName,
-                    Email = u.Email,
-                    SystemRole = u.SystemRole.ToString(),
-                    BusinessName = membershipLookup.TryGetValue(u.Id, out var membership) ? membership.BusinessName : null,
-                    BusinessRole = membershipLookup.TryGetValue(u.Id, out var membershipRole) ? membershipRole.BusinessRole.ToString() : null,
-                    HasActiveSession = activeSessionUserIds.Contains(u.Id),
-                    CreatedAt = u.CreatedAt,
+                    var memberships = membershipsByUser.TryGetValue(u.Id, out var list) ? list : null;
+                    var primary = memberships?.FirstOrDefault();
+
+                    return new DashboardUserResponse
+                    {
+                        Id = u.Id,
+                        FirstName = u.FirstName,
+                        LastName = u.LastName,
+                        Email = u.Email,
+                        SystemRole = u.SystemRole.ToString(),
+                        BusinessName = primary?.BusinessName,
+                        BusinessRole = primary?.BusinessRole.ToString(),
+                        AdditionalMembershipCount = memberships is null ? 0 : Math.Max(0, memberships.Count - 1),
+                        HasActiveSession = activeSessionUserIds.Contains(u.Id),
+                        IsDisabled = u.DisabledAt != null,
+                        CreatedAt = u.CreatedAt,
+                    };
                 })
                 .ToList();
 
@@ -278,6 +331,80 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task<bool> UserExistsAsync(Guid userId, CancellationToken cancellationToken = default)
         {
             return await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken);
+        }
+
+        public async Task<DashboardUserDetailResponse?> GetUserDetailAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            var user = await (
+                from u in _db.Users
+                join r in _db.SystemRoles on u.SystemRoleId equals r.Id
+                where u.Id == userId
+                select new { User = u, Role = r.Role }
+            ).AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+
+            if (user is null)
+            {
+                return null;
+            }
+
+            string? disabledByName = null;
+
+            if (user.User.DisabledByUserId.HasValue)
+            {
+                disabledByName = await _db.Users
+                    .Where(u => u.Id == user.User.DisabledByUserId.Value)
+                    .Select(u => u.FirstName + " " + u.LastName)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            var rawMemberships = await (
+                from bu in _db.BusinessUsers
+                join b in _db.Businesses on bu.BusinessId equals b.Id
+                join bur in _db.BusinessUserRoles on bu.RoleId equals bur.Id
+                where bu.UserId == userId
+                orderby bu.CreatedAt
+                select new { b.Id, b.Name, Role = bur.Role, bu.CreatedAt }
+            ).ToListAsync(cancellationToken);
+
+            var memberships = rawMemberships
+                .Select(m => new UserMembershipResponse
+                {
+                    BusinessId = m.Id,
+                    BusinessName = m.Name,
+                    BusinessRole = m.Role.ToString(),
+                    JoinedAt = m.CreatedAt,
+                })
+                .ToList();
+
+            var now = DateTime.UtcNow;
+
+            var activeSessionExpirations = await _db.RefreshTokens
+                .Where(rt => rt.UserId == userId && rt.RevokedAt == null && rt.ExpiresAt > now)
+                .Select(rt => rt.ExpiresAt)
+                .ToListAsync(cancellationToken);
+
+            return new DashboardUserDetailResponse
+            {
+                Id = user.User.Id,
+                FirstName = user.User.FirstName,
+                LastName = user.User.LastName,
+                Email = user.User.Email,
+                SystemRole = user.Role.ToString(),
+                IsDisabled = user.User.DisabledAt != null,
+                DisabledAt = user.User.DisabledAt,
+                DisabledByName = disabledByName,
+                CreatedAt = user.User.CreatedAt,
+                UpdatedAt = user.User.UpdatedAt,
+                Memberships = memberships,
+                HasActiveSession = activeSessionExpirations.Count > 0,
+                ActiveSessionCount = activeSessionExpirations.Count,
+                NextSessionExpiresAt = activeSessionExpirations.Count > 0 ? activeSessionExpirations.Min() : null,
+            };
+        }
+
+        public async Task<User?> GetTrackedUserAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
         }
 
         public async Task<(List<DashboardBusinessResponse> Items, int TotalCount)> GetBusinessesAsync(

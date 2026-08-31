@@ -4,5 +4,7 @@ public enum UserSortField
 {
     CreatedAt,
     Name,
-    Email
+    Email,
+    SystemRole,
+    HasActiveSession
 }

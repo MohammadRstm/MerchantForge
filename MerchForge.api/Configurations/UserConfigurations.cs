@@ -35,5 +35,15 @@ public class UserConfigurations : IEntityTypeConfiguration<User>
 
         builder.Property(x => x.UpdatedAt)
             .IsRequired();
+
+        builder.HasIndex(x => x.DisabledAt);
+
+        // Self-referencing FK; Restrict rather than Cascade/SetNull since users are
+        // never hard-deleted (no delete path exists), so this never actually fires -
+        // Restrict simply keeps that failure loud instead of silently nulling data.
+        builder.HasOne(x => x.DisabledByUser)
+            .WithMany()
+            .HasForeignKey(x => x.DisabledByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

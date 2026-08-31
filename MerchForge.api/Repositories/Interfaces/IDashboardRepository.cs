@@ -153,5 +153,20 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<DashboardCustomerDetailResponse?> GetCustomerDetailAsync(
             Guid customerId,
             CancellationToken cancellationToken = default);
+
+        // ---- subscriptions (platform-wide, Subscriptions tab) ----
+
+        Task<(List<AdminSubscriptionListItemResponse> Items, int TotalCount)> GetSubscriptionsAsync(
+            SubscriptionsQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The most recent `take` Subscription rows platform-wide (a row is only
+        /// created on a business's first subscription or a plan switch — a renewal
+        /// advances the existing row's period in place, so it never appears here).
+        /// </summary>
+        Task<List<RecentSubscriptionActivityEntryResponse>> GetRecentSubscriptionActivityAsync(
+            int take,
+            CancellationToken cancellationToken = default);
     }
 }

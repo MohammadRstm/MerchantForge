@@ -1,5 +1,7 @@
 using MerchForge.api.DTOs.BusinessDashboard;
+using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Subscriptions;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Subscriptions;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
@@ -21,6 +23,91 @@ public class SubscriptionPlanService : ISubscriptionPlanService
         var plans = await _repository.GetAllAsync(cancellationToken);
 
         return plans.Select(MapPlan).ToList();
+    }
+
+    public async Task<List<SubscriptionPlanGroupResponse>> GetGroupsAsync(CancellationToken cancellationToken = default)
+    {
+        var plans = await _repository.GetAllAsync(cancellationToken);
+        var subscriberCounts = await _repository.GetActiveSubscriberCountsByPlanIdAsync(cancellationToken);
+        var totalActiveSubscriptions = subscriberCounts.Values.Sum();
+
+        return plans
+            .GroupBy(p => p.Name)
+            .Select(g =>
+            {
+                var monthly = g.FirstOrDefault(p => p.BillingInterval == BillingInterval.Monthly);
+                var yearly = g.FirstOrDefault(p => p.BillingInterval == BillingInterval.Yearly);
+                var featuresSource = monthly ?? yearly;
+
+                var monthlyCount = monthly is null ? 0 : subscriberCounts.GetValueOrDefault(monthly.Id);
+                var yearlyCount = yearly is null ? 0 : subscriberCounts.GetValueOrDefault(yearly.Id);
+                var totalCount = monthlyCount + yearlyCount;
+
+                return new SubscriptionPlanGroupResponse
+                {
+                    Name = g.Key,
+                    Description = featuresSource?.Description,
+                    Currency = featuresSource?.Currency ?? "USD",
+                    IsCustom = g.Any(p => p.IsCustom),
+                    Monthly = monthly is null ? null : new SubscriptionPlanGroupIntervalResponse
+                    {
+                        Id = monthly.Id,
+                        Price = monthly.Price,
+                        IsActive = monthly.IsActive,
+                        ActiveSubscriberCount = monthlyCount,
+                    },
+                    Yearly = yearly is null ? null : new SubscriptionPlanGroupIntervalResponse
+                    {
+                        Id = yearly.Id,
+                        Price = yearly.Price,
+                        IsActive = yearly.IsActive,
+                        ActiveSubscriberCount = yearlyCount,
+                    },
+                    TotalActiveSubscriberCount = totalCount,
+                    PercentOfActiveSubscriptions = totalActiveSubscriptions > 0
+                        ? Math.Round(100m * totalCount / totalActiveSubscriptions, 1)
+                        : null,
+                    Features = featuresSource is null
+                        ? new List<PlanFeatureItemResponse>()
+                        : featuresSource.PlanFeatures
+                            .Select(pf => new PlanFeatureItemResponse
+                            {
+                                FeatureKey = pf.Feature.Key,
+                                FeatureName = pf.Feature.Name,
+                                FeatureDescription = pf.Feature.Description,
+                                Limit = pf.Limit,
+                            })
+                            .ToList(),
+                };
+            })
+            .OrderBy(g => g.Monthly?.Price ?? g.Yearly?.Price ?? 0)
+            .ToList();
+    }
+
+    public async Task<List<KeyCountResponse>> GetDistributionAsync(CancellationToken cancellationToken = default)
+    {
+        return await _repository.GetActiveSubscriberCountsByPlanNameAsync(cancellationToken);
+    }
+
+    public async Task<PlanSubscriptionStatsResponse> GetStatsAsync(CancellationToken cancellationToken = default)
+    {
+        var plans = await _repository.GetAllAsync(cancellationToken);
+        var intervalCounts = await _repository.GetActiveSubscriptionCountsByBillingIntervalAsync(cancellationToken);
+
+        var tierNames = plans.Select(p => p.Name).Distinct().ToList();
+        var activeTierNames = plans.Where(p => p.IsActive).Select(p => p.Name).Distinct().ToList();
+
+        var monthly = intervalCounts.GetValueOrDefault(BillingInterval.Monthly);
+        var yearly = intervalCounts.GetValueOrDefault(BillingInterval.Yearly);
+
+        return new PlanSubscriptionStatsResponse
+        {
+            TotalPlans = tierNames.Count,
+            ActivePlans = activeTierNames.Count,
+            SubscribedBusinesses = monthly + yearly,
+            MonthlySubscriptions = monthly,
+            YearlySubscriptions = yearly,
+        };
     }
 
     public async Task<List<SubscriptionPlanDetailResponse>> GetPublicAsync(CancellationToken cancellationToken = default)

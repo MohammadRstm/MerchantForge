@@ -162,5 +162,28 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             Guid closedByUserId,
             CloseWebsiteTemplateRequestRequest request,
             CancellationToken cancellationToken = default);
+
+        // ---- subscriptions (platform-wide, Subscriptions tab) ----
+
+        Task<PagedResult<AdminSubscriptionListItemResponse>> GetSubscriptionsAsync(
+            SubscriptionsQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<List<RecentSubscriptionActivityEntryResponse>> GetRecentSubscriptionActivityAsync(
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task<List<SubscriptionHistoryEntryResponse>> GetBusinessSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessSubscriptionResponse> ChangeBusinessSubscriptionAsync(
+            Guid businessId,
+            Guid subscriptionPlanId,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessSubscriptionResponse> CancelBusinessSubscriptionAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
     }
 }

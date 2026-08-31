@@ -13,6 +13,7 @@ using MerchForge.api.Jobs.Email;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Common;
+using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Dashboard.interfaces;
 using MerchForge.api.Services.Onboarding.interfaces;
 using MerchForge.api.Services.Subscription.interfaces;
@@ -30,6 +31,7 @@ namespace MerchForge.api.Services.Dashboard
         private readonly ISubscriptionPlanRepository _subscriptionPlanRepository;
         private readonly IOrderRepository _orderRepository;
         private readonly IFeatureCreditService _featureCreditService;
+        private readonly IBusinessDashboardService _businessDashboardService;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
         private readonly IWebsiteTemplateImageService _websiteTemplateImageService;
@@ -43,6 +45,7 @@ namespace MerchForge.api.Services.Dashboard
             ISubscriptionPlanRepository subscriptionPlanRepository,
             IOrderRepository orderRepository,
             IFeatureCreditService featureCreditService,
+            IBusinessDashboardService businessDashboardService,
             IRefreshTokenRepository refreshTokenRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
             IWebsiteTemplateImageService websiteTemplateImageService,
@@ -55,6 +58,7 @@ namespace MerchForge.api.Services.Dashboard
             _subscriptionPlanRepository = subscriptionPlanRepository;
             _orderRepository = orderRepository;
             _featureCreditService = featureCreditService;
+            _businessDashboardService = businessDashboardService;
             _refreshTokenRepository = refreshTokenRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
             _websiteTemplateImageService = websiteTemplateImageService;
@@ -912,6 +916,52 @@ namespace MerchForge.api.Services.Dashboard
                 job => job.ExecuteAsync(websiteTemplateRequestId));
 
             return await GetWebsiteTemplateRequestAsync(websiteTemplateRequestId, cancellationToken);
+        }
+
+        // ---- subscriptions (platform-wide, Subscriptions tab) ----
+
+        public async Task<PagedResult<AdminSubscriptionListItemResponse>> GetSubscriptionsAsync(
+            SubscriptionsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var (items, totalCount) = await _dashboardRepository.GetSubscriptionsAsync(query, cancellationToken);
+
+            return new PagedResult<AdminSubscriptionListItemResponse>
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = totalCount,
+            };
+        }
+
+        public async Task<List<RecentSubscriptionActivityEntryResponse>> GetRecentSubscriptionActivityAsync(
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            return await _dashboardRepository.GetRecentSubscriptionActivityAsync(take, cancellationToken);
+        }
+
+        public async Task<List<SubscriptionHistoryEntryResponse>> GetBusinessSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardService.GetSubscriptionHistoryAsync(businessId, cancellationToken);
+        }
+
+        public async Task<BusinessSubscriptionResponse> ChangeBusinessSubscriptionAsync(
+            Guid businessId,
+            Guid subscriptionPlanId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardService.SubscribeToPlanAsync(businessId, subscriptionPlanId, cancellationToken);
+        }
+
+        public async Task<BusinessSubscriptionResponse> CancelBusinessSubscriptionAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _businessDashboardService.CancelSubscriptionAsync(businessId, cancellationToken);
         }
     }
 }

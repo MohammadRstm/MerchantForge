@@ -30,6 +30,8 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<UpdateProductAttributeDefinitionRequest> _updateAttributeDefinitionValidator;
         private readonly IValidator<CreateWebsiteTemplateCustomizableComponentRequest> _createCustomizableComponentValidator;
         private readonly IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> _updateCustomizableComponentValidator;
+        private readonly IValidator<SubscriptionsQueryRequest> _subscriptionsQueryValidator;
+        private readonly IValidator<ChangeSubscriptionRequest> _changeSubscriptionValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -45,7 +47,9 @@ namespace MerchForge.api.Controllers
             IValidator<CreateProductAttributeDefinitionRequest> createAttributeDefinitionValidator,
             IValidator<UpdateProductAttributeDefinitionRequest> updateAttributeDefinitionValidator,
             IValidator<CreateWebsiteTemplateCustomizableComponentRequest> createCustomizableComponentValidator,
-            IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> updateCustomizableComponentValidator)
+            IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> updateCustomizableComponentValidator,
+            IValidator<SubscriptionsQueryRequest> subscriptionsQueryValidator,
+            IValidator<ChangeSubscriptionRequest> changeSubscriptionValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -61,6 +65,8 @@ namespace MerchForge.api.Controllers
             _updateAttributeDefinitionValidator = updateAttributeDefinitionValidator;
             _createCustomizableComponentValidator = createCustomizableComponentValidator;
             _updateCustomizableComponentValidator = updateCustomizableComponentValidator;
+            _subscriptionsQueryValidator = subscriptionsQueryValidator;
+            _changeSubscriptionValidator = changeSubscriptionValidator;
         }
 
         [HttpGet("stats")]
@@ -491,6 +497,65 @@ namespace MerchForge.api.Controllers
                 parsedClosedByUserId,
                 request,
                 cancellationToken);
+
+            return Ok(response);
+        }
+
+        // ---- subscriptions (platform-wide, Subscriptions tab) ----
+
+        [HttpGet("subscriptions")]
+        public async Task<ActionResult<PagedResult<AdminSubscriptionListItemResponse>>> GetSubscriptions(
+            [FromQuery] SubscriptionsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _subscriptionsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetSubscriptionsAsync(query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("subscriptions/recent-activity")]
+        public async Task<ActionResult<List<RecentSubscriptionActivityEntryResponse>>> GetRecentSubscriptionActivity(
+            [FromQuery] int take,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetRecentSubscriptionActivityAsync(
+                take is > 0 and <= 50 ? take : 10, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/{businessId:guid}/subscription/history")]
+        public async Task<ActionResult<List<SubscriptionHistoryEntryResponse>>> GetBusinessSubscriptionHistory(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetBusinessSubscriptionHistoryAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("businesses/{businessId:guid}/subscription/change")]
+        public async Task<ActionResult<BusinessSubscriptionResponse>> ChangeBusinessSubscription(
+            Guid businessId,
+            [FromBody] ChangeSubscriptionRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _changeSubscriptionValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.ChangeBusinessSubscriptionAsync(
+                businessId, request.SubscriptionPlanId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("businesses/{businessId:guid}/subscription/cancel")]
+        public async Task<ActionResult<BusinessSubscriptionResponse>> CancelBusinessSubscription(
+            Guid businessId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.CancelBusinessSubscriptionAsync(businessId, cancellationToken);
 
             return Ok(response);
         }

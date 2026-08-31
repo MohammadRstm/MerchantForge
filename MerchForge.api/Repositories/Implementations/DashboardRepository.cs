@@ -744,5 +744,156 @@ namespace MerchForge.api.Repositories.Implementations
                 Businesses = businesses,
             };
         }
+
+        // ---- subscriptions (platform-wide, Subscriptions tab) ----
+
+        public async Task<(List<AdminSubscriptionListItemResponse> Items, int TotalCount)> GetSubscriptionsAsync(
+            SubscriptionsQueryRequest query,
+            CancellationToken cancellationToken = default)
+        {
+            var baseQuery = _db.Subscriptions.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var pattern = $"%{query.Search.Trim()}%";
+
+                baseQuery = baseQuery.Where(s =>
+                    EF.Functions.Like(s.Business.Name, pattern) ||
+                    EF.Functions.Like(s.Business.Owner.FirstName, pattern) ||
+                    EF.Functions.Like(s.Business.Owner.LastName, pattern) ||
+                    EF.Functions.Like(s.Business.Owner.Email, pattern));
+            }
+
+            if (query.PlanId.HasValue)
+            {
+                baseQuery = baseQuery.Where(s => s.SubscriptionPlanId == query.PlanId.Value);
+            }
+
+            if (query.BillingInterval.HasValue)
+            {
+                baseQuery = baseQuery.Where(s => s.SubscriptionPlan.BillingInterval == query.BillingInterval.Value);
+            }
+
+            if (query.Status.HasValue)
+            {
+                baseQuery = baseQuery.Where(s => s.Status == query.Status.Value);
+            }
+
+            var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+            var projected = baseQuery.Select(s => new
+            {
+                s.Id,
+                s.BusinessId,
+                BusinessName = s.Business.Name,
+                OwnerFullName = s.Business.Owner.FirstName + " " + s.Business.Owner.LastName,
+                OwnerEmail = s.Business.Owner.Email,
+                DomainName = s.Business.BusinessDomain != null ? s.Business.BusinessDomain.Name : null,
+                s.SubscriptionPlanId,
+                PlanName = s.SubscriptionPlan.Name,
+                PlanIsActive = s.SubscriptionPlan.IsActive,
+                BillingInterval = s.SubscriptionPlan.BillingInterval,
+                s.Status,
+                s.CurrentPeriodStart,
+                s.CurrentPeriodEnd,
+                s.CancelAtPeriodEnd,
+                s.CreatedAt,
+            });
+
+            projected = query.SortBy switch
+            {
+                SubscriptionSortField.BusinessName => query.SortDescending
+                    ? projected.OrderByDescending(x => x.BusinessName)
+                    : projected.OrderBy(x => x.BusinessName),
+
+                SubscriptionSortField.PlanName => query.SortDescending
+                    ? projected.OrderByDescending(x => x.PlanName)
+                    : projected.OrderBy(x => x.PlanName),
+
+                SubscriptionSortField.CurrentPeriodEnd => query.SortDescending
+                    ? projected.OrderByDescending(x => x.CurrentPeriodEnd)
+                    : projected.OrderBy(x => x.CurrentPeriodEnd),
+
+                _ => query.SortDescending
+                    ? projected.OrderByDescending(x => x.CreatedAt)
+                    : projected.OrderBy(x => x.CreatedAt),
+            };
+
+            var page = await projected
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync(cancellationToken);
+
+            // Enum -> string conversion happens here, in memory, not inside the
+            // SQL-translated Select above - same reasoning as GetBusinessesAsync.
+            var items = page
+                .Select(x => new AdminSubscriptionListItemResponse
+                {
+                    SubscriptionId = x.Id,
+                    BusinessId = x.BusinessId,
+                    BusinessName = x.BusinessName,
+                    OwnerFullName = x.OwnerFullName,
+                    OwnerEmail = x.OwnerEmail,
+                    DomainName = x.DomainName,
+                    PlanId = x.SubscriptionPlanId,
+                    PlanName = x.PlanName,
+                    PlanIsActive = x.PlanIsActive,
+                    BillingInterval = x.BillingInterval.ToString(),
+                    Status = x.Status.ToString(),
+                    CurrentPeriodStart = x.CurrentPeriodStart,
+                    CurrentPeriodEnd = x.CurrentPeriodEnd,
+                    CancelAtPeriodEnd = x.CancelAtPeriodEnd,
+                    CreatedAt = x.CreatedAt,
+                })
+                .ToList();
+
+            return (items, totalCount);
+        }
+
+        public async Task<List<RecentSubscriptionActivityEntryResponse>> GetRecentSubscriptionActivityAsync(
+            int take,
+            CancellationToken cancellationToken = default)
+        {
+            var recent = await _db.Subscriptions
+                .OrderByDescending(s => s.CreatedAt)
+                .Take(take)
+                .Select(s => new
+                {
+                    s.BusinessId,
+                    BusinessName = s.Business.Name,
+                    PlanName = s.SubscriptionPlan.Name,
+                    BillingInterval = s.SubscriptionPlan.BillingInterval,
+                    s.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+
+            if (recent.Count == 0)
+            {
+                return [];
+            }
+
+            var businessIds = recent.Select(r => r.BusinessId).Distinct().ToList();
+
+            // One more grouped query for just the involved businesses' earliest
+            // Subscription row - two queries total regardless of `take`, not N+1.
+            var earliestByBusiness = (await _db.Subscriptions
+                .Where(s => businessIds.Contains(s.BusinessId))
+                .GroupBy(s => s.BusinessId)
+                .Select(g => new { BusinessId = g.Key, Earliest = g.Min(s => s.CreatedAt) })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(x => x.BusinessId, x => x.Earliest);
+
+            return recent
+                .Select(r => new RecentSubscriptionActivityEntryResponse
+                {
+                    BusinessId = r.BusinessId,
+                    BusinessName = r.BusinessName,
+                    PlanName = r.PlanName,
+                    BillingInterval = r.BillingInterval.ToString(),
+                    IsNewSubscription = earliestByBusiness.TryGetValue(r.BusinessId, out var earliest) && earliest == r.CreatedAt,
+                    CreatedAt = r.CreatedAt,
+                })
+                .ToList();
+        }
     }
 }

@@ -78,11 +78,19 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var logger = new RecordingAiInteractionLogger();
 
         var dashboardRepository = new BusinessDashboardRepository(db);
-        var dashboardService = new BusinessDashboardService(dashboardRepository, new SubscriptionRepository(db), new FakeBackgroundJobClient());
 
         var featureCreditRepo = new FeatureCreditRepository(db);
-        var subscriptionService = new SubscriptionService(new SubscriptionRepository(db), featureCreditRepo);
-        var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService);
+        var subscriptionRepository = new SubscriptionRepository(db);
+        var subscriptionService = new SubscriptionService(subscriptionRepository, featureCreditRepo);
+        var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService, subscriptionRepository);
+
+        var dashboardService = new BusinessDashboardService(
+            dashboardRepository,
+            subscriptionRepository,
+            new WebsiteTemplateRequestRepository(db),
+            new OrderRepository(db),
+            new FakeBackgroundJobClient(),
+            featureCreditService);
 
         return new Harness
         {

@@ -83,8 +83,23 @@ public class ImageSuggestionService : IImageSuggestionService
                 .ToList(),
         };
 
-        var draft = await _suggestionClient.SuggestAsync(
-            new ImageEditInput(bytes, contentType), context, cancellationToken);
+        ProductAiDraft draft;
+
+        try
+        {
+            draft = await _suggestionClient.SuggestAsync(
+                new ImageEditInput(bytes, contentType), context, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Normalizes every failure - a provider timeout, a dropped connection, a
+            // bad response - to one clean, actionable message, the same way
+            // ProductAiService does for the conversation flow. Without this, a
+            // network-level failure (nothing the GeminiImageSuggestionClient's own
+            // status-code check ever sees) would reach the client as a generic 500
+            // instead of "try again".
+            throw new ImageEditingException("The image suggestion provider is unavailable right now. Please try again.", ex);
+        }
 
         // Charged after a successful call, never before - same reasoning as every
         // other AI call in this codebase: a failed provider call already threw

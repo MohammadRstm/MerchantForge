@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 
 namespace MerchForge.api.Controllers
@@ -29,6 +30,7 @@ namespace MerchForge.api.Controllers
     [ApiController]
     [AllowAnonymous]
     [EnableCors("Storefront")]
+    [EnableRateLimiting("storefront")]
     public class StorefrontController : ControllerBase
     {
         private readonly IStorefrontService _storefrontService;

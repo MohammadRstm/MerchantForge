@@ -5,6 +5,7 @@ using MerchForge.api.Services.CustomerAuth.interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace MerchForge.api.Controllers
@@ -45,6 +46,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("signup")]
+        [EnableRateLimiting("auth")]
         public async Task<ActionResult<CustomerSessionResponse>> Signup(
             [FromBody] CustomerSignupRequest request,
             CancellationToken cancellationToken)
@@ -59,6 +61,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("login")]
+        [EnableRateLimiting("auth")]
         public async Task<ActionResult<CustomerSessionResponse>> Login(
             [FromBody] CustomerLoginRequest request,
             CancellationToken cancellationToken)
@@ -73,6 +76,7 @@ namespace MerchForge.api.Controllers
         }
 
         [HttpPost("refresh")]
+        [EnableRateLimiting("auth")]
         public async Task<ActionResult<CustomerSessionResponse>> Refresh(
             CancellationToken cancellationToken)
         {

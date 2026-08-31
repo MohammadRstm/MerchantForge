@@ -8,6 +8,12 @@ namespace MerchForge.api.DTOs.Auth
 
         public string Email { get; set; } = null!;
 
+        /// <summary>
+        /// Chosen by the owner on the accept-invitation form itself — the backend
+        /// never generates a password on their behalf.
+        /// </summary>
+        public string Password { get; set; } = null!;
+
         public string InvitationToken { get; set; } = null!;
 
         /// <summary>

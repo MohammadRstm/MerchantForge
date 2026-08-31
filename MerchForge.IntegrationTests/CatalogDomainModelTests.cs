@@ -30,7 +30,7 @@ public class CatalogDomainModelTests : IClassFixture<CatalogDatabaseFixture>
             .ToListAsync();
 
         domains.Select(d => d.Slug)
-            .Should().BeEquivalentTo(["electronics", "fashion", "restaurant"]);
+            .Should().BeEquivalentTo(["electronics", "fashion", "grocery", "restaurant"]);
 
         domains.Should().OnlyContain(d => d.Categories.Count > 0);
     }

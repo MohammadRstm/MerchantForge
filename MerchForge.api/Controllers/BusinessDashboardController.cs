@@ -129,9 +129,17 @@ namespace MerchForge.api.Controllers
         {
             await _createMemberValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+            var createdByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(createdByUserId, out var parsedCreatedByUserId))
+            {
+                return Unauthorized();
+            }
+
             var response = await _businessMemberService.CreateMemberAsync(
                 businessId,
                 request,
+                parsedCreatedByUserId,
                 cancellationToken);
 
             return Ok(response);

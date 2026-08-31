@@ -14,12 +14,15 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
     {
         /// <summary>
         /// Creates a user account and attaches it to this business as an Admin or a
-        /// Member. The returned password is generated here and never stored in
-        /// readable form, so this response is the only chance to pass it on.
+        /// Member. The account has no usable password yet - an invitation is emailed
+        /// to the new member so they set their own (see
+        /// IInvitationService.CreateBusinessMemberInvitationAsync); nothing in this
+        /// response can be used to sign in.
         /// </summary>
         Task<CreateBusinessMemberResponse> CreateMemberAsync(
             Guid businessId,
             CreateBusinessMemberRequest request,
+            Guid createdByUserId,
             CancellationToken cancellationToken = default);
     }
 }

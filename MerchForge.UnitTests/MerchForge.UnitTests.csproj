@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MerchForge.Api\MerchForge.api.csproj" />
+    <ProjectReference Include="..\MerchForge.api\MerchForge.api.csproj" />
   </ItemGroup>
 
 </Project>

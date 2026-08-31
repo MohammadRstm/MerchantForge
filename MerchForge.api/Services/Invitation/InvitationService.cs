@@ -1,4 +1,5 @@
 ﻿using MerchForge.api.Data;
+using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Invitations;
 using MerchForge.api.Enums;
 using MerchForge.api.Jobs.Email;
@@ -116,6 +117,70 @@ namespace MerchForge.api.Services.Invitation
                 ExpiresAt = expiresAt
             };
         }
+        public async Task CreateBusinessMemberInvitationAsync(
+            Guid businessId,
+            string businessName,
+            CreateBusinessMemberRequest request,
+            Guid createdByUserId,
+            CancellationToken cancellationToken = default)
+        {
+            var email = request.Email;
+
+            // Revoke any previous pending invitation for this email - same reasoning
+            // as the business-owner flow: a second invite supersedes the first
+            // rather than leaving two valid links outstanding.
+            var existingInvitations = await _db.Invitations
+                .Where(i =>
+                    i.Email == email &&
+                    i.Type == InvitationType.BusinessMember &&
+                    i.AcceptedAt == null &&
+                    i.RevokedAt == null &&
+                    i.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync(cancellationToken);
+
+            foreach (var existingInvitation in existingInvitations)
+            {
+                existingInvitation.RevokedAt = DateTime.UtcNow;
+            }
+
+            var rawToken = GenerateInvitationToken();
+            var tokenHash = HashInvitationToken(rawToken);
+
+            var now = DateTime.UtcNow;
+            var expiresAt = now.AddHours(48);
+
+            var invitation = new Models.Invitation
+            {
+                Id = Guid.NewGuid(),
+                Email = email,
+                TokenHash = tokenHash,
+                Type = InvitationType.BusinessMember,
+                BusinessId = businessId,
+                BusinessRole = request.Role,
+                SystemRole = SystemRole.User,
+                CreatedByUserId = createdByUserId,
+                CreatedAt = now,
+                ExpiresAt = expiresAt,
+                AcceptedAt = null,
+                RevokedAt = null,
+                EmailSentAt = null,
+                EmailDeliveryError = null,
+                EmailDeliveryFailedAt = null,
+            };
+
+            await _db.Invitations.AddAsync(invitation, cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            var invitationLink =
+                $"{_configuration["Frontend:BaseUrl"]}/accept-member-invitation?token={Uri.EscapeDataString(rawToken)}";
+
+            _backgroundJobClient.Enqueue<SendBusinessMemberInvitationJob>(
+                job => job.ExecuteAsync(
+                    invitation.Id,
+                    invitationLink,
+                    businessName));
+        }
+
         public string HashInvitationToken(string token)
         {
             var bytes = SHA256.HashData(
@@ -176,6 +241,49 @@ namespace MerchForge.api.Services.Invitation
                 throw new InvalidInvitationException();
             }
         }
+        public void ValidateBusinessMemberInvitation(Models.Invitation? invitation)
+        {
+            if (invitation == null)
+            {
+                throw new InvalidInvitationException();
+            }
+
+            if (invitation.Type != InvitationType.BusinessMember)
+            {
+                throw new InvalidInvitationException();
+            }
+
+            if (invitation.AcceptedAt.HasValue)
+            {
+                throw new InvitationAlreadyUsedException();
+            }
+
+            if (invitation.RevokedAt.HasValue)
+            {
+                throw new InvitationRevokedException();
+            }
+
+            if (invitation.ExpiresAt <= DateTime.UtcNow)
+            {
+                throw new InvitationExpiredException();
+            }
+
+            if (invitation.BusinessRole is not (BusinessRole.Admin or BusinessRole.Member))
+            {
+                throw new InvalidInvitationException();
+            }
+
+            if (invitation.SystemRole != SystemRole.User)
+            {
+                throw new InvalidInvitationException();
+            }
+
+            if (invitation.BusinessId is null)
+            {
+                throw new InvalidInvitationException();
+            }
+        }
+
         private static string GenerateInvitationToken()
         {
             return Convert.ToBase64String(

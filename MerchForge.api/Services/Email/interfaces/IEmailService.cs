@@ -8,6 +8,13 @@ public interface IEmailService
         DateTime expiresAt,
         CancellationToken cancellationToken = default);
 
+    Task SendBusinessMemberInvitationAsync(
+        string email,
+        string invitationLink,
+        string businessName,
+        DateTime expiresAt,
+        CancellationToken cancellationToken = default);
+
     Task SendWebsiteTemplateRequestSubmittedNotificationAsync(
         string adminEmail,
         string businessName,

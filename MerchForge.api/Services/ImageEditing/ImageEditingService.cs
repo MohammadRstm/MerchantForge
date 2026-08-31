@@ -86,7 +86,13 @@ public class ImageEditingService : IImageEditingService
                 BuildJob(jobId, businessId, userId, resolvedPrompt, imageUrls, outputUrl: null, error: ex.Message),
                 cancellationToken);
 
-            throw;
+            // Normalizes every failure - a provider timeout, a dropped connection, a
+            // bad response - to one clean, actionable message, the same way
+            // ProductAiService does for the conversation flow. Without this, a
+            // network-level failure (nothing the GeminiImageEditingClient's own
+            // status-code check ever sees) would reach the client as a generic 500
+            // instead of "try again".
+            throw new ImageEditingException("The image editing provider is unavailable right now. Please try again.", ex);
         }
 
         var outputUrl = await _imageService.SaveAsync(

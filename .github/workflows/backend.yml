@@ -1,0 +1,104 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  SOLUTION: MerchForge.slnx
+
+jobs:
+  build:
+    name: Restore & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
+      - name: Build
+        run: dotnet build ${{ env.SOLUTION }} --no-restore --configuration Release
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore MerchForge.UnitTests/MerchForge.UnitTests.csproj
+
+      - name: Run unit tests
+        run: dotnet test MerchForge.UnitTests/MerchForge.UnitTests.csproj --configuration Release --logger "trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: TestResults/*.trx
+
+  integration-tests:
+    name: Integration tests (MySQL/MariaDB)
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore MerchForge.IntegrationTests/MerchForge.IntegrationTests.csproj
+
+      - name: Wait for MariaDB
+        run: |
+          for i in $(seq 1 30); do
+            mysqladmin ping -h 127.0.0.1 -P 3306 -u root --silent && break
+            echo "Waiting for MariaDB..."
+            sleep 2
+          done
+
+      - name: Run integration tests
+        # CatalogDatabaseFixture connects to Server=localhost;Port=3306;User=root;Password=;
+        # (see MerchForge.IntegrationTests/CatalogDatabaseFixture.cs) — the service
+        # container above is configured to match that exactly. Tests gated behind
+        # Xunit.SkippableFact for live AI providers (LiveAgent*/LiveEndToEnd*) skip
+        # cleanly here since no AI provider secrets are configured in CI.
+        run: dotnet test MerchForge.IntegrationTests/MerchForge.IntegrationTests.csproj --configuration Release --logger "trx" --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: TestResults/*.trx

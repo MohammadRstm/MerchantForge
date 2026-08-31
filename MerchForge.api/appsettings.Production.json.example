@@ -1,0 +1,60 @@
+{
+  "_comment": "Copy to appsettings.Production.json for local reference only - in a real deployment none of these values belong in a file at all. Every one of them should be supplied as an environment variable instead (ConnectionStrings__DefaultConnection, Jwt__SecretKey, Email__Password, etc. - double underscore is ASP.NET Core's config-section-nesting convention), exactly like local development already does via user secrets. This file exists to document what a production environment needs to set, not to be deployed as-is.",
+
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=__DB_HOST__;Port=3306;Database=merchforge;User=__DB_USER__;Password=__DB_PASSWORD__;"
+  },
+  "Jwt": {
+    "SecretKey": "__GENERATE_A_LONG_RANDOM_SECRET__",
+    "Issuer": "MerchForge",
+    "Audience": "MerchForge.Client",
+    "AccessTokenExpirationMinutes": 15,
+    "Customer": {
+      "Audience": "MerchForge.Customer",
+      "AccessTokenExpirationMinutes": 15
+    }
+  },
+  "Email": {
+    "Host": "__SMTP_HOST__",
+    "Port": 587,
+    "Username": "__SMTP_USERNAME__",
+    "Password": "__SMTP_PASSWORD__",
+    "FromEmail": "noreply@__YOUR_DOMAIN__",
+    "FromName": "MerchForge"
+  },
+  "Frontend": {
+    "BaseUrl": "https://__YOUR_DASHBOARD_DOMAIN__"
+  },
+  "Cors": {
+    "AllowedOrigins": [ "https://__YOUR_DASHBOARD_DOMAIN__" ]
+  },
+  "RefreshToken": {
+    "CookieName": "refreshToken",
+    "CookiePath": "/api/Auth",
+    "Secure": true,
+    "SameSite": "Lax",
+    "ExpirationDays": 30
+  },
+  "CustomerRefreshToken": {
+    "CookieName": "customerRefreshToken",
+    "CookiePath": "/api/CustomerAuth",
+    "Secure": true,
+    "SameSite": "Lax",
+    "ExpirationDays": 30
+  },
+  "Ai": {
+    "_comment": "Optional - the app runs correctly with these unset (see UnavailableProductAiConversationClient), it just disables the AI product-creation feature.",
+    "ApiKey": "__OPENAI_API_KEY__"
+  },
+  "GeminiFlash": {
+    "_comment": "Optional, same as above - disables AI image editing/suggestion if unset.",
+    "ApiKey": "__GEMINI_API_KEY__"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}

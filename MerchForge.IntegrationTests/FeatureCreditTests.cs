@@ -24,7 +24,7 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
     private Business _business = null!;
     private Guid _featureId;
     private Guid _starterPackageId;
-    private const int StarterCredits = 50;
+    private const int StarterCredits = 20; // ai.image_editing's "Starter" package (see FeatureCreditPackageConfiguration.cs)
 
     public FeatureCreditTests(CatalogDatabaseFixture fixture)
     {
@@ -37,7 +37,11 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
 
         await using var db = _fixture.CreateContext();
 
-        var feature = await db.Features.FirstAsync(f => f.Key == FeatureKeys.AiProductGeneration);
+        // ai.product_generation's standalone credit packages were deactivated for
+        // purchase once it became plan-unlimited-only (Feature.SupportsCreditPurchase
+        // = false) - ai.image_editing is the still-purchasable feature these tests
+        // need.
+        var feature = await db.Features.FirstAsync(f => f.Key == FeatureKeys.AiImageEditing);
         _featureId = feature.Id;
 
         var starter = await db.FeatureCreditPackages
@@ -51,8 +55,9 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
         CreateServices(api.Data.MerchForgeDbContext db)
     {
         var repo = new FeatureCreditRepository(db);
-        var subscription = new SubscriptionService(new SubscriptionRepository(db), repo);
-        var credits = new FeatureCreditService(repo, subscription);
+        var subscriptionRepository = new SubscriptionRepository(db);
+        var subscription = new SubscriptionService(subscriptionRepository, repo);
+        var credits = new FeatureCreditService(repo, subscription, subscriptionRepository);
 
         return (repo, subscription, credits);
     }
@@ -63,7 +68,7 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
         await using var db = _fixture.CreateContext();
         var (_, subscription, _) = CreateServices(db);
 
-        (await subscription.HasFeatureAsync(_business.Id, FeatureKeys.AiProductGeneration))
+        (await subscription.HasFeatureAsync(_business.Id, FeatureKeys.AiImageEditing))
             .Should().BeFalse();
     }
 
@@ -77,7 +82,7 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
 
         result.CreditsRemaining.Should().Be(StarterCredits);
         result.CreditsGrantedTotal.Should().Be(StarterCredits);
-        (await subscription.HasFeatureAsync(_business.Id, FeatureKeys.AiProductGeneration))
+        (await subscription.HasFeatureAsync(_business.Id, FeatureKeys.AiImageEditing))
             .Should().BeTrue();
     }
 
@@ -102,7 +107,7 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
 
         await credits.PurchaseAsync(_business.Id, _starterPackageId);
 
-        var consumed = await credits.TryConsumeAsync(_business.Id, FeatureKeys.AiProductGeneration, "draft-1");
+        var consumed = await credits.TryConsumeAsync(_business.Id, FeatureKeys.AiImageEditing, "draft-1");
 
         consumed.Should().BeTrue();
 
@@ -128,7 +133,7 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
         await using var db = _fixture.CreateContext();
         var (_, _, credits) = CreateServices(db);
 
-        var consumed = await credits.TryConsumeAsync(_business.Id, FeatureKeys.AiProductGeneration, null);
+        var consumed = await credits.TryConsumeAsync(_business.Id, FeatureKeys.AiImageEditing, null);
 
         consumed.Should().BeFalse();
     }
@@ -162,10 +167,10 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
 
         var (_, subscription, credits) = CreateServices(db);
 
-        (await subscription.HasFeatureAsync(_business.Id, FeatureKeys.AiProductGeneration))
+        (await subscription.HasFeatureAsync(_business.Id, FeatureKeys.AiImageEditing))
             .Should().BeTrue();
 
-        var consumed = await credits.TryConsumeAsync(_business.Id, FeatureKeys.AiProductGeneration, null);
+        var consumed = await credits.TryConsumeAsync(_business.Id, FeatureKeys.AiImageEditing, null);
         consumed.Should().BeTrue("plan membership makes usage unlimited, not zero-credit");
 
         var balanceExists = await db.BusinessFeatureCredits.AnyAsync(b => b.BusinessId == _business.Id);
@@ -192,7 +197,7 @@ public class FeatureCreditTests : IClassFixture<CatalogDatabaseFixture>, IAsyncL
             var repo = new FeatureCreditRepository(db);
 
             return await repo.TryConsumeCreditAsync(
-                _business.Id, FeatureKeys.AiProductGeneration, $"attempt-{i}");
+                _business.Id, FeatureKeys.AiImageEditing, $"attempt-{i}");
         }));
 
         results.Count(succeeded => succeeded).Should().Be(StarterCredits,

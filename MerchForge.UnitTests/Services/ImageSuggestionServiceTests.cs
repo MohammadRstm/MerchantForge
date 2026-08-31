@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.Enums;
+using MerchForge.api.Exceptions.AI;
 using MerchForge.api.Services.AI.Contracts;
 using MerchForge.api.Services.AI.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
@@ -43,7 +44,7 @@ public class ImageSuggestionServiceTests
 
         _dashboardRepository
             .Setup(r => r.GetBusinessSummaryAsync(BusinessId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(("Test Business", DateTime.UtcNow));
+            .ReturnsAsync(("Test Business", DateTime.UtcNow, (string?)null));
 
         _dashboardRepository
             .Setup(r => r.GetProductFormDataAsync(BusinessId, It.IsAny<CancellationToken>()))
@@ -85,7 +86,11 @@ public class ImageSuggestionServiceTests
 
         var act = () => _service.SuggestAsync(BusinessId, UserId, ImageUrl);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // Every provider failure - a bad response, a dropped connection, a timeout -
+        // is normalized to one clean, actionable exception rather than leaking
+        // whatever the client happened to throw, the same way ImageEditingService
+        // and ProductAiService both do.
+        await act.Should().ThrowAsync<ImageEditingException>();
 
         _featureCreditService.Verify(
             s => s.TryConsumeAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),

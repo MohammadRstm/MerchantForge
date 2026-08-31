@@ -91,5 +91,83 @@
         {
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task ReplaceActiveSubscriptionAsync(
+            Guid businessId,
+            Subscription newSubscription,
+            Func<CancellationToken, Task> onSubscriptionReplaced,
+            CancellationToken cancellationToken = default)
+        {
+            await using var transaction =
+                await _db.Database.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                var currentActive = await _db.Subscriptions
+                    .FirstOrDefaultAsync(
+                        s => s.BusinessId == businessId && s.Status == SubscriptionStatus.Active,
+                        cancellationToken);
+
+                if (currentActive is not null)
+                {
+                    currentActive.Status = SubscriptionStatus.Cancelled;
+                    currentActive.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _db.Subscriptions.AddAsync(newSubscription, cancellationToken);
+                await _db.SaveChangesAsync(cancellationToken);
+
+                // Runs inside the same transaction/DbContext, so its own
+                // SaveChangesAsync call (FeatureCreditRepository.ResetToLimitAsync)
+                // participates in this commit rather than landing separately.
+                await onSubscriptionReplaced(cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        }
+
+        public async Task<bool> TryAdvanceSubscriptionPeriodAsync(
+            Guid subscriptionId,
+            DateTime expectedCurrentPeriodEnd,
+            DateTime newPeriodStart,
+            DateTime newPeriodEnd,
+            DateTime now,
+            CancellationToken cancellationToken = default)
+        {
+            var advanced = await _db.Subscriptions
+                .Where(s =>
+                    s.Id == subscriptionId &&
+                    s.Status == SubscriptionStatus.Active &&
+                    s.CurrentPeriodEnd == expectedCurrentPeriodEnd)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(s => s.CurrentPeriodStart, newPeriodStart)
+                        .SetProperty(s => s.CurrentPeriodEnd, newPeriodEnd)
+                        .SetProperty(s => s.UpdatedAt, now),
+                    cancellationToken);
+
+            return advanced == 1;
+        }
+
+        public async Task<bool> TryEndSubscriptionAsync(
+            Guid subscriptionId,
+            DateTime now,
+            CancellationToken cancellationToken = default)
+        {
+            var ended = await _db.Subscriptions
+                .Where(s => s.Id == subscriptionId && s.Status == SubscriptionStatus.Active)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(s => s.Status, SubscriptionStatus.Cancelled)
+                        .SetProperty(s => s.UpdatedAt, now),
+                    cancellationToken);
+
+            return ended == 1;
+        }
     }
 }

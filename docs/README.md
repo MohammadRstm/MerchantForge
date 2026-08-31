@@ -107,6 +107,7 @@ the background-job system: [architecture.md](architecture.md).
 | [products/product-management.md](products/product-management.md) | Manual product CRUD, metadata validation, category rules |
 | [images/image-storage.md](images/image-storage.md) | Upload validation, storage layout, signature verification, serving |
 | [api/endpoints.md](api/endpoints.md) | Every controller's routes, auth requirements, request/response shapes, and status codes |
+| [backup-and-recovery.md](backup-and-recovery.md) | Backup mechanism, frequency, retention, and the restore drill |
 
 ## Basic setup (as determinable from the codebase)
 
@@ -128,8 +129,11 @@ the background-job system: [architecture.md](architecture.md).
   root under `/uploads/products/{businessId}/...`; the directory is created at
   startup if missing. See [images/image-storage.md](images/image-storage.md).
 
-Anything beyond this (CI/CD, deployment topology, container images) was not found
-in the inspected codebase and could not be determined from it.
+CI (build/test on every push) exists per-repo (`.github/workflows/`). Backup/
+restore tooling exists and targets any directly reachable MySQL/MariaDB
+instance - see [backup-and-recovery.md](backup-and-recovery.md). A chosen
+hosting provider, deployment mechanism (containerized or otherwise), and CD
+pipeline do not exist yet - deliberately deferred until that decision is made.
 
 ## Documentation scope and method
 

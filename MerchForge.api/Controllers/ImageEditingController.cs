@@ -4,6 +4,7 @@ using MerchForge.api.DTOs.ImageEditing;
 using MerchForge.api.Services.ImageEditing.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MerchForge.api.Controllers
 {
@@ -18,6 +19,7 @@ namespace MerchForge.api.Controllers
     [ApiController]
     [Authorize(Policy = AuthorizationPolicies.BusinessOwner)]
     [Authorize(Policy = AuthorizationPolicies.AiImageEditing)]
+    [EnableRateLimiting("ai")]
     public class ImageEditingController : ControllerBase
     {
         private readonly IImageEditingService _imageEditingService;

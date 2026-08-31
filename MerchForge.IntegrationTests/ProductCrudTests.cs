@@ -6,6 +6,7 @@ using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Services.BusinessDashboard;
+using MerchForge.api.Services.Subscription;
 using MerchForge.IntegrationTests.Fakes;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,10 +55,19 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
     private BusinessDashboardService CreateService(out api.Data.MerchForgeDbContext db)
     {
         db = _fixture.CreateContext();
+
+        var featureCreditRepo = new FeatureCreditRepository(db);
+        var subscriptionRepository = new SubscriptionRepository(db);
+        var subscriptionService = new SubscriptionService(subscriptionRepository, featureCreditRepo);
+        var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService, subscriptionRepository);
+
         return new BusinessDashboardService(
             new BusinessDashboardRepository(db),
-            new SubscriptionRepository(db),
-            new FakeBackgroundJobClient());
+            subscriptionRepository,
+            new WebsiteTemplateRequestRepository(db),
+            new OrderRepository(db),
+            new FakeBackgroundJobClient(),
+            featureCreditService);
     }
 
     private static SaveProductRequest Request(

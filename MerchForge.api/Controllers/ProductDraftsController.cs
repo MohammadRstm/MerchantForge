@@ -5,6 +5,7 @@ using MerchForge.api.DTOs.ProductAi;
 using MerchForge.api.Services.ProductAi.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MerchForge.api.Controllers
 {
@@ -24,6 +25,7 @@ namespace MerchForge.api.Controllers
     [ApiController]
     [Authorize(Policy = AuthorizationPolicies.BusinessOwner)]
     [Authorize(Policy = AuthorizationPolicies.AiProductGeneration)]
+    [EnableRateLimiting("ai")]
     public class ProductDraftsController : ControllerBase
     {
         private readonly IProductAiService _productAiService;

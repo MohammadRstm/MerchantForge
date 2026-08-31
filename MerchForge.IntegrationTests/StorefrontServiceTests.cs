@@ -107,7 +107,7 @@ public class StorefrontServiceTests : IClassFixture<CatalogDatabaseFixture>, IAs
     private StorefrontService CreateService(out MerchForgeDbContextScope scope)
     {
         scope = new MerchForgeDbContextScope(_fixture.CreateContext());
-        return new StorefrontService(new StorefrontRepository(scope.Db));
+        return new StorefrontService(new StorefrontRepository(scope.Db), new OrderRepository(scope.Db));
     }
 
     private sealed class MerchForgeDbContextScope(api.Data.MerchForgeDbContext db) : IDisposable

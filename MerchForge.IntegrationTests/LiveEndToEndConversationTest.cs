@@ -63,11 +63,19 @@ public class LiveEndToEndConversationTest
     {
         var context = _db.CreateContext();
         var repo = new BusinessDashboardRepository(context);
-        var dashboard = new BusinessDashboardService(repo, new SubscriptionRepository(context), new FakeBackgroundJobClient());
 
         var featureCreditRepo = new FeatureCreditRepository(context);
-        var subscriptionService = new SubscriptionService(new SubscriptionRepository(context), featureCreditRepo);
-        var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService);
+        var subscriptionRepository = new SubscriptionRepository(context);
+        var subscriptionService = new SubscriptionService(subscriptionRepository, featureCreditRepo);
+        var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService, subscriptionRepository);
+
+        var dashboard = new BusinessDashboardService(
+            repo,
+            subscriptionRepository,
+            new WebsiteTemplateRequestRepository(context),
+            new OrderRepository(context),
+            new FakeBackgroundJobClient(),
+            featureCreditService);
 
         var transcription = new FakeAiTranscriptionService();
 

@@ -36,7 +36,7 @@ public class OnboardingDomainServiceTests : IClassFixture<CatalogDatabaseFixture
         var domains = await service.GetDomainsAsync();
 
         domains.Select(d => d.Slug)
-            .Should().BeEquivalentTo(["electronics", "fashion", "restaurant"]);
+            .Should().BeEquivalentTo(["electronics", "fashion", "grocery", "restaurant"]);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class OnboardingDomainServiceTests : IClassFixture<CatalogDatabaseFixture
 
         attributes.Should().NotBeEmpty();
         attributes.Select(a => a.DisplayOrder).Should().BeInAscendingOrder();
-        attributes.Should().Contain(a => a.Key == "colors" && a.ValueType == "TextList");
+        attributes.Should().Contain(a => a.Key == "colors" && a.ValueType == "ColorList");
         attributes.Should().Contain(a => a.Key == "handmade" && a.ValueType == "Boolean");
 
         // Restaurant-only fields must not leak into Fashion's catalogue.
@@ -222,7 +222,7 @@ public class OnboardingDomainServiceTests : IClassFixture<CatalogDatabaseFixture
 
         var colors = fields.EnumerateArray().First();
         colors.GetProperty("label").GetString().Should().Be("Colors");
-        colors.GetProperty("valueType").GetString().Should().Be("TextList");
+        colors.GetProperty("valueType").GetString().Should().Be("ColorList");
     }
 
     [Fact]

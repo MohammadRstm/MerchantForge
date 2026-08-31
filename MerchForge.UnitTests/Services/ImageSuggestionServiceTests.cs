@@ -43,7 +43,7 @@ public class ImageSuggestionServiceTests
 
         _dashboardRepository
             .Setup(r => r.GetBusinessSummaryAsync(BusinessId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(("Test Business", DateTime.UtcNow));
+            .ReturnsAsync(("Test Business", DateTime.UtcNow, (string?)null));
 
         _dashboardRepository
             .Setup(r => r.GetProductFormDataAsync(BusinessId, It.IsAny<CancellationToken>()))

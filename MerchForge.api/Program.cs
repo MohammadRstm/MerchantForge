@@ -7,6 +7,7 @@ using MerchForge.api.Authorization.Requirements;
 using MerchForge.api.Configurations;
 using MerchForge.api.Configurations.Json;
 using MerchForge.api.Data;
+using MerchForge.api.DTOs.Error;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions;
 using MerchForge.api.Exceptions.Auth;
@@ -193,7 +194,21 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = (context, cancellationToken) =>
     {
         context.HttpContext.Response.Headers.RetryAfter = "60";
-        return ValueTask.CompletedTask;
+
+        // Same ApiErrorResponse shape GlobalExceptionHandler already uses for every
+        // other error, so the frontend's existing error parsing picks this up with
+        // no special-casing - Type=Unexpected/a dedicated Code is enough for the
+        // frontend to show a specific "slow down" message rather than a generic one.
+        context.HttpContext.Response.ContentType = "application/json";
+        var response = new ApiErrorResponse
+        {
+            Type = ErrorType.Unexpected,
+            Code = "RATE_LIMITED",
+            Message = "Too many requests. Please wait a moment and try again.",
+            TraceId = context.HttpContext.TraceIdentifier,
+        };
+
+        return new ValueTask(context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken));
     };
 
     // Pre-authentication endpoints: login, signup, refresh, the one-time

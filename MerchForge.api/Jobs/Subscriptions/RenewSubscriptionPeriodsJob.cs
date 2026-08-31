@@ -44,39 +44,78 @@ public class RenewSubscriptionPeriodsJob
 
         foreach (var subscription in dueSubscriptions)
         {
-            if (subscription.CancelAtPeriodEnd)
+            try
             {
-                subscription.Status = SubscriptionStatus.Cancelled;
-                subscription.UpdatedAt = now;
+                if (subscription.CancelAtPeriodEnd)
+                {
+                    // Atomic claim, same reasoning as the renewal branch below: only
+                    // ends it if it's still Active, so a retry re-processing a
+                    // subscription an earlier attempt already ended is a safe no-op
+                    // rather than a duplicate cancellation/notification.
+                    var ended = await _subscriptionRepository.TryEndSubscriptionAsync(
+                        subscription.Id, now, cancellationToken);
 
-                _backgroundJobClient.Enqueue<NotifyAdminToTakeWebsiteDownJob>(
-                    job => job.ExecuteAsync(subscription.BusinessId));
+                    if (!ended)
+                    {
+                        continue;
+                    }
+
+                    _backgroundJobClient.Enqueue<NotifyAdminToTakeWebsiteDownJob>(
+                        job => job.ExecuteAsync(subscription.BusinessId));
+
+                    _logger.LogInformation(
+                        "Subscription {SubscriptionId} for business {BusinessId} ended at the owner's request; not renewing.",
+                        subscription.Id,
+                        subscription.BusinessId);
+
+                    continue;
+                }
+
+                var newPeriodStart = subscription.CurrentPeriodEnd;
+                var newPeriodEnd = subscription.SubscriptionPlan.BillingInterval == BillingInterval.Yearly
+                    ? newPeriodStart.AddYears(1)
+                    : newPeriodStart.AddMonths(1);
+
+                // Atomic claim-and-advance: only succeeds if CurrentPeriodEnd still
+                // matches what was read above, the same pattern
+                // FeatureCreditRepository.TryConsumeCreditAsync uses for its balance
+                // update. This is what makes a Hangfire retry safe - a subscription
+                // an earlier attempt already advanced fails this condition and is
+                // skipped instead of being renewed (and re-granted credits) twice.
+                var advanced = await _subscriptionRepository.TryAdvanceSubscriptionPeriodAsync(
+                    subscription.Id, subscription.CurrentPeriodEnd, newPeriodStart, newPeriodEnd, now, cancellationToken);
+
+                if (!advanced)
+                {
+                    _logger.LogInformation(
+                        "Subscription {SubscriptionId} was already advanced by an earlier attempt; skipping.",
+                        subscription.Id);
+
+                    continue;
+                }
+
+                await _featureCreditService.ResetImageEditingCreditsForPeriodAsync(
+                    subscription.BusinessId, subscription.SubscriptionPlanId, cancellationToken);
 
                 _logger.LogInformation(
-                    "Subscription {SubscriptionId} for business {BusinessId} ended at the owner's request; not renewing.",
+                    "Renewed subscription {SubscriptionId} for business {BusinessId}. New period: {Start} - {End}.",
+                    subscription.Id,
+                    subscription.BusinessId,
+                    newPeriodStart,
+                    newPeriodEnd);
+            }
+            catch (Exception ex)
+            {
+                // One bad subscription must not block the rest of the batch, and
+                // must not fail the whole hourly run - each subscription's renewal
+                // is independently atomic (see above), so a failure here has left no
+                // partial state for this one to worry about on the next run.
+                _logger.LogError(
+                    ex,
+                    "Failed to process renewal for subscription {SubscriptionId} (business {BusinessId}); continuing with the rest of the batch.",
                     subscription.Id,
                     subscription.BusinessId);
-
-                continue;
             }
-
-            subscription.CurrentPeriodStart = subscription.CurrentPeriodEnd;
-            subscription.CurrentPeriodEnd = subscription.SubscriptionPlan.BillingInterval == BillingInterval.Yearly
-                ? subscription.CurrentPeriodStart.AddYears(1)
-                : subscription.CurrentPeriodStart.AddMonths(1);
-            subscription.UpdatedAt = now;
-
-            await _featureCreditService.ResetImageEditingCreditsForPeriodAsync(
-                subscription.BusinessId, subscription.SubscriptionPlanId, cancellationToken);
-
-            _logger.LogInformation(
-                "Renewed subscription {SubscriptionId} for business {BusinessId}. New period: {Start} - {End}.",
-                subscription.Id,
-                subscription.BusinessId,
-                subscription.CurrentPeriodStart,
-                subscription.CurrentPeriodEnd);
         }
-
-        await _subscriptionRepository.SaveChangesAsync(cancellationToken);
     }
 }

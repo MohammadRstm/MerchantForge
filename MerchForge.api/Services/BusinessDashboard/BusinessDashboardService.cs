@@ -208,13 +208,17 @@ namespace MerchForge.api.Services.BusinessDashboard
             // replaces the current one outright.
             var currentActive = await _subscriptionRepository.GetSubscriptionWithPlanFeaturesAsync(businessId);
 
-            var now = DateTime.UtcNow;
-
-            if (currentActive is not null)
+            // Idempotency guard: a retried or duplicated request for the plan the
+            // business is already on is a no-op, not a fresh cancel+recreate+regrant.
+            // Without this, a duplicate submission would cancel a subscription that
+            // was never actually being switched away from, and re-grant credits that
+            // were never actually exhausted.
+            if (currentActive is not null && currentActive.SubscriptionPlanId == plan.Id)
             {
-                currentActive.Status = SubscriptionStatus.Cancelled;
-                currentActive.UpdatedAt = now;
+                return (await GetSubscriptionAsync(businessId, cancellationToken))!;
             }
+
+            var now = DateTime.UtcNow;
 
             var subscription = new Models.Subscription
             {
@@ -230,10 +234,14 @@ namespace MerchForge.api.Services.BusinessDashboard
                 UpdatedAt = now,
             };
 
-            await _subscriptionRepository.AddSubscriptionAsync(subscription, cancellationToken);
-            await _subscriptionRepository.SaveChangesAsync(cancellationToken);
-
-            await _featureCreditService.ResetImageEditingCreditsForPeriodAsync(businessId, plan.Id, cancellationToken);
+            // Cancelling the prior subscription, inserting this one, and granting
+            // this period's credits all happen in one transaction - a failure at any
+            // point leaves the business on its previous plan rather than half-migrated.
+            await _subscriptionRepository.ReplaceActiveSubscriptionAsync(
+                businessId,
+                subscription,
+                ct => _featureCreditService.ResetImageEditingCreditsForPeriodAsync(businessId, plan.Id, ct),
+                cancellationToken);
 
             return (await GetSubscriptionAsync(businessId, cancellationToken))!;
         }

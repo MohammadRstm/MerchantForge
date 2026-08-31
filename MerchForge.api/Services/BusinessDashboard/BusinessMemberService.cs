@@ -6,6 +6,7 @@ using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Common;
+using MerchForge.api.Services.Invitation.interfaces;
 using Microsoft.AspNetCore.Identity;
 
 namespace MerchForge.api.Services.BusinessDashboard
@@ -15,20 +16,24 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
         private readonly IUserRepository _userRepository;
         private readonly IPasswordHasher<User> _passwordHasher;
+        private readonly IInvitationService _invitationService;
 
         public BusinessMemberService(
             IBusinessDashboardRepository businessDashboardRepository,
             IUserRepository userRepository,
-            IPasswordHasher<User> passwordHasher)
+            IPasswordHasher<User> passwordHasher,
+            IInvitationService invitationService)
         {
             _businessDashboardRepository = businessDashboardRepository;
             _userRepository = userRepository;
             _passwordHasher = passwordHasher;
+            _invitationService = invitationService;
         }
 
         public async Task<CreateBusinessMemberResponse> CreateMemberAsync(
             Guid businessId,
             CreateBusinessMemberRequest request,
+            Guid createdByUserId,
             CancellationToken cancellationToken = default)
         {
             // The route's businessId is only proven to belong to the caller, not to
@@ -74,9 +79,12 @@ namespace MerchForge.api.Services.BusinessDashboard
                 UpdatedAt = now,
             };
 
-            var password = PasswordGenerator.Generate();
-
-            member.PasswordHash = _passwordHasher.HashPassword(member, password);
+            // No usable password yet - unattached to any account, generated purely so
+            // the stored hash is well-formed and a login attempt fails the ordinary
+            // "wrong password" way rather than erroring on a malformed hash. The
+            // invitation below is what actually lets this member in, by overwriting
+            // this hash with one only they ever know.
+            member.PasswordHash = _passwordHasher.HashPassword(member, PasswordGenerator.Generate());
 
             var membership = new BusinessUser
             {
@@ -89,6 +97,9 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             await _businessDashboardRepository.CreateMemberAsync(member, membership, cancellationToken);
 
+            await _invitationService.CreateBusinessMemberInvitationAsync(
+                businessId, business!.Value.Name, request, createdByUserId, cancellationToken);
+
             return new CreateBusinessMemberResponse
             {
                 UserId = member.Id,
@@ -97,7 +108,6 @@ namespace MerchForge.api.Services.BusinessDashboard
                 Email = member.Email,
                 Role = request.Role.ToString(),
                 JoinedAt = membership.CreatedAt,
-                RawPassword = password,
             };
         }
     }

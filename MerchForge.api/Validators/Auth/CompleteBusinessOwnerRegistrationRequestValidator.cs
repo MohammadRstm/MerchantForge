@@ -24,6 +24,10 @@ namespace MerchForge.api.Validators.Auth
                 .EmailAddress()
                 .MaximumLength(255);
 
+            RuleFor(x => x.Password)
+                .NotEmpty()
+                .MinimumLength(8);
+
             RuleFor(x => x.InvitationToken)
                 .NotEmpty()
                 .ToString();

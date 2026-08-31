@@ -109,6 +109,52 @@ namespace MerchForge.api.Repositories.Implementations
             }
         }
 
+        public async Task CompleteBusinessMemberRegistration(
+            Guid userId,
+            string passwordHash,
+            Guid invitationId,
+            CancellationToken cancellationToken = default)
+        {
+            await using var transaction =
+               await _db.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                // Same atomic-claim reasoning as FinishBusinessOwnerRegistration:
+                // only succeeds if the invitation is still unaccepted, unrevoked and
+                // unexpired, closing the race window where two concurrent requests
+                // for the same token could both pass validation.
+                var claimed = await _db.Invitations
+                    .Where(i =>
+                        i.Id == invitationId &&
+                        i.AcceptedAt == null &&
+                        i.RevokedAt == null &&
+                        i.ExpiresAt > DateTime.UtcNow)
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(i => i.AcceptedAt, DateTime.UtcNow),
+                        cancellationToken);
+
+                if (claimed == 0)
+                {
+                    throw new Exceptions.Invitation.InvitationAlreadyUsedException();
+                }
+
+                await _db.Users
+                    .Where(u => u.Id == userId)
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(u => u.PasswordHash, passwordHash)
+                            .SetProperty(u => u.UpdatedAt, DateTime.UtcNow),
+                        cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        }
+
         public async Task<bool> SuperAdminExistsAsync(CancellationToken cancellationToken = default)
         {
             var superAdminRoleId = await GetSystemRoleId(SystemRole.SuperAdmin, cancellationToken);

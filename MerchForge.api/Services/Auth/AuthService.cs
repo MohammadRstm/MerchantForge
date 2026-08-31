@@ -2,6 +2,7 @@
 using MerchForge.api.DTOs.Auth;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Auth;
+using MerchForge.api.Exceptions.Invitation;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.Auth.interfaces;
@@ -223,11 +224,9 @@ public class AuthService : IAuthService
             UpdatedAt = DateTime.UtcNow,
         };
 
-        var password = PasswordGenerator.Generate();
-
         owner.PasswordHash = _passwordHasher.HashPassword(
             owner,
-            password
+            request.Password
         );
 
         // Snapshot the chosen optional product fields. Built before the business is
@@ -277,7 +276,7 @@ public class AuthService : IAuthService
         var (refreshToken, _) =
             await _refreshTokenService.CreateAsync(owner, cancellationToken);
 
-        var response = await CreateRegistrationResponse(owner, password);
+        var response = await CreateRegistrationResponse(owner);
 
         return (response, refreshToken);
     }
@@ -310,16 +309,47 @@ public class AuthService : IAuthService
         };
     }
 
-    private async Task<RegistrationResponse> CreateRegistrationResponse(
-        User user,
-        string rawPassword)
+    private async Task<RegistrationResponse> CreateRegistrationResponse(User user)
     {
         return new RegistrationResponse
         {
             AuthResponse = await CreateAuthResponse(user),
-            rawPassword = rawPassword
         };
     }
 
+    public async Task<(RegistrationResponse Response, string RefreshToken)> CompleteBusinessMemberRegistration(
+        CompleteBusinessMemberRegistrationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tokenHash = _invitationService.HashInvitationToken(request.InvitationToken);
 
+        var invitation = await _invitationService.GetInvitationByHashToken(tokenHash, cancellationToken);
+
+        _invitationService.ValidateBusinessMemberInvitation(invitation);
+
+        // ValidateBusinessMemberInvitation already rejects a null invitation, so this
+        // is only for the compiler's sake.
+        if (invitation is null)
+        {
+            throw new InvalidInvitationException();
+        }
+
+        // The member row already exists — BusinessMemberService.CreateMemberAsync
+        // created it (with an unusable password) at invite time. This is the one
+        // place that password becomes real, and email comes from the invitation
+        // itself, never the request, so it can't be pointed at a different account.
+        var member = await _userRepository.GetByEmailAsync(invitation.Email, cancellationToken)
+            ?? throw new InvalidInvitationException();
+
+        var passwordHash = _passwordHasher.HashPassword(member, request.Password);
+
+        await _userRepository.CompleteBusinessMemberRegistration(
+            member.Id, passwordHash, invitation.Id, cancellationToken);
+
+        var (refreshToken, _) = await _refreshTokenService.CreateAsync(member, cancellationToken);
+
+        var response = await CreateRegistrationResponse(member);
+
+        return (response, refreshToken);
+    }
 }

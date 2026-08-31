@@ -2,7 +2,6 @@
 {
     public class RegistrationResponse
     {
-        public AuthResponse AuthResponse { get; set; }
-        public string rawPassword { get; set; }
+        public AuthResponse AuthResponse { get; set; } = null!;
     }
 }

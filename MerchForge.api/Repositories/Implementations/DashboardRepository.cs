@@ -769,6 +769,11 @@ namespace MerchForge.api.Repositories.Implementations
                 baseQuery = baseQuery.Where(s => s.SubscriptionPlanId == query.PlanId.Value);
             }
 
+            if (!string.IsNullOrWhiteSpace(query.PlanName))
+            {
+                baseQuery = baseQuery.Where(s => s.SubscriptionPlan.Name == query.PlanName);
+            }
+
             if (query.BillingInterval.HasValue)
             {
                 baseQuery = baseQuery.Where(s => s.SubscriptionPlan.BillingInterval == query.BillingInterval.Value);

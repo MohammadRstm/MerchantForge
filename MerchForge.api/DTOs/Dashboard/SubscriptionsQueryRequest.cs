@@ -10,6 +10,9 @@ public class SubscriptionsQueryRequest : PagedQuery
 
     public Guid? PlanId { get; set; }
 
+    /// <summary>Filters to every plan row sharing this tier Name (both billing intervals) - what the plan-card "Manage Subscribers" cross-link uses, since a tier spans two independent rows.</summary>
+    public string? PlanName { get; set; }
+
     public BillingInterval? BillingInterval { get; set; }
 
     public SubscriptionStatus? Status { get; set; }

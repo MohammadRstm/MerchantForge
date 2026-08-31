@@ -11,6 +11,9 @@ public class SubscriptionsQueryRequestValidator : PagedQueryValidator<Subscripti
         RuleFor(x => x.Search)
             .MaximumLength(255);
 
+        RuleFor(x => x.PlanName)
+            .MaximumLength(100);
+
         RuleFor(x => x.SortBy)
             .IsInEnum();
 

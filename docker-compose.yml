@@ -1,0 +1,23 @@
+services:
+  db:
+    image: mariadb:10.4
+    container_name: merchforge-db
+    restart: unless-stopped
+    environment:
+      # Matches the empty root password MerchForge.api's connection string already
+      # uses in appsettings.Development.json / integration test CI (backend.yml) --
+      # switching to this container requires no connection-string change.
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+    ports:
+      - "3306:3306"
+    volumes:
+      - merchforge_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  merchforge_mysql_data:

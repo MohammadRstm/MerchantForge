@@ -5,6 +5,7 @@ using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Exceptions.Invitation;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Audit.interfaces;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
@@ -32,6 +33,7 @@ public class AuthServiceTests
     private readonly Mock<IInvitationService> _invitationService = new();
     private readonly Mock<IBusinessRepository> _businessRepository = new();
     private readonly Mock<IDomainService> _domainService = new();
+    private readonly Mock<IAuditLogService> _auditLogService = new();
 
     private readonly AuthService _service;
 
@@ -45,6 +47,7 @@ public class AuthServiceTests
             _invitationService.Object,
             _businessRepository.Object,
             _domainService.Object,
+            _auditLogService.Object,
             NullLogger<AuthService>.Instance);
 
         _jwtService.Setup(s => s.GenerateAccessToken(It.IsAny<User>())).ReturnsAsync("access-token");
@@ -105,6 +108,33 @@ public class AuthServiceTests
     public async Task Login_fails_for_the_wrong_password()
     {
         var user = BuildUser("correct-horse");
+        _userRepository.Setup(r => r.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+
+        var act = () => _service.LoginAsync(new LoginRequest { Email = user.Email, Password = "wrong-password" });
+
+        await act.Should().ThrowAsync<InvalidCredentialsException>();
+    }
+
+    [Fact]
+    public async Task Login_fails_for_a_disabled_account_even_with_the_correct_password()
+    {
+        var user = BuildUser("correct-horse");
+        user.DisabledAt = DateTime.UtcNow.AddMinutes(-5);
+        _userRepository.Setup(r => r.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
+
+        var act = () => _service.LoginAsync(new LoginRequest { Email = user.Email, Password = "correct-horse" });
+
+        await act.Should().ThrowAsync<AccountDisabledException>();
+    }
+
+    [Fact]
+    public async Task Login_reports_invalid_credentials_not_account_disabled_when_the_password_is_wrong_for_a_disabled_account()
+    {
+        // A wrong password against a disabled account must look identical to a wrong
+        // password against an active one - otherwise the disabled state leaks to
+        // anyone who merely guesses the email, without needing the real password.
+        var user = BuildUser("correct-horse");
+        user.DisabledAt = DateTime.UtcNow.AddMinutes(-5);
         _userRepository.Setup(r => r.GetByEmailAsync(user.Email, It.IsAny<CancellationToken>())).ReturnsAsync(user);
 
         var act = () => _service.LoginAsync(new LoginRequest { Email = user.Email, Password = "wrong-password" });

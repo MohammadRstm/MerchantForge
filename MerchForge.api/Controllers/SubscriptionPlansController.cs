@@ -1,5 +1,6 @@
 using FluentValidation;
 using MerchForge.api.Authorization;
+using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Subscriptions;
 using MerchForge.api.Services.Subscription.interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -51,6 +52,35 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _subscriptionPlanService.GetFeaturesAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        /// <summary>Plans grouped by tier Name (Monthly + Yearly merged) — backs the plan card grid.</summary>
+        [HttpGet("groups")]
+        public async Task<ActionResult<List<SubscriptionPlanGroupResponse>>> GetGroups(
+            CancellationToken cancellationToken)
+        {
+            var response = await _subscriptionPlanService.GetGroupsAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        /// <summary>Active-subscriber counts per tier — backs the Subscription Distribution chart.</summary>
+        [HttpGet("distribution")]
+        public async Task<ActionResult<List<KeyCountResponse>>> GetDistribution(
+            CancellationToken cancellationToken)
+        {
+            var response = await _subscriptionPlanService.GetDistributionAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("stats")]
+        public async Task<ActionResult<PlanSubscriptionStatsResponse>> GetStats(
+            CancellationToken cancellationToken)
+        {
+            var response = await _subscriptionPlanService.GetStatsAsync(cancellationToken);
 
             return Ok(response);
         }

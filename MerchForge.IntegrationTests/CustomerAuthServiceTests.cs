@@ -4,6 +4,7 @@ using MerchForge.api.DTOs.CustomerAuth;
 using MerchForge.api.Exceptions.CustomerAuth;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
+using MerchForge.api.Services.Audit;
 using MerchForge.api.Services.CustomerAuth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -44,8 +45,10 @@ public class CustomerAuthServiceTests : IClassFixture<CatalogDatabaseFixture>
             new CustomerRefreshTokenRepository(db),
             Options.Create(new CustomerRefreshTokenOptions { ExpirationDays = 30 }));
 
+        var auditLogService = new AuditLogService(new AuditLogRepository(db), NullLogger<AuditLogService>.Instance);
+
         return new CustomerAuthService(
-            customerRepository, passwordHasher, jwtService, refreshTokenService, db,
+            customerRepository, passwordHasher, jwtService, refreshTokenService, auditLogService, db,
             NullLogger<CustomerAuthService>.Instance);
     }
 

@@ -1,4 +1,5 @@
 using MerchForge.api.Data;
+using MerchForge.api.DTOs.Common;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
@@ -49,6 +50,44 @@ namespace MerchForge.api.Repositories.Implementations
         {
             return await _db.Subscriptions
                 .CountAsync(s => s.SubscriptionPlanId == subscriptionPlanId && s.Status == SubscriptionStatus.Active, cancellationToken);
+        }
+
+        public async Task<Dictionary<Guid, int>> GetActiveSubscriberCountsByPlanIdAsync(CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.Subscriptions
+                .Where(s => s.Status == SubscriptionStatus.Active)
+                .GroupBy(s => s.SubscriptionPlanId)
+                .Select(g => new { PlanId = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            return grouped.ToDictionary(x => x.PlanId, x => x.Count);
+        }
+
+        public async Task<List<KeyCountResponse>> GetActiveSubscriberCountsByPlanNameAsync(CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.Subscriptions
+                .Where(s => s.Status == SubscriptionStatus.Active)
+                .GroupBy(s => s.SubscriptionPlan.Name)
+                .Select(g => new { Name = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            return grouped
+                .Select(x => new KeyCountResponse { Key = x.Name, Count = x.Count })
+                .ToList();
+        }
+
+        public async Task<Dictionary<BillingInterval, int>> GetActiveSubscriptionCountsByBillingIntervalAsync(CancellationToken cancellationToken = default)
+        {
+            // Grouped by the raw enum column, not .ToString() - the latter can't be
+            // translated to SQL by this provider (same reasoning as
+            // GetSubscriptionStatusCountsAsync elsewhere in DashboardRepository).
+            var grouped = await _db.Subscriptions
+                .Where(s => s.Status == SubscriptionStatus.Active)
+                .GroupBy(s => s.SubscriptionPlan.BillingInterval)
+                .Select(g => new { Interval = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            return grouped.ToDictionary(x => x.Interval, x => x.Count);
         }
 
         public async Task<List<Feature>> GetAllFeaturesAsync(CancellationToken cancellationToken = default)

@@ -31,5 +31,33 @@ namespace MerchForge.api.Services.Common
 
             return series;
         }
+
+        public static List<TimeSeriesPointResponse> BuildDailySeries(
+            List<DateTime> dates,
+            DateTime seriesStart,
+            DateTime until)
+        {
+            var series = new List<TimeSeriesPointResponse>();
+
+            var cursor = seriesStart.Date;
+            var end = until.Date;
+
+            while (cursor <= end)
+            {
+                var nextDay = cursor.AddDays(1);
+
+                var count = dates.Count(d => d >= cursor && d < nextDay);
+
+                series.Add(new TimeSeriesPointResponse
+                {
+                    Period = cursor.ToString("yyyy-MM-dd"),
+                    Count = count,
+                });
+
+                cursor = nextDay;
+            }
+
+            return series;
+        }
     }
 }

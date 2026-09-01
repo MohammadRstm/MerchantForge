@@ -22,6 +22,67 @@ namespace MerchForge.api.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("MerchForge.api.Models.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("ActorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("BusinessId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("json");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("tinyint(1)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("BusinessId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("EventType", "CreatedAt");
+
+                    b.ToTable("audit_logs", (string)null);
+                });
+
             modelBuilder.Entity("MerchForge.api.Models.Business", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2471,6 +2532,12 @@ namespace MerchForge.api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("DisabledAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("DisabledByUserId")
+                        .HasColumnType("char(36)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -2500,6 +2567,10 @@ namespace MerchForge.api.Migrations
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DisabledAt");
+
+                    b.HasIndex("DisabledByUserId");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -2834,6 +2905,23 @@ namespace MerchForge.api.Migrations
                     b.HasIndex("WebsiteTemplateId");
 
                     b.ToTable("website_template_requests", (string)null);
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.AuditLog", b =>
+                {
+                    b.HasOne("MerchForge.api.Models.User", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MerchForge.api.Models.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("Business");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.Business", b =>
@@ -3192,9 +3280,16 @@ namespace MerchForge.api.Migrations
 
             modelBuilder.Entity("MerchForge.api.Models.User", b =>
                 {
+                    b.HasOne("MerchForge.api.Models.User", "DisabledByUser")
+                        .WithMany()
+                        .HasForeignKey("DisabledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MerchForge.api.Models.UserRole", null)
                         .WithMany("Users")
                         .HasForeignKey("UserRoleId");
+
+                    b.Navigation("DisabledByUser");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.WebsiteTemplate", b =>

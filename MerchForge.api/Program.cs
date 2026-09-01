@@ -17,8 +17,11 @@ using MerchForge.api.Models;
 using MerchForge.api.RateLimiting;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Audit;
+using MerchForge.api.Services.Audit.interfaces;
 using MerchForge.api.Services.Auth;
 using MerchForge.api.Services.Auth.interfaces;
+using MerchForge.api.Services.Common;
 using MerchForge.api.Services.CustomerAuth;
 using MerchForge.api.Services.CustomerAuth.interfaces;
 using MerchForge.api.Services.BusinessDashboard;
@@ -399,6 +402,11 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IFeatureCreditService, FeatureCreditService>();
 builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
 
+// Audit / Security Services
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+
 // Dashboard Services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IBusinessDashboardService, BusinessDashboardService>();
@@ -629,6 +637,7 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<ISubscriptionPlanRepository, SubscriptionPlanRepository>();
 builder.Services.AddScoped<IBusinessRepository, BusinessRepository>();
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
 builder.Services.AddScoped<IStorefrontRepository, StorefrontRepository>();
 builder.Services.AddScoped<IDomainRepository, DomainRepository>();

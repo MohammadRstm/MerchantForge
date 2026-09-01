@@ -1,7 +1,9 @@
+using MerchForge.api.DTOs.Audit;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
+using MerchForge.api.Enums;
 
 namespace MerchForge.api.Services.Dashboard.interfaces
 {
@@ -13,10 +15,40 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             UsersQueryRequest query,
             CancellationToken cancellationToken = default);
 
+        Task<DashboardUserDetailResponse> GetUserDetailAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default);
+
         Task<RevokeUserSessionsResponse> RevokeUserSessionsAsync(
             Guid targetUserId,
             Guid actingUserId,
             CancellationToken cancellationToken = default);
+
+        Task<DashboardUserDetailResponse> DisableUserAsync(
+            Guid targetUserId,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<DashboardUserDetailResponse> EnableUserAsync(
+            Guid targetUserId,
+            Guid actingUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<RevokeUserSessionsResponse> RevokeAllSessionsAsync(
+            Guid actingUserId,
+            CancellationToken cancellationToken = default);
+
+        // ---- audit / security ----
+
+        Task<PagedResult<AuditLogResponse>> GetAuditLogsAsync(
+            AuditLogQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<SecurityOverviewResponse> GetSecurityOverviewAsync(CancellationToken cancellationToken = default);
+
+        Task<FailedLoginStatsResponse> GetFailedLoginStatsAsync(CancellationToken cancellationToken = default);
+
+        Task<List<SecurityAlertResponse>> GetSecurityAlertsAsync(CancellationToken cancellationToken = default);
 
         Task<PagedResult<DashboardBusinessResponse>> GetBusinessesAsync(
             BusinessesQueryRequest query,
@@ -28,6 +60,35 @@ namespace MerchForge.api.Services.Dashboard.interfaces
 
         Task<RevokeUserSessionsResponse> RevokeBusinessSessionsAsync(
             Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        // ---- business analytics (reuses the same repository methods the Owner Dashboard calls) ----
+
+        Task<OrderAnalyticsResponse> GetBusinessOrderAnalyticsAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
+        Task<List<BusinessOrderResponse>> GetBusinessRecentOrdersAsync(
+            Guid businessId,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+
+        Task<InventorySummaryResponse> GetBusinessInventorySummaryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<ProductPerformanceResponse> GetBusinessProductPerformanceAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
+            CancellationToken cancellationToken = default);
+
+        Task<CustomerSnapshotResponse> GetBusinessCustomerSnapshotAsync(
+            Guid businessId,
+            DateTime from,
+            DateTime to,
             CancellationToken cancellationToken = default);
 
         Task<List<ProductFormFieldResponse>> GetBusinessMetadataShapeAsync(
@@ -81,7 +142,17 @@ namespace MerchForge.api.Services.Dashboard.interfaces
 
         // ---- website templates ----
 
-        Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);
+        Task<PagedResult<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(
+            WebsiteTemplatesQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<TemplateStatsResponse> GetTemplateStatsAsync(CancellationToken cancellationToken = default);
+
+        Task<List<DomainTemplateSummaryResponse>> GetDomainTemplateSummaryAsync(CancellationToken cancellationToken = default);
+
+        Task<List<KeyCountResponse>> GetRequestedTemplatesAsync(int take, CancellationToken cancellationToken = default);
+
+        Task<List<TimeSeriesPointResponse>> GetTemplateRequestTrendAsync(int days, CancellationToken cancellationToken = default);
 
         Task<WebsiteTemplateResponse> CreateWebsiteTemplateAsync(
             CreateWebsiteTemplateRequest request,
@@ -101,6 +172,10 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             CancellationToken cancellationToken = default);
 
         Task<WebsiteTemplateResponse> DeactivateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateResponse> ReactivateWebsiteTemplateAsync(
             Guid websiteTemplateId,
             CancellationToken cancellationToken = default);
 
@@ -128,10 +203,77 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             Guid customerId,
             CancellationToken cancellationToken = default);
 
+        Task<DashboardCustomerDetailResponse> UpdateCustomerAsync(
+            Guid customerId,
+            UpdateCustomerRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<RevokeCustomerSessionsResponse> RevokeCustomerSessionsAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default);
+
+        Task<CustomerStatsResponse> GetCustomerStatsAsync(
+            int newCustomersPeriodDays,
+            CancellationToken cancellationToken = default);
+
+        Task<List<TimeSeriesPointResponse>> GetCustomerGrowthAsync(
+            int days,
+            CancellationToken cancellationToken = default);
+
+        Task<List<TopCustomerResponse>> GetTopCustomersAsync(
+            TopCustomersRankBy rankBy,
+            string? currency,
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task<List<KeyCountResponse>> GetCustomerDistributionByBusinessAsync(
+            CancellationToken cancellationToken = default);
+
+        Task<List<DashboardCustomerResponse>> GetRecentCustomersAsync(
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task<List<BusinessOptionResponse>> GetBusinessOptionsAsync(
+            CancellationToken cancellationToken = default);
+
+        Task<PagedResult<CustomerOrderResponse>> GetCustomerOrdersAsync(
+            Guid customerId,
+            Guid? businessId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+
+        Task<List<CustomerSpendPointResponse>> GetCustomerSpendOverTimeAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default);
+
         Task<WebsiteTemplateRequestDetailResponse> CloseWebsiteTemplateRequestAsync(
             Guid websiteTemplateRequestId,
             Guid closedByUserId,
             CloseWebsiteTemplateRequestRequest request,
+            CancellationToken cancellationToken = default);
+
+        // ---- subscriptions (platform-wide, Subscriptions tab) ----
+
+        Task<PagedResult<AdminSubscriptionListItemResponse>> GetSubscriptionsAsync(
+            SubscriptionsQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<List<RecentSubscriptionActivityEntryResponse>> GetRecentSubscriptionActivityAsync(
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task<List<SubscriptionHistoryEntryResponse>> GetBusinessSubscriptionHistoryAsync(
+            Guid businessId,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessSubscriptionResponse> ChangeBusinessSubscriptionAsync(
+            Guid businessId,
+            Guid subscriptionPlanId,
+            CancellationToken cancellationToken = default);
+
+        Task<BusinessSubscriptionResponse> CancelBusinessSubscriptionAsync(
+            Guid businessId,
             CancellationToken cancellationToken = default);
     }
 }

@@ -5,6 +5,7 @@ using MerchForge.api.Exceptions.Auth;
 using MerchForge.api.Exceptions.Invitation;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Audit.interfaces;
 using MerchForge.api.Services.Auth.interfaces;
 using MerchForge.api.Services.Invitation.interfaces;
 using MerchForge.api.Services.Common;
@@ -25,6 +26,7 @@ public class AuthService : IAuthService
     private readonly IInvitationService _invitationService;
     private readonly IBusinessRepository _businessRepository;
     private readonly IDomainService _domainService;
+    private readonly IAuditLogService _auditLogService;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -35,6 +37,7 @@ public class AuthService : IAuthService
         IInvitationService invitationService,
         IBusinessRepository businessRepository,
         IDomainService domainService,
+        IAuditLogService auditLogService,
         ILogger<AuthService> logger)
     {
         _userRepository = userRepository;
@@ -44,6 +47,7 @@ public class AuthService : IAuthService
         _invitationService = invitationService;
         _businessRepository = businessRepository;
         _domainService = domainService;
+        _auditLogService = auditLogService;
         _logger = logger;
     }
     public async Task<(LoginResponse Response, string RefreshToken)> LoginAsync(
@@ -56,8 +60,13 @@ public class AuthService : IAuthService
         {
             // Same log line either way (see below) - never confirms whether the
             // email itself exists, matching the identical exception both branches
-            // already throw.
+            // already throw. Actor is unresolvable to a User row, so the attempted
+            // email is recorded as the display name instead.
             _logger.LogWarning("Failed login attempt for {Email}.", request.Email);
+            await _auditLogService.LogAsync(
+                AuditEventType.Authentication, "LoginFailed", $"Failed login attempt for {request.Email}.",
+                success: false, actorUserId: null, actorDisplayNameOverride: request.Email,
+                cancellationToken: cancellationToken);
             throw new InvalidCredentialsException();
         }
 
@@ -70,10 +79,31 @@ public class AuthService : IAuthService
         if (result == PasswordVerificationResult.Failed)
         {
             _logger.LogWarning("Failed login attempt for {Email}.", request.Email);
+            await _auditLogService.LogAsync(
+                AuditEventType.Authentication, "LoginFailed", $"Failed login attempt for {request.Email}.",
+                success: false, actorUserId: user.Id, actorDisplayNameOverride: $"{user.FirstName} {user.LastName}",
+                cancellationToken: cancellationToken);
             throw new InvalidCredentialsException();
         }
 
+        // Checked only after the password is confirmed correct - revealing
+        // "disabled" to anyone who doesn't already know the real password would
+        // leak account-disabled status to a plain email-guessing attempt.
+        if (user.DisabledAt is not null)
+        {
+            _logger.LogWarning("Login attempt for disabled account {Email}.", request.Email);
+            await _auditLogService.LogAsync(
+                AuditEventType.Authentication, "LoginFailed", $"Login attempt for disabled account {request.Email}.",
+                success: false, actorUserId: user.Id, actorDisplayNameOverride: $"{user.FirstName} {user.LastName}",
+                cancellationToken: cancellationToken);
+            throw new AccountDisabledException();
+        }
+
         _logger.LogInformation("Login succeeded for {Email}.", request.Email);
+        await _auditLogService.LogAsync(
+            AuditEventType.Authentication, "LoginSucceeded", $"{user.FirstName} {user.LastName} logged in.",
+            success: true, actorUserId: user.Id, actorDisplayNameOverride: $"{user.FirstName} {user.LastName}",
+            cancellationToken: cancellationToken);
 
         var (refreshToken, _) =
               await _refreshTokenService.CreateAsync(
@@ -313,6 +343,9 @@ public class AuthService : IAuthService
             cancellationToken);
 
         _logger.LogInformation("Session revoked (logout) for user {UserId}.", token.UserId);
+        await _auditLogService.LogAsync(
+            AuditEventType.Authentication, "Logout", "User logged out.",
+            success: true, actorUserId: token.UserId, cancellationToken: cancellationToken);
     }
 
     private async Task<AuthResponse> CreateAuthResponse(

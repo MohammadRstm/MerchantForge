@@ -16,4 +16,8 @@ public class CustomerBusinessOrderSummaryResponse
     public decimal TotalSpent { get; set; }
 
     public string Currency { get; set; } = "USD";
+
+    public DateTime? FirstOrderAt { get; set; }
+
+    public DateTime? LastOrderAt { get; set; }
 }

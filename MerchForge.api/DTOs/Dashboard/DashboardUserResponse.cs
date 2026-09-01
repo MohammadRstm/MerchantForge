@@ -16,7 +16,12 @@ public class DashboardUserResponse
 
     public string? BusinessRole { get; set; }
 
+    /// <summary>Memberships beyond the one shown above, e.g. 2 -> "+2 businesses".</summary>
+    public int AdditionalMembershipCount { get; set; }
+
     public bool HasActiveSession { get; set; }
+
+    public bool IsDisabled { get; set; }
 
     public DateTime CreatedAt { get; set; }
 }

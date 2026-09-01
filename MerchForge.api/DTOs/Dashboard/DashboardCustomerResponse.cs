@@ -12,5 +12,12 @@ public class DashboardCustomerResponse
 
     public int OrderCount { get; set; }
 
+    /// <summary>Recorded total in this customer's highest-value currency (usually their only one) - never summed across currencies. Zero/null when they have no non-cancelled orders.</summary>
+    public decimal TotalSpent { get; set; }
+
+    public string? SpentCurrency { get; set; }
+
+    public DateTime? LastOrderAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

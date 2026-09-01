@@ -3,6 +3,7 @@ using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
+using MerchForge.api.Enums;
 
 namespace MerchForge.api.Services.Dashboard.interfaces
 {
@@ -185,6 +186,50 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             CancellationToken cancellationToken = default);
 
         Task<DashboardCustomerDetailResponse> GetCustomerDetailAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default);
+
+        Task<DashboardCustomerDetailResponse> UpdateCustomerAsync(
+            Guid customerId,
+            UpdateCustomerRequest request,
+            CancellationToken cancellationToken = default);
+
+        Task<RevokeCustomerSessionsResponse> RevokeCustomerSessionsAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default);
+
+        Task<CustomerStatsResponse> GetCustomerStatsAsync(
+            int newCustomersPeriodDays,
+            CancellationToken cancellationToken = default);
+
+        Task<List<TimeSeriesPointResponse>> GetCustomerGrowthAsync(
+            int days,
+            CancellationToken cancellationToken = default);
+
+        Task<List<TopCustomerResponse>> GetTopCustomersAsync(
+            TopCustomersRankBy rankBy,
+            string? currency,
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task<List<KeyCountResponse>> GetCustomerDistributionByBusinessAsync(
+            CancellationToken cancellationToken = default);
+
+        Task<List<DashboardCustomerResponse>> GetRecentCustomersAsync(
+            int take,
+            CancellationToken cancellationToken = default);
+
+        Task<List<BusinessOptionResponse>> GetBusinessOptionsAsync(
+            CancellationToken cancellationToken = default);
+
+        Task<PagedResult<CustomerOrderResponse>> GetCustomerOrdersAsync(
+            Guid customerId,
+            Guid? businessId,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default);
+
+        Task<List<CustomerSpendPointResponse>> GetCustomerSpendOverTimeAsync(
             Guid customerId,
             CancellationToken cancellationToken = default);
 

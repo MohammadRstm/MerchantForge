@@ -140,5 +140,11 @@ namespace MerchForge.api.Services.Audit
         {
             return _repository.GetUserActivityAsync(userId, take, cancellationToken);
         }
+
+        public Task<List<AuditLogResponse>> GetCustomerActivityAsync(
+            Guid customerId, int take, CancellationToken cancellationToken = default)
+        {
+            return _repository.GetCustomerActivityAsync(customerId, take, cancellationToken);
+        }
     }
 }

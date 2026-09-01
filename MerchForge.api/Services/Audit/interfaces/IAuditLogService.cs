@@ -36,5 +36,8 @@ namespace MerchForge.api.Services.Audit.interfaces
 
         Task<List<AuditLogResponse>> GetUserActivityAsync(
             Guid userId, int take, CancellationToken cancellationToken = default);
+
+        Task<List<AuditLogResponse>> GetCustomerActivityAsync(
+            Guid customerId, int take, CancellationToken cancellationToken = default);
     }
 }

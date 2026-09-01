@@ -27,6 +27,8 @@ namespace MerchForge.api.Services.Dashboard
         private const int StatsTimeSeriesMonths = 6;
         private const int BusinessesAddedRecentlyWindowDays = 30;
         private const int UserRecentActivityTake = 20;
+        private const int CustomerRecentActivityTake = 20;
+        private const string DefaultTopCustomerCurrency = "USD";
 
         private readonly IDashboardRepository _dashboardRepository;
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
@@ -36,6 +38,7 @@ namespace MerchForge.api.Services.Dashboard
         private readonly IFeatureCreditService _featureCreditService;
         private readonly IBusinessDashboardService _businessDashboardService;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
+        private readonly ICustomerRefreshTokenRepository _customerRefreshTokenRepository;
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
         private readonly IWebsiteTemplateImageService _websiteTemplateImageService;
         private readonly IDomainService _domainService;
@@ -52,6 +55,7 @@ namespace MerchForge.api.Services.Dashboard
             IFeatureCreditService featureCreditService,
             IBusinessDashboardService businessDashboardService,
             IRefreshTokenRepository refreshTokenRepository,
+            ICustomerRefreshTokenRepository customerRefreshTokenRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
             IWebsiteTemplateImageService websiteTemplateImageService,
             IDomainService domainService,
@@ -67,6 +71,7 @@ namespace MerchForge.api.Services.Dashboard
             _featureCreditService = featureCreditService;
             _businessDashboardService = businessDashboardService;
             _refreshTokenRepository = refreshTokenRepository;
+            _customerRefreshTokenRepository = customerRefreshTokenRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
             _websiteTemplateImageService = websiteTemplateImageService;
             _domainService = domainService;
@@ -960,8 +965,116 @@ namespace MerchForge.api.Services.Dashboard
             Guid customerId,
             CancellationToken cancellationToken = default)
         {
-            return await _dashboardRepository.GetCustomerDetailAsync(customerId, cancellationToken)
+            var detail = await _dashboardRepository.GetCustomerDetailAsync(customerId, cancellationToken)
                 ?? throw new Exceptions.CustomerAuth.CustomerNotFoundException();
+
+            detail.RecentActivity = await _auditLogService.GetCustomerActivityAsync(
+                customerId, CustomerRecentActivityTake, cancellationToken);
+
+            return detail;
+        }
+
+        public async Task<DashboardCustomerDetailResponse> UpdateCustomerAsync(
+            Guid customerId,
+            UpdateCustomerRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var customer = await _dashboardRepository.GetTrackedCustomerAsync(customerId, cancellationToken)
+                ?? throw new Exceptions.CustomerAuth.CustomerNotFoundException();
+
+            customer.FirstName = request.FirstName;
+            customer.LastName = request.LastName;
+            customer.Phone = request.Phone;
+            customer.UpdatedAt = DateTime.UtcNow;
+
+            await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.UserManagement, "CustomerProfileUpdated", $"Updated profile for {customer.Email}.",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "Customer", entityId: customerId, cancellationToken: cancellationToken);
+
+            return await GetCustomerDetailAsync(customerId, cancellationToken);
+        }
+
+        public async Task<RevokeCustomerSessionsResponse> RevokeCustomerSessionsAsync(
+            Guid customerId,
+            CancellationToken cancellationToken = default)
+        {
+            var revokedCount = await _customerRefreshTokenRepository.RevokeAllForCustomerAsync(customerId, cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.Security, "CustomerSessionRevoked", $"Revoked {revokedCount} session(s) for a customer.",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "Customer", entityId: customerId, cancellationToken: cancellationToken);
+
+            return new RevokeCustomerSessionsResponse { RevokedSessionsCount = revokedCount };
+        }
+
+        public Task<CustomerStatsResponse> GetCustomerStatsAsync(
+            int newCustomersPeriodDays, CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetCustomerStatsAsync(newCustomersPeriodDays, cancellationToken);
+        }
+
+        public async Task<List<TimeSeriesPointResponse>> GetCustomerGrowthAsync(
+            int days, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var since = now.AddDays(-days);
+
+            var dates = await _dashboardRepository.GetCustomerCreationDatesSinceAsync(since, cancellationToken);
+
+            // Daily buckets stay readable up to ~90 days; beyond that, monthly - same
+            // granularity switch a chart with a fixed-width x-axis needs regardless of
+            // the window length.
+            return days <= 90
+                ? TimeSeriesBuilder.BuildDailySeries(dates, since, now)
+                : TimeSeriesBuilder.BuildMonthlySeries(dates, new DateTime(since.Year, since.Month, 1, 0, 0, 0, DateTimeKind.Utc), now);
+        }
+
+        public Task<List<TopCustomerResponse>> GetTopCustomersAsync(
+            TopCustomersRankBy rankBy, string? currency, int take, CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetTopCustomersAsync(
+                rankBy, string.IsNullOrWhiteSpace(currency) ? DefaultTopCustomerCurrency : currency, take, cancellationToken);
+        }
+
+        public Task<List<KeyCountResponse>> GetCustomerDistributionByBusinessAsync(CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetCustomerDistributionByBusinessAsync(cancellationToken);
+        }
+
+        public Task<List<DashboardCustomerResponse>> GetRecentCustomersAsync(
+            int take, CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetRecentCustomersAsync(take, cancellationToken);
+        }
+
+        public Task<List<BusinessOptionResponse>> GetBusinessOptionsAsync(CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetBusinessOptionsAsync(cancellationToken);
+        }
+
+        public async Task<PagedResult<CustomerOrderResponse>> GetCustomerOrdersAsync(
+            Guid customerId, Guid? businessId, int page, int pageSize, CancellationToken cancellationToken = default)
+        {
+            var (items, totalCount) = await _dashboardRepository.GetCustomerOrdersAsync(
+                customerId, businessId, page, pageSize, cancellationToken);
+
+            return new PagedResult<CustomerOrderResponse>
+            {
+                Items = items,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+            };
+        }
+
+        public Task<List<CustomerSpendPointResponse>> GetCustomerSpendOverTimeAsync(
+            Guid customerId, CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetCustomerSpendOverTimeAsync(customerId, cancellationToken);
         }
 
         // ---- website template requests ----

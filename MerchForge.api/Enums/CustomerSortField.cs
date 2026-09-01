@@ -4,5 +4,8 @@ public enum CustomerSortField
 {
     CreatedAt,
     Name,
-    Email
+    Email,
+    OrderCount,
+    TotalSpent,
+    LastOrderAt
 }

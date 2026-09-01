@@ -13,5 +13,9 @@ public class CustomersQueryRequestValidator : PagedQueryValidator<CustomersQuery
 
         RuleFor(x => x.SortBy)
             .IsInEnum();
+
+        RuleFor(x => x)
+            .Must(x => !x.RegisteredFrom.HasValue || !x.RegisteredTo.HasValue || x.RegisteredFrom <= x.RegisteredTo)
+            .WithMessage("RegisteredFrom must be before or equal to RegisteredTo.");
     }
 }

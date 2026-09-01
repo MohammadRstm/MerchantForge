@@ -1,8 +1,10 @@
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.CustomerAuth;
+using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.CustomerAuth;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Audit.interfaces;
 using MerchForge.api.Services.CustomerAuth.interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +22,7 @@ public class CustomerAuthService : ICustomerAuthService
     private readonly IPasswordHasher<Customer> _passwordHasher;
     private readonly ICustomerJwtService _customerJwtService;
     private readonly ICustomerRefreshTokenService _customerRefreshTokenService;
+    private readonly IAuditLogService _auditLogService;
 
     // CustomerExchangeCode has no repository of its own, deliberately — same precedent
     // as InvitationService, which talks to the db context directly for this exact kind
@@ -33,6 +36,7 @@ public class CustomerAuthService : ICustomerAuthService
         IPasswordHasher<Customer> passwordHasher,
         ICustomerJwtService customerJwtService,
         ICustomerRefreshTokenService customerRefreshTokenService,
+        IAuditLogService auditLogService,
         MerchForgeDbContext db,
         ILogger<CustomerAuthService> logger)
     {
@@ -40,6 +44,7 @@ public class CustomerAuthService : ICustomerAuthService
         _passwordHasher = passwordHasher;
         _customerJwtService = customerJwtService;
         _customerRefreshTokenService = customerRefreshTokenService;
+        _auditLogService = auditLogService;
         _db = db;
         _logger = logger;
     }
@@ -69,6 +74,11 @@ public class CustomerAuthService : ICustomerAuthService
 
         var (refreshToken, _) = await _customerRefreshTokenService.CreateAsync(customer, cancellationToken);
 
+        await _auditLogService.LogAsync(
+            AuditEventType.Authentication, "CustomerRegistered", $"{customer.FirstName} {customer.LastName} registered.",
+            success: true, actorUserId: null, actorDisplayNameOverride: $"{customer.FirstName} {customer.LastName}",
+            entityType: "Customer", entityId: customer.Id, cancellationToken: cancellationToken);
+
         var response = await BuildSessionResponseAsync(customer, request.ReturnUrl, cancellationToken);
 
         return (response, refreshToken);
@@ -83,6 +93,10 @@ public class CustomerAuthService : ICustomerAuthService
         if (customer is null)
         {
             _logger.LogWarning("Failed customer login attempt for {Email}.", request.Email);
+            await _auditLogService.LogAsync(
+                AuditEventType.Authentication, "CustomerLoginFailed", $"Failed customer login attempt for {request.Email}.",
+                success: false, actorUserId: null, actorDisplayNameOverride: request.Email,
+                cancellationToken: cancellationToken);
             throw new InvalidCustomerCredentialsException();
         }
 
@@ -91,10 +105,18 @@ public class CustomerAuthService : ICustomerAuthService
         if (result == PasswordVerificationResult.Failed)
         {
             _logger.LogWarning("Failed customer login attempt for {Email}.", request.Email);
+            await _auditLogService.LogAsync(
+                AuditEventType.Authentication, "CustomerLoginFailed", $"Failed customer login attempt for {request.Email}.",
+                success: false, actorUserId: null, actorDisplayNameOverride: $"{customer.FirstName} {customer.LastName}",
+                entityType: "Customer", entityId: customer.Id, cancellationToken: cancellationToken);
             throw new InvalidCustomerCredentialsException();
         }
 
         _logger.LogInformation("Customer login succeeded for {Email}.", request.Email);
+        await _auditLogService.LogAsync(
+            AuditEventType.Authentication, "CustomerLoginSucceeded", $"{customer.FirstName} {customer.LastName} logged in.",
+            success: true, actorUserId: null, actorDisplayNameOverride: $"{customer.FirstName} {customer.LastName}",
+            entityType: "Customer", entityId: customer.Id, cancellationToken: cancellationToken);
 
         var (refreshToken, _) = await _customerRefreshTokenService.CreateAsync(customer, cancellationToken);
 
@@ -136,6 +158,10 @@ public class CustomerAuthService : ICustomerAuthService
         await _customerRefreshTokenService.RevokeAsync(tokenEntity, cancellationToken);
 
         _logger.LogInformation("Customer session revoked (logout) for customer {CustomerId}.", tokenEntity.CustomerId);
+        await _auditLogService.LogAsync(
+            AuditEventType.Authentication, "CustomerLogout", "Customer logged out.",
+            success: true, actorUserId: null, actorDisplayNameOverride: $"{tokenEntity.Customer.FirstName} {tokenEntity.Customer.LastName}",
+            entityType: "Customer", entityId: tokenEntity.CustomerId, cancellationToken: cancellationToken);
     }
 
     public async Task<CustomerSessionResponse> RedeemExchangeCodeAsync(

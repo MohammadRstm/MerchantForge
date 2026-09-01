@@ -30,5 +30,9 @@ namespace MerchForge.api.Repositories.Interfaces
         /// <summary>Events where the given user is either the actor or the target ("User" entity) - their own activity feed.</summary>
         Task<List<AuditLogResponse>> GetUserActivityAsync(
             Guid userId, int take, CancellationToken cancellationToken = default);
+
+        /// <summary>Events targeting the given customer ("Customer" entity) - a customer is never ActorUserId (that FK only points at platform Users), so this only ever matches on EntityType/EntityId.</summary>
+        Task<List<AuditLogResponse>> GetCustomerActivityAsync(
+            Guid customerId, int take, CancellationToken cancellationToken = default);
     }
 }

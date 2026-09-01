@@ -6,6 +6,7 @@ using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
+using MerchForge.api.Enums;
 using MerchForge.api.Services.Dashboard.interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -34,6 +35,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<SubscriptionsQueryRequest> _subscriptionsQueryValidator;
         private readonly IValidator<ChangeSubscriptionRequest> _changeSubscriptionValidator;
         private readonly IValidator<AuditLogQueryRequest> _auditLogQueryValidator;
+        private readonly IValidator<UpdateCustomerRequest> _updateCustomerValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -52,7 +54,8 @@ namespace MerchForge.api.Controllers
             IValidator<UpdateWebsiteTemplateCustomizableComponentRequest> updateCustomizableComponentValidator,
             IValidator<SubscriptionsQueryRequest> subscriptionsQueryValidator,
             IValidator<ChangeSubscriptionRequest> changeSubscriptionValidator,
-            IValidator<AuditLogQueryRequest> auditLogQueryValidator)
+            IValidator<AuditLogQueryRequest> auditLogQueryValidator,
+            IValidator<UpdateCustomerRequest> updateCustomerValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -71,6 +74,7 @@ namespace MerchForge.api.Controllers
             _subscriptionsQueryValidator = subscriptionsQueryValidator;
             _changeSubscriptionValidator = changeSubscriptionValidator;
             _auditLogQueryValidator = auditLogQueryValidator;
+            _updateCustomerValidator = updateCustomerValidator;
         }
 
         private bool TryGetActingUserId(out Guid actingUserId)
@@ -535,12 +539,127 @@ namespace MerchForge.api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("customers/stats")]
+        public async Task<ActionResult<CustomerStatsResponse>> GetCustomerStats(
+            [FromQuery] int newCustomersPeriodDays,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetCustomerStatsAsync(
+                newCustomersPeriodDays is > 0 and <= 365 ? newCustomersPeriodDays : 30, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/growth")]
+        public async Task<ActionResult<List<TimeSeriesPointResponse>>> GetCustomerGrowth(
+            [FromQuery] int days,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetCustomerGrowthAsync(
+                days is > 0 and <= 365 ? days : 30, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/top")]
+        public async Task<ActionResult<List<TopCustomerResponse>>> GetTopCustomers(
+            [FromQuery] TopCustomersRankBy by,
+            [FromQuery] string? currency,
+            [FromQuery] int take,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetTopCustomersAsync(
+                by, currency, take is > 0 and <= 50 ? take : 10, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/distribution")]
+        public async Task<ActionResult<List<KeyCountResponse>>> GetCustomerDistribution(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetCustomerDistributionByBusinessAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/recent")]
+        public async Task<ActionResult<List<DashboardCustomerResponse>>> GetRecentCustomers(
+            [FromQuery] int take,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetRecentCustomersAsync(
+                take is > 0 and <= 50 ? take : 10, cancellationToken);
+
+            return Ok(response);
+        }
+
         [HttpGet("customers/{customerId:guid}")]
         public async Task<ActionResult<DashboardCustomerDetailResponse>> GetCustomerDetail(
             Guid customerId,
             CancellationToken cancellationToken)
         {
             var response = await _dashboardService.GetCustomerDetailAsync(customerId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPut("customers/{customerId:guid}")]
+        public async Task<ActionResult<DashboardCustomerDetailResponse>> UpdateCustomer(
+            Guid customerId,
+            [FromBody] UpdateCustomerRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _updateCustomerValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.UpdateCustomerAsync(customerId, request, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("customers/{customerId:guid}/revoke-sessions")]
+        public async Task<ActionResult<RevokeCustomerSessionsResponse>> RevokeCustomerSessions(
+            Guid customerId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.RevokeCustomerSessionsAsync(customerId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/{customerId:guid}/orders")]
+        public async Task<ActionResult<PagedResult<CustomerOrderResponse>>> GetCustomerOrders(
+            Guid customerId,
+            [FromQuery] Guid? businessId,
+            [FromQuery] int page,
+            [FromQuery] int pageSize,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetCustomerOrdersAsync(
+                customerId,
+                businessId,
+                page is > 0 ? page : 1,
+                pageSize is > 0 and <= 50 ? pageSize : 10,
+                cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("customers/{customerId:guid}/spend-over-time")]
+        public async Task<ActionResult<List<CustomerSpendPointResponse>>> GetCustomerSpendOverTime(
+            Guid customerId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetCustomerSpendOverTimeAsync(customerId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("businesses/options")]
+        public async Task<ActionResult<List<BusinessOptionResponse>>> GetBusinessOptions(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetBusinessOptionsAsync(cancellationToken);
 
             return Ok(response);
         }

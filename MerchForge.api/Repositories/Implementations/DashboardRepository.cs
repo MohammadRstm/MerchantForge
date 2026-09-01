@@ -771,7 +771,26 @@ namespace MerchForge.api.Repositories.Implementations
                 baseQuery = baseQuery.Where(c =>
                     EF.Functions.Like(c.FirstName, pattern) ||
                     EF.Functions.Like(c.LastName, pattern) ||
-                    EF.Functions.Like(c.Email, pattern));
+                    EF.Functions.Like(c.Email, pattern) ||
+                    (c.Phone != null && EF.Functions.Like(c.Phone, pattern)));
+            }
+
+            if (query.HasOrders.HasValue)
+            {
+                var hasOrders = query.HasOrders.Value;
+
+                baseQuery = baseQuery.Where(c =>
+                    _db.Orders.Any(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled) == hasOrders);
+            }
+
+            if (query.RegisteredFrom.HasValue)
+            {
+                baseQuery = baseQuery.Where(c => c.CreatedAt >= query.RegisteredFrom.Value);
+            }
+
+            if (query.RegisteredTo.HasValue)
+            {
+                baseQuery = baseQuery.Where(c => c.CreatedAt <= query.RegisteredTo.Value);
             }
 
             var totalCount = await baseQuery.CountAsync(cancellationToken);
@@ -785,6 +804,21 @@ namespace MerchForge.api.Repositories.Implementations
                 CustomerSortField.Email => query.SortDescending
                     ? baseQuery.OrderByDescending(c => c.Email)
                     : baseQuery.OrderBy(c => c.Email),
+
+                CustomerSortField.OrderCount => query.SortDescending
+                    ? baseQuery.OrderByDescending(c => _db.Orders.Count(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled))
+                    : baseQuery.OrderBy(c => _db.Orders.Count(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled)),
+
+                // Sums across whatever currencies a customer happens to have ordered in -
+                // correct for a *sort key* (it just needs a consistent ordering), even
+                // though the same figure is never displayed as one collapsed total.
+                CustomerSortField.TotalSpent => query.SortDescending
+                    ? baseQuery.OrderByDescending(c => _db.Orders.Where(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled).Sum(o => (decimal?)o.Total) ?? 0)
+                    : baseQuery.OrderBy(c => _db.Orders.Where(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled).Sum(o => (decimal?)o.Total) ?? 0),
+
+                CustomerSortField.LastOrderAt => query.SortDescending
+                    ? baseQuery.OrderByDescending(c => _db.Orders.Where(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled).Max(o => (DateTime?)o.CreatedAt))
+                    : baseQuery.OrderBy(c => _db.Orders.Where(o => o.CustomerId == c.Id && o.Status != OrderStatus.Cancelled).Max(o => (DateTime?)o.CreatedAt)),
 
                 _ => query.SortDescending
                     ? baseQuery.OrderByDescending(c => c.CreatedAt)
@@ -807,11 +841,29 @@ namespace MerchForge.api.Repositories.Implementations
             var customerIds = page.Select(c => c.Id).ToList();
 
             var orderCounts = (await _db.Orders
-                .Where(o => o.CustomerId != null && customerIds.Contains(o.CustomerId.Value))
+                .Where(o => o.CustomerId != null && customerIds.Contains(o.CustomerId.Value) && o.Status != OrderStatus.Cancelled)
                 .GroupBy(o => o.CustomerId!.Value)
                 .Select(g => new { CustomerId = g.Key, Count = g.Count() })
                 .ToListAsync(cancellationToken))
                 .ToDictionary(x => x.CustomerId, x => x.Count);
+
+            // One row per (customer, currency) they've ordered in - grouped again in
+            // memory below to pick each customer's highest-value currency as their
+            // displayed "primary" total, same reasoning as GetCustomersAsync's spend
+            // figures elsewhere: never summed across currencies.
+            var spendRows = await _db.Orders
+                .Where(o => o.CustomerId != null && customerIds.Contains(o.CustomerId.Value) && o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => new { CustomerId = o.CustomerId!.Value, o.Currency })
+                .Select(g => new { g.Key.CustomerId, g.Key.Currency, Total = g.Sum(o => o.Total), LastOrderAt = g.Max(o => o.CreatedAt) })
+                .ToListAsync(cancellationToken);
+
+            var primarySpendByCustomer = spendRows
+                .GroupBy(x => x.CustomerId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Total).First());
+
+            var lastOrderByCustomer = spendRows
+                .GroupBy(x => x.CustomerId)
+                .ToDictionary(g => g.Key, g => g.Max(x => x.LastOrderAt));
 
             var items = page
                 .Select(c => new DashboardCustomerResponse
@@ -821,6 +873,9 @@ namespace MerchForge.api.Repositories.Implementations
                     LastName = c.LastName,
                     Email = c.Email,
                     OrderCount = orderCounts.TryGetValue(c.Id, out var count) ? count : 0,
+                    TotalSpent = primarySpendByCustomer.TryGetValue(c.Id, out var spend) ? spend.Total : 0,
+                    SpentCurrency = primarySpendByCustomer.TryGetValue(c.Id, out var spendCurrency) ? spendCurrency.Currency : null,
+                    LastOrderAt = lastOrderByCustomer.TryGetValue(c.Id, out var lastOrder) ? lastOrder : null,
                     CreatedAt = c.CreatedAt,
                 })
                 .ToList();
@@ -841,7 +896,7 @@ namespace MerchForge.api.Repositories.Implementations
             }
 
             var businesses = await _db.Orders
-                .Where(o => o.CustomerId == customerId)
+                .Where(o => o.CustomerId == customerId && o.Status != OrderStatus.Cancelled)
                 .GroupBy(o => new { o.BusinessId, o.Business.Name, o.Currency })
                 .Select(g => new CustomerBusinessOrderSummaryResponse
                 {
@@ -850,8 +905,14 @@ namespace MerchForge.api.Repositories.Implementations
                     OrderCount = g.Count(),
                     TotalSpent = g.Sum(o => o.Total),
                     Currency = g.Key.Currency,
+                    LastOrderAt = g.Max(o => o.CreatedAt),
                 })
                 .ToListAsync(cancellationToken);
+
+            var now = DateTime.UtcNow;
+
+            var hasActiveSession = await _db.CustomerRefreshTokens
+                .AnyAsync(rt => rt.CustomerId == customerId && rt.RevokedAt == null && rt.ExpiresAt > now, cancellationToken);
 
             return new DashboardCustomerDetailResponse
             {
@@ -869,7 +930,194 @@ namespace MerchForge.api.Repositories.Implementations
                 CreatedAt = customer.CreatedAt,
                 UpdatedAt = customer.UpdatedAt,
                 Businesses = businesses,
+                HasActiveSession = hasActiveSession,
             };
+        }
+
+        public async Task<Customer?> GetTrackedCustomerAsync(Guid customerId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+        }
+
+        public async Task<CustomerStatsResponse> GetCustomerStatsAsync(
+            int newCustomersPeriodDays, CancellationToken cancellationToken = default)
+        {
+            var totalCustomers = await _db.Customers.CountAsync(cancellationToken);
+
+            var since = DateTime.UtcNow.AddDays(-newCustomersPeriodDays);
+            var newCustomers = await _db.Customers.CountAsync(c => c.CreatedAt >= since, cancellationToken);
+
+            var orderCountsByCustomer = await _db.Orders
+                .Where(o => o.CustomerId != null && o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => o.CustomerId!.Value)
+                .Select(g => new { CustomerId = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            var customersWithOrders = orderCountsByCustomer.Count;
+            var totalCustomerOrders = orderCountsByCustomer.Sum(x => x.Count);
+            var repeatCustomers = orderCountsByCustomer.Count(x => x.Count >= 2);
+
+            var revenueByCurrency = await _db.Orders
+                .Where(o => o.CustomerId != null && o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => o.Currency)
+                .Select(g => new CustomerCurrencyTotalResponse
+                {
+                    Currency = g.Key,
+                    TotalSpent = g.Sum(o => o.Total),
+                    CustomerCount = g.Select(o => o.CustomerId).Distinct().Count(),
+                })
+                .ToListAsync(cancellationToken);
+
+            return new CustomerStatsResponse
+            {
+                TotalCustomers = totalCustomers,
+                NewCustomers = newCustomers,
+                CustomersWithOrders = customersWithOrders,
+                CustomersWithoutOrders = totalCustomers - customersWithOrders,
+                TotalCustomerOrders = totalCustomerOrders,
+                RepeatCustomers = repeatCustomers,
+                RepeatCustomerRate = customersWithOrders > 0 ? (double)repeatCustomers / customersWithOrders : null,
+                AverageOrdersPerCustomer = customersWithOrders > 0 ? (double)totalCustomerOrders / customersWithOrders : 0,
+                RevenueByCurrency = revenueByCurrency,
+            };
+        }
+
+        public async Task<List<DateTime>> GetCustomerCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default)
+        {
+            return await _db.Customers
+                .Where(c => c.CreatedAt >= since)
+                .Select(c => c.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<TopCustomerResponse>> GetTopCustomersAsync(
+            TopCustomersRankBy rankBy, string currency, int take, CancellationToken cancellationToken = default)
+        {
+            var grouped = _db.Orders
+                .Where(o => o.CustomerId != null && o.Status != OrderStatus.Cancelled && o.Currency == currency)
+                .GroupBy(o => new { CustomerId = o.CustomerId!.Value, o.Customer!.FirstName, o.Customer.LastName, o.Customer.Email })
+                .Select(g => new
+                {
+                    g.Key.CustomerId,
+                    g.Key.FirstName,
+                    g.Key.LastName,
+                    g.Key.Email,
+                    OrderCount = g.Count(),
+                    TotalSpent = g.Sum(o => o.Total),
+                });
+
+            grouped = rankBy == TopCustomersRankBy.Orders
+                ? grouped.OrderByDescending(x => x.OrderCount)
+                : grouped.OrderByDescending(x => x.TotalSpent);
+
+            var top = await grouped.Take(take).ToListAsync(cancellationToken);
+
+            return top
+                .Select(x => new TopCustomerResponse
+                {
+                    CustomerId = x.CustomerId,
+                    FirstName = x.FirstName,
+                    LastName = x.LastName,
+                    Email = x.Email,
+                    OrderCount = x.OrderCount,
+                    TotalSpent = x.TotalSpent,
+                    Currency = currency,
+                })
+                .ToList();
+        }
+
+        public async Task<List<KeyCountResponse>> GetCustomerDistributionByBusinessAsync(CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.Orders
+                .Where(o => o.CustomerId != null && o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => new { o.BusinessId, o.Business.Name })
+                .Select(g => new { g.Key.Name, CustomerCount = g.Select(o => o.CustomerId).Distinct().Count() })
+                .ToListAsync(cancellationToken);
+
+            return grouped
+                .Select(x => new KeyCountResponse { Key = x.Name, Count = x.CustomerCount })
+                .ToList();
+        }
+
+        public async Task<List<DashboardCustomerResponse>> GetRecentCustomersAsync(int take, CancellationToken cancellationToken = default)
+        {
+            return await _db.Customers
+                .OrderByDescending(c => c.CreatedAt)
+                .Take(take)
+                .Select(c => new DashboardCustomerResponse
+                {
+                    Id = c.Id,
+                    FirstName = c.FirstName,
+                    LastName = c.LastName,
+                    Email = c.Email,
+                    CreatedAt = c.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<BusinessOptionResponse>> GetBusinessOptionsAsync(CancellationToken cancellationToken = default)
+        {
+            return await _db.Businesses
+                .OrderBy(b => b.Name)
+                .Select(b => new BusinessOptionResponse { Id = b.Id, Name = b.Name })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<(List<CustomerOrderResponse> Items, int TotalCount)> GetCustomerOrdersAsync(
+            Guid customerId, Guid? businessId, int page, int pageSize, CancellationToken cancellationToken = default)
+        {
+            var baseQuery = _db.Orders.Where(o => o.CustomerId == customerId);
+
+            if (businessId.HasValue)
+            {
+                baseQuery = baseQuery.Where(o => o.BusinessId == businessId.Value);
+            }
+
+            var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+            // Every status, including Cancelled, shown here on purpose - this is a
+            // factual history, not an aggregate; aggregates elsewhere exclude Cancelled.
+            var rawItems = await baseQuery
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(o => new { o.Id, o.BusinessId, BusinessName = o.Business.Name, o.Status, o.Total, o.Currency, o.CreatedAt })
+                .ToListAsync(cancellationToken);
+
+            var items = rawItems
+                .Select(o => new CustomerOrderResponse
+                {
+                    Id = o.Id,
+                    BusinessId = o.BusinessId,
+                    BusinessName = o.BusinessName,
+                    Status = o.Status.ToString(),
+                    Total = o.Total,
+                    Currency = o.Currency,
+                    CreatedAt = o.CreatedAt,
+                })
+                .ToList();
+
+            return (items, totalCount);
+        }
+
+        public async Task<List<CustomerSpendPointResponse>> GetCustomerSpendOverTimeAsync(
+            Guid customerId, CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.Orders
+                .Where(o => o.CustomerId == customerId && o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => new { Year = o.CreatedAt.Year, Month = o.CreatedAt.Month, o.Currency })
+                .Select(g => new { g.Key.Year, g.Key.Month, g.Key.Currency, Total = g.Sum(o => o.Total) })
+                .ToListAsync(cancellationToken);
+
+            return grouped
+                .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                .Select(x => new CustomerSpendPointResponse
+                {
+                    Period = $"{x.Year:D4}-{x.Month:D2}",
+                    Total = x.Total,
+                    Currency = x.Currency,
+                })
+                .ToList();
         }
 
         // ---- subscriptions (platform-wide, Subscriptions tab) ----

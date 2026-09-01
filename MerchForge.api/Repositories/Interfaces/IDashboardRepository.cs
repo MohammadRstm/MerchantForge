@@ -1,5 +1,6 @@
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
+using MerchForge.api.Enums;
 using MerchForge.api.Models;
 
 namespace MerchForge.api.Repositories.Interfaces
@@ -159,6 +160,32 @@ namespace MerchForge.api.Repositories.Interfaces
         Task<DashboardCustomerDetailResponse?> GetCustomerDetailAsync(
             Guid customerId,
             CancellationToken cancellationToken = default);
+
+        /// <summary>Loads a tracked entity for a profile-edit mutation.</summary>
+        Task<Customer?> GetTrackedCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
+
+        Task<CustomerStatsResponse> GetCustomerStatsAsync(
+            int newCustomersPeriodDays, CancellationToken cancellationToken = default);
+
+        /// <summary>Customer.CreatedAt dates since the given time — fed into TimeSeriesBuilder by the service, same pattern as GetBusinessCreationDatesSinceAsync.</summary>
+        Task<List<DateTime>> GetCustomerCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
+
+        Task<List<TopCustomerResponse>> GetTopCustomersAsync(
+            TopCustomersRankBy rankBy, string currency, int take, CancellationToken cancellationToken = default);
+
+        /// <summary>Distinct customers per business (a global customer counts once per business they've ordered from, not once platform-wide) - see the response's own framing on the frontend.</summary>
+        Task<List<KeyCountResponse>> GetCustomerDistributionByBusinessAsync(CancellationToken cancellationToken = default);
+
+        Task<List<DashboardCustomerResponse>> GetRecentCustomersAsync(int take, CancellationToken cancellationToken = default);
+
+        Task<List<BusinessOptionResponse>> GetBusinessOptionsAsync(CancellationToken cancellationToken = default);
+
+        Task<(List<CustomerOrderResponse> Items, int TotalCount)> GetCustomerOrdersAsync(
+            Guid customerId, Guid? businessId, int page, int pageSize, CancellationToken cancellationToken = default);
+
+        /// <summary>Monthly recorded spend for one customer, one row per (month, currency) they ordered in.</summary>
+        Task<List<CustomerSpendPointResponse>> GetCustomerSpendOverTimeAsync(
+            Guid customerId, CancellationToken cancellationToken = default);
 
         // ---- subscriptions (platform-wide, Subscriptions tab) ----
 

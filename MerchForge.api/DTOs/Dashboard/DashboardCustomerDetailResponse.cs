@@ -1,3 +1,5 @@
+using MerchForge.api.DTOs.Audit;
+
 namespace MerchForge.api.DTOs.Dashboard;
 
 public class DashboardCustomerDetailResponse
@@ -29,4 +31,8 @@ public class DashboardCustomerDetailResponse
     public DateTime UpdatedAt { get; set; }
 
     public List<CustomerBusinessOrderSummaryResponse> Businesses { get; set; } = [];
+
+    public bool HasActiveSession { get; set; }
+
+    public List<AuditLogResponse> RecentActivity { get; set; } = [];
 }

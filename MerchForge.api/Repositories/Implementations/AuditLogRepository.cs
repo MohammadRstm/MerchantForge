@@ -229,5 +229,30 @@ namespace MerchForge.api.Repositories.Implementations
                 })
                 .ToListAsync(cancellationToken);
         }
+
+        public async Task<List<AuditLogResponse>> GetCustomerActivityAsync(
+            Guid customerId, int take, CancellationToken cancellationToken = default)
+        {
+            return await _db.AuditLogs
+                .Where(a => a.EntityType == "Customer" && a.EntityId == customerId)
+                .OrderByDescending(a => a.CreatedAt)
+                .Take(take)
+                .Select(a => new AuditLogResponse
+                {
+                    Id = a.Id,
+                    ActorUserId = a.ActorUserId,
+                    ActorDisplayName = a.ActorDisplayName,
+                    EventType = a.EventType.ToString(),
+                    Action = a.Action,
+                    EntityType = a.EntityType,
+                    EntityId = a.EntityId,
+                    BusinessId = a.BusinessId,
+                    BusinessName = a.Business != null ? a.Business.Name : null,
+                    Description = a.Description,
+                    Success = a.Success,
+                    CreatedAt = a.CreatedAt,
+                })
+                .ToListAsync(cancellationToken);
+        }
     }
 }

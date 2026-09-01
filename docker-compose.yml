@@ -3,6 +3,17 @@ services:
     image: mariadb:10.4
     container_name: merchforge-db
     restart: unless-stopped
+    # Every local dev DB before this one ran on Windows MySQL, which folds table
+    # names case-insensitively (its lower_case_table_names default is 1). Linux
+    # (this image's default, 0) is case-sensitive. Hangfire.MySqlStorage manages
+    # its own tables (Job, JobParameter, ...) with hardcoded PascalCase names
+    # outside EF Core's control; under case-sensitive matching its "does this
+    # table already exist?" check misses the differently-cased tables from a
+    # Windows-originated dump and tries to recreate them, colliding with
+    # constraint names the originals already hold. Matching Windows' behavior
+    # here avoids that class of bug entirely. Can only be set at first init --
+    # changing it later requires recreating the volume.
+    command: ["--lower-case-table-names=1"]
     environment:
       # Matches the empty root password MerchForge.api's connection string already
       # uses in appsettings.Development.json / integration test CI (backend.yml) --

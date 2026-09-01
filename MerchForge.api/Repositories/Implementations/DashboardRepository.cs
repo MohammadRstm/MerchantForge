@@ -936,6 +936,7 @@ namespace MerchForge.api.Repositories.Implementations
                     OrderCount = g.Count(),
                     TotalSpent = g.Sum(o => o.Total),
                     Currency = g.Key.Currency,
+                    FirstOrderAt = g.Min(o => o.CreatedAt),
                     LastOrderAt = g.Max(o => o.CreatedAt),
                 })
                 .ToListAsync(cancellationToken);

@@ -1,3 +1,10 @@
+# Pinned explicitly (matching the implicit default this project already ran under,
+# so existing containers/volumes resolve unchanged) so this can never fold into the
+# same Compose project as docker-compose.prod.yml just by being run from the same
+# directory -- see the longer note in that file for what happens when two files
+# share a project and a same-named service.
+name: merchforge
+
 services:
   db:
     image: mariadb:10.4

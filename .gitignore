@@ -27,6 +27,7 @@ TestResults/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # ASP.NET generated files
 wwwroot/lib/

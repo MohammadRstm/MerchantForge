@@ -879,6 +879,15 @@ namespace MerchForge.api.Repositories.Implementations
                 .GroupBy(x => x.CustomerId)
                 .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.LastOrderAt).Select(x => x.Name).ToList());
 
+            var now = DateTime.UtcNow;
+
+            var activeSessionCustomerIds = (await _db.CustomerRefreshTokens
+                .Where(rt => customerIds.Contains(rt.CustomerId) && rt.RevokedAt == null && rt.ExpiresAt > now)
+                .Select(rt => rt.CustomerId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+
             var items = page
                 .Select(c =>
                 {
@@ -896,6 +905,7 @@ namespace MerchForge.api.Repositories.Implementations
                         LastOrderAt = lastOrderByCustomer.TryGetValue(c.Id, out var lastOrder) ? lastOrder : null,
                         RecentBusinessNames = businessNames.Take(2).ToList(),
                         AdditionalBusinessCount = Math.Max(0, businessNames.Count - 2),
+                        HasActiveSession = activeSessionCustomerIds.Contains(c.Id),
                         CreatedAt = c.CreatedAt,
                     };
                 })

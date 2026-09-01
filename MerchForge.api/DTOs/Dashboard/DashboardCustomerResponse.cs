@@ -24,5 +24,7 @@ public class DashboardCustomerResponse
 
     public int AdditionalBusinessCount { get; set; }
 
+    public bool HasActiveSession { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

@@ -865,18 +865,39 @@ namespace MerchForge.api.Repositories.Implementations
                 .GroupBy(x => x.CustomerId)
                 .ToDictionary(g => g.Key, g => g.Max(x => x.LastOrderAt));
 
+            // One row per (customer, business) - the businesses preview shown in the
+            // table row ("Acme Coffee, Fresh Market, +2 more"), most-recently-ordered-
+            // from first. The full per-business breakdown lives on the detail endpoint;
+            // this is only ever the first couple, for a compact table cell.
+            var businessRows = await _db.Orders
+                .Where(o => o.CustomerId != null && customerIds.Contains(o.CustomerId.Value) && o.Status != OrderStatus.Cancelled)
+                .GroupBy(o => new { CustomerId = o.CustomerId!.Value, o.BusinessId, o.Business.Name })
+                .Select(g => new { g.Key.CustomerId, g.Key.Name, LastOrderAt = g.Max(o => o.CreatedAt) })
+                .ToListAsync(cancellationToken);
+
+            var businessesByCustomer = businessRows
+                .GroupBy(x => x.CustomerId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.LastOrderAt).Select(x => x.Name).ToList());
+
             var items = page
-                .Select(c => new DashboardCustomerResponse
+                .Select(c =>
                 {
-                    Id = c.Id,
-                    FirstName = c.FirstName,
-                    LastName = c.LastName,
-                    Email = c.Email,
-                    OrderCount = orderCounts.TryGetValue(c.Id, out var count) ? count : 0,
-                    TotalSpent = primarySpendByCustomer.TryGetValue(c.Id, out var spend) ? spend.Total : 0,
-                    SpentCurrency = primarySpendByCustomer.TryGetValue(c.Id, out var spendCurrency) ? spendCurrency.Currency : null,
-                    LastOrderAt = lastOrderByCustomer.TryGetValue(c.Id, out var lastOrder) ? lastOrder : null,
-                    CreatedAt = c.CreatedAt,
+                    var businessNames = businessesByCustomer.TryGetValue(c.Id, out var names) ? names : [];
+
+                    return new DashboardCustomerResponse
+                    {
+                        Id = c.Id,
+                        FirstName = c.FirstName,
+                        LastName = c.LastName,
+                        Email = c.Email,
+                        OrderCount = orderCounts.TryGetValue(c.Id, out var count) ? count : 0,
+                        TotalSpent = primarySpendByCustomer.TryGetValue(c.Id, out var spend) ? spend.Total : 0,
+                        SpentCurrency = primarySpendByCustomer.TryGetValue(c.Id, out var spendCurrency) ? spendCurrency.Currency : null,
+                        LastOrderAt = lastOrderByCustomer.TryGetValue(c.Id, out var lastOrder) ? lastOrder : null,
+                        RecentBusinessNames = businessNames.Take(2).ToList(),
+                        AdditionalBusinessCount = Math.Max(0, businessNames.Count - 2),
+                        CreatedAt = c.CreatedAt,
+                    };
                 })
                 .ToList();
 

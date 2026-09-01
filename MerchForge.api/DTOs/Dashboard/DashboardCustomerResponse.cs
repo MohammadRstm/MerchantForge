@@ -19,5 +19,10 @@ public class DashboardCustomerResponse
 
     public DateTime? LastOrderAt { get; set; }
 
+    /// <summary>The (up to 2) businesses this customer has most recently ordered from - "Acme Coffee, Fresh Market, +2 more" style preview, not the full list (see the detail endpoint for that).</summary>
+    public List<string> RecentBusinessNames { get; set; } = [];
+
+    public int AdditionalBusinessCount { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

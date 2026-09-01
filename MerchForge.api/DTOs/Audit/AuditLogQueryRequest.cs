@@ -17,4 +17,7 @@ public class AuditLogQueryRequest : PagedQuery
     public DateTime? To { get; set; }
 
     public Guid? BusinessId { get; set; }
+
+    /// <summary>Scopes results to one entity (e.g. one WebsiteTemplate's own activity feed) when set.</summary>
+    public Guid? EntityId { get; set; }
 }

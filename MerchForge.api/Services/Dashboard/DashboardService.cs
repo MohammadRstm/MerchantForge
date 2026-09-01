@@ -805,9 +805,47 @@ namespace MerchForge.api.Services.Dashboard
 
         // ---- website templates ----
 
-        public async Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default)
+        public async Task<PagedResult<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(
+            WebsiteTemplatesQueryRequest query,
+            CancellationToken cancellationToken = default)
         {
-            return await _dashboardRepository.GetWebsiteTemplatesAsync(cancellationToken);
+            var (items, totalCount) = await _dashboardRepository.GetWebsiteTemplatesAsync(query, cancellationToken);
+
+            return new PagedResult<WebsiteTemplateResponse>
+            {
+                Items = items,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TotalCount = totalCount,
+            };
+        }
+
+        public Task<TemplateStatsResponse> GetTemplateStatsAsync(CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetTemplateStatsAsync(cancellationToken);
+        }
+
+        public Task<List<DomainTemplateSummaryResponse>> GetDomainTemplateSummaryAsync(CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetDomainTemplateSummaryAsync(cancellationToken);
+        }
+
+        public Task<List<KeyCountResponse>> GetRequestedTemplatesAsync(int take, CancellationToken cancellationToken = default)
+        {
+            return _dashboardRepository.GetRequestedTemplatesAsync(take, cancellationToken);
+        }
+
+        public async Task<List<TimeSeriesPointResponse>> GetTemplateRequestTrendAsync(
+            int days, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var since = now.AddDays(-days);
+
+            var dates = await _dashboardRepository.GetTemplateRequestCreationDatesSinceAsync(since, cancellationToken);
+
+            return days <= 90
+                ? TimeSeriesBuilder.BuildDailySeries(dates, since, now)
+                : TimeSeriesBuilder.BuildMonthlySeries(dates, new DateTime(since.Year, since.Month, 1, 0, 0, 0, DateTimeKind.Utc), now);
         }
 
         public async Task<WebsiteTemplateResponse> CreateWebsiteTemplateAsync(
@@ -840,6 +878,13 @@ namespace MerchForge.api.Services.Dashboard
             var domains = await _domainService.GetDomainsAsync(cancellationToken);
             var domainName = domains.FirstOrDefault(d => d.Id == template.BusinessDomainId)?.Name ?? string.Empty;
 
+            await _auditLogService.LogAsync(
+                AuditEventType.Template, "WebsiteTemplateCreated",
+                $"Created website template \"{template.Label}\".",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "WebsiteTemplate", entityId: template.Id,
+                cancellationToken: cancellationToken);
+
             return new WebsiteTemplateResponse
             {
                 Id = template.Id,
@@ -852,6 +897,8 @@ namespace MerchForge.api.Services.Dashboard
                 IsActive = template.IsActive,
                 DisplayOrder = template.DisplayOrder,
                 BusinessesUsingIt = 0,
+                RequestCount = 0,
+                ActiveCustomizableComponentCount = 0,
                 CreatedAt = template.CreatedAt,
             };
         }
@@ -921,6 +968,31 @@ namespace MerchForge.api.Services.Dashboard
             return await MapToResponseAsync(websiteTemplateId, cancellationToken);
         }
 
+        public async Task<WebsiteTemplateResponse> ReactivateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default)
+        {
+            var template = await _dashboardRepository.GetTrackedWebsiteTemplateAsync(websiteTemplateId, cancellationToken)
+                ?? throw new WebsiteTemplateNotFoundException();
+
+            // Makes the template available for new selections again - existing
+            // businesses were never affected by deactivation in the first place, so
+            // there's nothing to restore for them here.
+            template.IsActive = true;
+            template.UpdatedAt = DateTime.UtcNow;
+
+            await _dashboardRepository.SaveChangesAsync(cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.Template, "WebsiteTemplateReactivated",
+                $"Reactivated website template \"{template.Label}\".",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "WebsiteTemplate", entityId: websiteTemplateId,
+                cancellationToken: cancellationToken);
+
+            return await MapToResponseAsync(websiteTemplateId, cancellationToken);
+        }
+
         private async Task<WebsiteTemplateResponse> MapToResponseAsync(
             Guid websiteTemplateId,
             CancellationToken cancellationToken)
@@ -940,6 +1012,8 @@ namespace MerchForge.api.Services.Dashboard
                 IsActive = detail.IsActive,
                 DisplayOrder = detail.DisplayOrder,
                 BusinessesUsingIt = detail.Businesses.Count,
+                RequestCount = detail.RequestCount,
+                ActiveCustomizableComponentCount = detail.ActiveCustomizableComponentCount,
                 CreatedAt = detail.CreatedAt,
             };
         }

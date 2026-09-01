@@ -24,5 +24,10 @@ public class WebsiteTemplateResponse
     /// <summary>How many businesses have chosen this template — shown so a SuperAdmin can see the impact before retiring one.</summary>
     public int BusinessesUsingIt { get; set; }
 
+    /// <summary>Total WebsiteTemplateRequest rows referencing this template, any status — a signal distinct from BusinessesUsingIt: what's being asked for, not what's live.</summary>
+    public int RequestCount { get; set; }
+
+    public int ActiveCustomizableComponentCount { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

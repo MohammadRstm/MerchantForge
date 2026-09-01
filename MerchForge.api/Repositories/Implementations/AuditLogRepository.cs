@@ -74,6 +74,11 @@ namespace MerchForge.api.Repositories.Implementations
                 baseQuery = baseQuery.Where(a => a.BusinessId == query.BusinessId.Value);
             }
 
+            if (query.EntityId.HasValue)
+            {
+                baseQuery = baseQuery.Where(a => a.EntityId == query.EntityId.Value);
+            }
+
             var totalCount = await baseQuery.CountAsync(cancellationToken);
 
             var items = await baseQuery

@@ -668,12 +668,74 @@ namespace MerchForge.api.Repositories.Implementations
 
         // ---- website templates ----
 
-        public async Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default)
+        public async Task<(List<WebsiteTemplateResponse> Items, int TotalCount)> GetWebsiteTemplatesAsync(
+            WebsiteTemplatesQueryRequest query,
+            CancellationToken cancellationToken = default)
         {
-            return await _db.WebsiteTemplates
-                .AsNoTracking()
-                .OrderBy(t => t.BusinessDomain.Name)
-                .ThenBy(t => t.DisplayOrder)
+            var baseQuery = _db.WebsiteTemplates.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var pattern = $"%{query.Search.Trim()}%";
+
+                baseQuery = baseQuery.Where(t =>
+                    EF.Functions.Like(t.Name, pattern) ||
+                    EF.Functions.Like(t.Label, pattern) ||
+                    EF.Functions.Like(t.BusinessDomain.Name, pattern));
+            }
+
+            if (query.BusinessDomainId.HasValue)
+            {
+                baseQuery = baseQuery.Where(t => t.BusinessDomainId == query.BusinessDomainId.Value);
+            }
+
+            if (query.IsActive.HasValue)
+            {
+                baseQuery = baseQuery.Where(t => t.IsActive == query.IsActive.Value);
+            }
+
+            if (query.HasBusinesses.HasValue)
+            {
+                var hasBusinesses = query.HasBusinesses.Value;
+                baseQuery = baseQuery.Where(t => t.Businesses.Any() == hasBusinesses);
+            }
+
+            if (query.IsCustomizable.HasValue)
+            {
+                var isCustomizable = query.IsCustomizable.Value;
+                baseQuery = baseQuery.Where(t => t.CustomizableComponents.Any(c => c.IsActive) == isCustomizable);
+            }
+
+            var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+            baseQuery = query.SortBy switch
+            {
+                WebsiteTemplateSortField.Name => query.SortDescending
+                    ? baseQuery.OrderByDescending(t => t.Name)
+                    : baseQuery.OrderBy(t => t.Name),
+
+                WebsiteTemplateSortField.CreatedAt => query.SortDescending
+                    ? baseQuery.OrderByDescending(t => t.CreatedAt)
+                    : baseQuery.OrderBy(t => t.CreatedAt),
+
+                WebsiteTemplateSortField.BusinessesUsingIt => query.SortDescending
+                    ? baseQuery.OrderByDescending(t => t.Businesses.Count)
+                    : baseQuery.OrderBy(t => t.Businesses.Count),
+
+                // Correlated subquery, same shape as the request-count field below -
+                // WebsiteTemplate has no inverse nav collection to WebsiteTemplateRequest.
+                WebsiteTemplateSortField.RequestCount => query.SortDescending
+                    ? baseQuery.OrderByDescending(t => _db.WebsiteTemplateRequests.Count(r => r.WebsiteTemplateId == t.Id))
+                    : baseQuery.OrderBy(t => _db.WebsiteTemplateRequests.Count(r => r.WebsiteTemplateId == t.Id)),
+
+                _ => query.SortDescending
+                    ? baseQuery.OrderByDescending(t => t.DisplayOrder)
+                    : baseQuery.OrderBy(t => t.DisplayOrder),
+            };
+
+            var items = await baseQuery
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
                 .Select(t => new WebsiteTemplateResponse
                 {
                     Id = t.Id,
@@ -686,8 +748,84 @@ namespace MerchForge.api.Repositories.Implementations
                     IsActive = t.IsActive,
                     DisplayOrder = t.DisplayOrder,
                     BusinessesUsingIt = t.Businesses.Count,
+                    RequestCount = _db.WebsiteTemplateRequests.Count(r => r.WebsiteTemplateId == t.Id),
+                    ActiveCustomizableComponentCount = t.CustomizableComponents.Count(c => c.IsActive),
                     CreatedAt = t.CreatedAt,
                 })
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
+        public async Task<TemplateStatsResponse> GetTemplateStatsAsync(CancellationToken cancellationToken = default)
+        {
+            var totalTemplates = await _db.WebsiteTemplates.CountAsync(cancellationToken);
+            var activeTemplates = await _db.WebsiteTemplates.CountAsync(t => t.IsActive, cancellationToken);
+            var businessesUsingTemplates = await _db.Businesses.CountAsync(b => b.WebsiteTemplateId != null, cancellationToken);
+
+            var mostUsed = await _db.WebsiteTemplates
+                .OrderByDescending(t => t.Businesses.Count)
+                .Select(t => new { t.Label, Count = t.Businesses.Count })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var (pending, _) = await GetWebsiteTemplateRequestStatusCountsAsync(cancellationToken);
+
+            return new TemplateStatsResponse
+            {
+                TotalTemplates = totalTemplates,
+                ActiveTemplates = activeTemplates,
+                InactiveTemplates = totalTemplates - activeTemplates,
+                BusinessesUsingTemplates = businessesUsingTemplates,
+                MostUsedTemplateName = mostUsed is { Count: > 0 } ? mostUsed.Label : null,
+                MostUsedTemplateBusinessCount = mostUsed?.Count ?? 0,
+                PendingTemplateRequests = pending,
+            };
+        }
+
+        public async Task<List<DomainTemplateSummaryResponse>> GetDomainTemplateSummaryAsync(CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.WebsiteTemplates
+                .GroupBy(t => new { t.BusinessDomainId, t.BusinessDomain.Name })
+                .Select(g => new { g.Key.BusinessDomainId, g.Key.Name, TemplateCount = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            var businessCountLookup = (await _db.Businesses
+                .Where(b => b.WebsiteTemplateId != null)
+                .GroupBy(b => b.WebsiteTemplate!.BusinessDomainId)
+                .Select(g => new { BusinessDomainId = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(x => x.BusinessDomainId, x => x.Count);
+
+            return grouped
+                .Select(g => new DomainTemplateSummaryResponse
+                {
+                    BusinessDomainId = g.BusinessDomainId,
+                    DomainName = g.Name,
+                    TemplateCount = g.TemplateCount,
+                    BusinessCount = businessCountLookup.TryGetValue(g.BusinessDomainId, out var count) ? count : 0,
+                })
+                .ToList();
+        }
+
+        public async Task<List<KeyCountResponse>> GetRequestedTemplatesAsync(int take, CancellationToken cancellationToken = default)
+        {
+            var grouped = await _db.WebsiteTemplateRequests
+                .GroupBy(r => new { r.WebsiteTemplateId, r.WebsiteTemplate.Label })
+                .Select(g => new { g.Key.Label, Count = g.Count() })
+                .OrderByDescending(g => g.Count)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+
+            return grouped
+                .Select(g => new KeyCountResponse { Key = g.Label, Count = g.Count })
+                .ToList();
+        }
+
+        public async Task<List<DateTime>> GetTemplateRequestCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default)
+        {
+            return await _db.WebsiteTemplateRequests
+                .Where(r => r.CreatedAt >= since)
+                .Select(r => r.CreatedAt)
                 .ToListAsync(cancellationToken);
         }
 
@@ -725,8 +863,11 @@ namespace MerchForge.api.Repositories.Implementations
                     IsActive = t.IsActive,
                     DisplayOrder = t.DisplayOrder,
                     CreatedAt = t.CreatedAt,
+                    UpdatedAt = t.UpdatedAt,
+                    RequestCount = _db.WebsiteTemplateRequests.Count(r => r.WebsiteTemplateId == t.Id),
+                    ActiveCustomizableComponentCount = t.CustomizableComponents.Count(c => c.IsActive),
                     Businesses = t.Businesses
-                        .Select(b => new WebsiteTemplateBusinessResponse { Id = b.Id, Name = b.Name })
+                        .Select(b => new WebsiteTemplateBusinessResponse { Id = b.Id, Name = b.Name, ChosenAt = b.WebsiteTemplateChosenAt })
                         .ToList(),
                 })
                 .FirstOrDefaultAsync(cancellationToken);

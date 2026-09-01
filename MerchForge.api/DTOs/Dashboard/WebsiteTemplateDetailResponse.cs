@@ -23,5 +23,11 @@ public class WebsiteTemplateDetailResponse
 
     public DateTime CreatedAt { get; set; }
 
+    public DateTime UpdatedAt { get; set; }
+
+    public int RequestCount { get; set; }
+
+    public int ActiveCustomizableComponentCount { get; set; }
+
     public List<WebsiteTemplateBusinessResponse> Businesses { get; set; } = [];
 }

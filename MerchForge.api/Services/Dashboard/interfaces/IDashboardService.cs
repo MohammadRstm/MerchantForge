@@ -142,7 +142,17 @@ namespace MerchForge.api.Services.Dashboard.interfaces
 
         // ---- website templates ----
 
-        Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);
+        Task<PagedResult<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(
+            WebsiteTemplatesQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<TemplateStatsResponse> GetTemplateStatsAsync(CancellationToken cancellationToken = default);
+
+        Task<List<DomainTemplateSummaryResponse>> GetDomainTemplateSummaryAsync(CancellationToken cancellationToken = default);
+
+        Task<List<KeyCountResponse>> GetRequestedTemplatesAsync(int take, CancellationToken cancellationToken = default);
+
+        Task<List<TimeSeriesPointResponse>> GetTemplateRequestTrendAsync(int days, CancellationToken cancellationToken = default);
 
         Task<WebsiteTemplateResponse> CreateWebsiteTemplateAsync(
             CreateWebsiteTemplateRequest request,
@@ -162,6 +172,10 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             CancellationToken cancellationToken = default);
 
         Task<WebsiteTemplateResponse> DeactivateWebsiteTemplateAsync(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken = default);
+
+        Task<WebsiteTemplateResponse> ReactivateWebsiteTemplateAsync(
             Guid websiteTemplateId,
             CancellationToken cancellationToken = default);
 

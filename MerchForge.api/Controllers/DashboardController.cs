@@ -36,6 +36,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<ChangeSubscriptionRequest> _changeSubscriptionValidator;
         private readonly IValidator<AuditLogQueryRequest> _auditLogQueryValidator;
         private readonly IValidator<UpdateCustomerRequest> _updateCustomerValidator;
+        private readonly IValidator<WebsiteTemplatesQueryRequest> _websiteTemplatesQueryValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -55,7 +56,8 @@ namespace MerchForge.api.Controllers
             IValidator<SubscriptionsQueryRequest> subscriptionsQueryValidator,
             IValidator<ChangeSubscriptionRequest> changeSubscriptionValidator,
             IValidator<AuditLogQueryRequest> auditLogQueryValidator,
-            IValidator<UpdateCustomerRequest> updateCustomerValidator)
+            IValidator<UpdateCustomerRequest> updateCustomerValidator,
+            IValidator<WebsiteTemplatesQueryRequest> websiteTemplatesQueryValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -75,6 +77,7 @@ namespace MerchForge.api.Controllers
             _changeSubscriptionValidator = changeSubscriptionValidator;
             _auditLogQueryValidator = auditLogQueryValidator;
             _updateCustomerValidator = updateCustomerValidator;
+            _websiteTemplatesQueryValidator = websiteTemplatesQueryValidator;
         }
 
         private bool TryGetActingUserId(out Guid actingUserId)
@@ -461,10 +464,53 @@ namespace MerchForge.api.Controllers
         // ---- website templates ----
 
         [HttpGet("website-templates")]
-        public async Task<ActionResult<List<WebsiteTemplateResponse>>> GetWebsiteTemplates(
+        public async Task<ActionResult<PagedResult<WebsiteTemplateResponse>>> GetWebsiteTemplates(
+            [FromQuery] WebsiteTemplatesQueryRequest query,
             CancellationToken cancellationToken)
         {
-            var response = await _dashboardService.GetWebsiteTemplatesAsync(cancellationToken);
+            await _websiteTemplatesQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _dashboardService.GetWebsiteTemplatesAsync(query, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("website-templates/stats")]
+        public async Task<ActionResult<TemplateStatsResponse>> GetTemplateStats(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetTemplateStatsAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("website-templates/domain-summary")]
+        public async Task<ActionResult<List<DomainTemplateSummaryResponse>>> GetDomainTemplateSummary(
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetDomainTemplateSummaryAsync(cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("website-templates/requested")]
+        public async Task<ActionResult<List<KeyCountResponse>>> GetRequestedTemplates(
+            [FromQuery] int take,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetRequestedTemplatesAsync(
+                take is > 0 and <= 50 ? take : 10, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpGet("website-templates/request-trend")]
+        public async Task<ActionResult<List<TimeSeriesPointResponse>>> GetTemplateRequestTrend(
+            [FromQuery] int days,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.GetTemplateRequestTrendAsync(
+                days is > 0 and <= 365 ? days : 30, cancellationToken);
 
             return Ok(response);
         }
@@ -521,6 +567,16 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _dashboardService.DeactivateWebsiteTemplateAsync(websiteTemplateId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("website-templates/{websiteTemplateId:guid}/reactivate")]
+        public async Task<ActionResult<WebsiteTemplateResponse>> ReactivateWebsiteTemplate(
+            Guid websiteTemplateId,
+            CancellationToken cancellationToken)
+        {
+            var response = await _dashboardService.ReactivateWebsiteTemplateAsync(websiteTemplateId, cancellationToken);
 
             return Ok(response);
         }

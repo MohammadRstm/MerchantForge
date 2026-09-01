@@ -110,6 +110,11 @@ namespace MerchForge.api.Repositories.Implementations
                 baseQuery = baseQuery.Where(r => r.Status == query.Status);
             }
 
+            if (query.WebsiteTemplateId is not null)
+            {
+                baseQuery = baseQuery.Where(r => r.WebsiteTemplateId == query.WebsiteTemplateId);
+            }
+
             var totalCount = await baseQuery.CountAsync(cancellationToken);
 
             var projected = baseQuery.Select(r => new WebsiteTemplateRequestSummaryResponse

@@ -131,7 +131,17 @@ namespace MerchForge.api.Repositories.Interfaces
 
         // ---- website templates ----
 
-        Task<List<WebsiteTemplateResponse>> GetWebsiteTemplatesAsync(CancellationToken cancellationToken = default);
+        Task<(List<WebsiteTemplateResponse> Items, int TotalCount)> GetWebsiteTemplatesAsync(
+            WebsiteTemplatesQueryRequest query,
+            CancellationToken cancellationToken = default);
+
+        Task<TemplateStatsResponse> GetTemplateStatsAsync(CancellationToken cancellationToken = default);
+
+        Task<List<DomainTemplateSummaryResponse>> GetDomainTemplateSummaryAsync(CancellationToken cancellationToken = default);
+
+        Task<List<KeyCountResponse>> GetRequestedTemplatesAsync(int take, CancellationToken cancellationToken = default);
+
+        Task<List<DateTime>> GetTemplateRequestCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default);
 
         Task<bool> WebsiteTemplateNameExistsAsync(string name, CancellationToken cancellationToken = default);
 
@@ -143,7 +153,7 @@ namespace MerchForge.api.Repositories.Interfaces
             Guid id,
             CancellationToken cancellationToken = default);
 
-        /// <summary>Loads a tracked entity for an update/deactivate mutation.</summary>
+        /// <summary>Loads a tracked entity for an update/deactivate/reactivate mutation.</summary>
         Task<WebsiteTemplate?> GetTrackedWebsiteTemplateAsync(
             Guid id,
             CancellationToken cancellationToken = default);

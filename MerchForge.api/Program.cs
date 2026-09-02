@@ -329,6 +329,35 @@ builder.Services
 
             ClockSkew = TimeSpan.Zero
         };
+
+        // TEMP DIAGNOSTIC (2026-09-02): tracking down an intermittent "signature key
+        // was not found" 401 that a token can start throwing minutes after
+        // successfully validating, with no server restart in between -- something
+        // about key resolution isn't as static as this setup assumes. Logs a
+        // non-secret fingerprint of the key this handler is validating against, so
+        // it can be diffed against JwtService's issuance-time fingerprint (same log
+        // line shape) the next time this happens. Remove once root-caused.
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                var keyFingerprint = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(jwtOptions.SecretKey))
+                )[..12];
+                var authHeader = context.HttpContext.Request.Headers.Authorization.ToString();
+
+                logger.LogWarning(
+                    "JWT auth failed: {ExceptionType} | {Message} | validatingKeyFp={KeyFp} | authHeaderLen={HeaderLen} | authHeaderPrefix={HeaderPrefix}",
+                    context.Exception.GetType().Name,
+                    context.Exception.Message,
+                    keyFingerprint,
+                    authHeader.Length,
+                    authHeader.Length > 20 ? authHeader[..20] : authHeader);
+
+                return Task.CompletedTask;
+            }
+        };
     })
     // Second, independent JWT scheme for customers. Reuses the platform's existing
     // Jwt:SecretKey/Issuer (see CustomerJwtOptions's doc comment) — the distinct scheme

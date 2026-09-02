@@ -382,15 +382,18 @@ namespace MerchForge.api.Services.Dashboard
             CreateDemoBusinessRequest request,
             CancellationToken cancellationToken = default)
         {
-            await _domainService.EnsureDomainExistsAsync(request.BusinessDomainId, cancellationToken);
+            var template = await _dashboardRepository.GetTrackedWebsiteTemplateAsync(request.WebsiteTemplateId, cancellationToken)
+                ?? throw new WebsiteTemplateNotFoundException();
 
-            if (await _dashboardRepository.DemoBusinessExistsForDomainAsync(request.BusinessDomainId, cancellationToken))
+            if (!template.IsActive)
             {
-                throw new DemoBusinessAlreadyExistsForDomainException();
+                throw new WebsiteTemplateInactiveException();
             }
 
-            var template = await _dashboardRepository.GetPrimaryActiveTemplateForDomainAsync(request.BusinessDomainId, cancellationToken)
-                ?? throw new DomainHasNoActiveTemplateException();
+            if (await _dashboardRepository.DemoBusinessExistsForTemplateAsync(request.WebsiteTemplateId, cancellationToken))
+            {
+                throw new DemoBusinessAlreadyExistsForTemplateException();
+            }
 
             if (await _userRepository.GetByEmailAsync(request.OwnerEmail, cancellationToken) is not null)
             {
@@ -423,7 +426,7 @@ namespace MerchForge.api.Services.Dashboard
                 Id = Guid.NewGuid(),
                 Name = request.BusinessName,
                 OwnerUserId = owner.Id,
-                BusinessDomainId = request.BusinessDomainId,
+                BusinessDomainId = template.BusinessDomainId,
                 WebsiteTemplateId = template.Id,
                 WebsiteTemplateChosenAt = now,
                 IsDemo = true,
@@ -444,7 +447,7 @@ namespace MerchForge.api.Services.Dashboard
 
             await _businessDashboardService.SubscribeToPlanAsync(business.Id, proYearlyPlan.Id, cancellationToken);
 
-            var categories = await _dashboardRepository.GetActivePlatformCategoriesForDomainAsync(request.BusinessDomainId, cancellationToken);
+            var categories = await _dashboardRepository.GetActivePlatformCategoriesForDomainAsync(template.BusinessDomainId, cancellationToken);
             var products = BuildDemoProducts(business.Id, categories);
             var customers = BuildDemoCustomers();
             var orders = BuildDemoOrders(business, customers, products);

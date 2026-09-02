@@ -539,19 +539,10 @@ namespace MerchForge.api.Repositories.Implementations
                 .FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
         }
 
-        public async Task<bool> DemoBusinessExistsForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default)
+        public async Task<bool> DemoBusinessExistsForTemplateAsync(Guid websiteTemplateId, CancellationToken cancellationToken = default)
         {
             return await _db.Businesses
-                .AnyAsync(b => b.BusinessDomainId == businessDomainId && b.IsDemo, cancellationToken);
-        }
-
-        public async Task<WebsiteTemplate?> GetPrimaryActiveTemplateForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default)
-        {
-            return await _db.WebsiteTemplates
-                .AsNoTracking()
-                .Where(t => t.BusinessDomainId == businessDomainId && t.IsActive)
-                .OrderBy(t => t.DisplayOrder)
-                .FirstOrDefaultAsync(cancellationToken);
+                .AnyAsync(b => b.WebsiteTemplateId == websiteTemplateId && b.IsDemo, cancellationToken);
         }
 
         public async Task<List<Category>> GetActivePlatformCategoriesForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default)

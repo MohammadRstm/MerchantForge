@@ -2,12 +2,12 @@ using MerchForge.api.Exceptions.Base;
 
 namespace MerchForge.api.Exceptions.Dashboard
 {
-    public class DemoBusinessAlreadyExistsForDomainException : AppException
+    public class DemoBusinessAlreadyExistsForTemplateException : AppException
     {
-        public DemoBusinessAlreadyExistsForDomainException() : base(
+        public DemoBusinessAlreadyExistsForTemplateException() : base(
             Enums.ErrorType.Conflict,
-            "DEMO_BUSINESS_ALREADY_EXISTS_FOR_DOMAIN",
-            "This domain already has a demo business")
+            "DEMO_BUSINESS_ALREADY_EXISTS_FOR_TEMPLATE",
+            "This template already has a demo business")
         {
         }
     }

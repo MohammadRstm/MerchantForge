@@ -2,12 +2,12 @@ using MerchForge.api.Exceptions.Base;
 
 namespace MerchForge.api.Exceptions.Dashboard
 {
-    public class DomainHasNoActiveTemplateException : AppException
+    public class WebsiteTemplateInactiveException : AppException
     {
-        public DomainHasNoActiveTemplateException() : base(
+        public WebsiteTemplateInactiveException() : base(
             Enums.ErrorType.Conflict,
-            "DOMAIN_HAS_NO_ACTIVE_TEMPLATE",
-            "This domain has no active website template to showcase yet")
+            "WEBSITE_TEMPLATE_INACTIVE",
+            "This website template is not active and cannot be showcased yet")
         {
         }
     }

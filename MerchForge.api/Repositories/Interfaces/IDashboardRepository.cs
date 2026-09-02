@@ -162,16 +162,7 @@ namespace MerchForge.api.Repositories.Interfaces
 
         // ---- demo/showcase businesses ----
 
-        Task<bool> DemoBusinessExistsForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default);
-
-        /// <summary>
-        /// The domain's active template with the lowest DisplayOrder, or null if it has
-        /// none. Only ever ambiguous (more than one active template) in a domain that
-        /// hasn't been cleaned up yet -- picking deterministically rather than throwing
-        /// keeps this usable regardless, since which one is "correct" isn't this
-        /// method's call to make.
-        /// </summary>
-        Task<WebsiteTemplate?> GetPrimaryActiveTemplateForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default);
+        Task<bool> DemoBusinessExistsForTemplateAsync(Guid websiteTemplateId, CancellationToken cancellationToken = default);
 
         /// <summary>Active platform categories for a domain (BusinessId == null) — what a demo business's seeded products are filed under.</summary>
         Task<List<Category>> GetActivePlatformCategoriesForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default);

@@ -7,9 +7,9 @@ namespace MerchForge.api.Validators.Dashboard
     {
         public CreateDemoBusinessRequestValidator()
         {
-            RuleFor(x => x.BusinessDomainId)
+            RuleFor(x => x.WebsiteTemplateId)
                 .NotEmpty()
-                .WithMessage("Select a business domain.");
+                .WithMessage("Select a website template.");
 
             RuleFor(x => x.BusinessName)
                 .NotEmpty()

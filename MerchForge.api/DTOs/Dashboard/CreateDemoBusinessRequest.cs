@@ -7,7 +7,13 @@ namespace MerchForge.api.DTOs.Dashboard;
 /// </summary>
 public class CreateDemoBusinessRequest
 {
-    public Guid BusinessDomainId { get; set; }
+    /// <summary>
+    /// Which template this business showcases -- its domain is derived from the
+    /// template's own BusinessDomainId. Keyed on the template, not the domain: a
+    /// domain can have more than one active template (e.g. two different fashion
+    /// storefronts), each deserving its own showcase business.
+    /// </summary>
+    public Guid WebsiteTemplateId { get; set; }
 
     public string BusinessName { get; set; } = string.Empty;
 

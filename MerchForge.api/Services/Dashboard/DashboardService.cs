@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Hangfire;
+using Microsoft.AspNetCore.Identity;
 using MerchForge.api.DTOs.Audit;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
@@ -45,6 +46,8 @@ namespace MerchForge.api.Services.Dashboard
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IAuditLogService _auditLogService;
         private readonly ICurrentUserAccessor _currentUserAccessor;
+        private readonly IUserRepository _userRepository;
+        private readonly IPasswordHasher<User> _passwordHasher;
 
         public DashboardService(
             IDashboardRepository dashboardRepository,
@@ -61,7 +64,9 @@ namespace MerchForge.api.Services.Dashboard
             IDomainService domainService,
             IBackgroundJobClient backgroundJobClient,
             IAuditLogService auditLogService,
-            ICurrentUserAccessor currentUserAccessor)
+            ICurrentUserAccessor currentUserAccessor,
+            IUserRepository userRepository,
+            IPasswordHasher<User> passwordHasher)
         {
             _dashboardRepository = dashboardRepository;
             _businessDashboardRepository = businessDashboardRepository;
@@ -78,6 +83,8 @@ namespace MerchForge.api.Services.Dashboard
             _backgroundJobClient = backgroundJobClient;
             _auditLogService = auditLogService;
             _currentUserAccessor = currentUserAccessor;
+            _userRepository = userRepository;
+            _passwordHasher = passwordHasher;
         }
 
         public async Task<DashboardStatsResponse> GetPlatformStatsAsync(CancellationToken cancellationToken = default)
@@ -335,6 +342,7 @@ namespace MerchForge.api.Services.Dashboard
                 BusinessDomainId = business.BusinessDomainId,
                 DomainName = business.BusinessDomain?.Name,
                 CreatedAt = business.CreatedAt,
+                IsDemo = business.IsDemo,
 
                 OwnerUserId = business.OwnerUserId,
                 OwnerFullName = $"{business.Owner.FirstName} {business.Owner.LastName}",
@@ -363,6 +371,265 @@ namespace MerchForge.api.Services.Dashboard
 
                 FeatureCredits = featureCredits,
             };
+        }
+
+        private const int DemoBusinessProductCount = 12;
+        private const int DemoBusinessCustomerCount = 20;
+        private const int DemoBusinessOrderCount = 30;
+        private const int DemoBusinessOrderHistoryDays = 120;
+
+        public async Task<DemoBusinessResponse> CreateDemoBusinessAsync(
+            CreateDemoBusinessRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            await _domainService.EnsureDomainExistsAsync(request.BusinessDomainId, cancellationToken);
+
+            if (await _dashboardRepository.DemoBusinessExistsForDomainAsync(request.BusinessDomainId, cancellationToken))
+            {
+                throw new DemoBusinessAlreadyExistsForDomainException();
+            }
+
+            var template = await _dashboardRepository.GetPrimaryActiveTemplateForDomainAsync(request.BusinessDomainId, cancellationToken)
+                ?? throw new DomainHasNoActiveTemplateException();
+
+            if (await _userRepository.GetByEmailAsync(request.OwnerEmail, cancellationToken) is not null)
+            {
+                throw new Exceptions.Auth.EmailAlreadyExistsException();
+            }
+
+            var proYearlyPlan = (await _subscriptionPlanRepository.GetActiveAsync(cancellationToken))
+                .FirstOrDefault(p => p.Name == "Pro" && p.BillingInterval == BillingInterval.Yearly)
+                ?? throw new InvalidOperationException("No active Pro/Yearly subscription plan found.");
+
+            var systemRoleId = await _userRepository.GetSystemRoleId(SystemRole.User, cancellationToken);
+            var businessRoleId = await _userRepository.GetBusinessRoleId(BusinessRole.Owner, cancellationToken);
+
+            var now = DateTime.UtcNow;
+
+            var owner = new User
+            {
+                Id = Guid.NewGuid(),
+                FirstName = request.OwnerFirstName,
+                LastName = request.OwnerLastName,
+                Email = request.OwnerEmail,
+                SystemRoleId = systemRoleId,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+            owner.PasswordHash = _passwordHasher.HashPassword(owner, request.OwnerPassword);
+
+            var business = new Business
+            {
+                Id = Guid.NewGuid(),
+                Name = request.BusinessName,
+                OwnerUserId = owner.Id,
+                BusinessDomainId = request.BusinessDomainId,
+                WebsiteTemplateId = template.Id,
+                WebsiteTemplateChosenAt = now,
+                IsDemo = true,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+
+            var businessUser = new BusinessUser
+            {
+                UserId = owner.Id,
+                BusinessId = business.Id,
+                RoleId = businessRoleId,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+
+            await _userRepository.RegisterUser(owner, business, businessUser, cancellationToken);
+
+            await _businessDashboardService.SubscribeToPlanAsync(business.Id, proYearlyPlan.Id, cancellationToken);
+
+            var categories = await _dashboardRepository.GetActivePlatformCategoriesForDomainAsync(request.BusinessDomainId, cancellationToken);
+            var products = BuildDemoProducts(business.Id, categories);
+            var customers = BuildDemoCustomers();
+            var orders = BuildDemoOrders(business, customers, products);
+
+            await _dashboardRepository.CreateDemoBusinessCatalogAsync(products, customers, orders, cancellationToken);
+
+            await _auditLogService.LogAsync(
+                AuditEventType.BusinessManagement, "DemoBusinessCreated",
+                $"Created demo business \"{business.Name}\".",
+                success: true, actorUserId: _currentUserAccessor.UserId,
+                entityType: "Business", entityId: business.Id,
+                cancellationToken: cancellationToken);
+
+            return new DemoBusinessResponse
+            {
+                BusinessId = business.Id,
+                BusinessName = business.Name,
+                OwnerUserId = owner.Id,
+                OwnerEmail = owner.Email,
+                ProductCount = products.Count,
+                CustomerCount = customers.Count,
+                OrderCount = orders.Count,
+            };
+        }
+
+        /// <summary>
+        /// Curated, believable product names keyed by category name where one exists;
+        /// any category without a curated list (a domain added after this was written)
+        /// falls back to "{Category} Item N" rather than failing — demo data should
+        /// degrade to bland, not break.
+        /// </summary>
+        private static readonly Dictionary<string, string[]> DemoProductNamesByCategory = new()
+        {
+            ["Shoes"] = ["Classic Leather Sneaker", "Suede Chelsea Boot", "Canvas Low-Top", "Running Trainer", "Woven Sandal"],
+            ["Shirts"] = ["Oxford Button-Down", "Merino Wool Sweater", "Linen Short-Sleeve", "Graphic Tee", "Flannel Overshirt"],
+            ["Accessories"] = ["Leather Belt", "Wool Scarf", "Canvas Tote Bag", "Aviator Sunglasses", "Woven Bracelet"],
+            ["Phones"] = ["Aurora X12 Smartphone", "Nova Lite 5G", "Pulse Mini", "Aurora X12 Pro", "Vantage Flip"],
+            ["Laptops"] = ["Slate 14 Ultrabook", "Forge 16 Workstation", "Aria Go 13", "Slate 14 Pro", "Titan Gaming 17"],
+            ["Vegetables"] = ["Organic Roma Tomatoes", "Baby Spinach Bunch", "Heirloom Carrots", "Bell Pepper Mix", "Red Onions"],
+            ["Fruits"] = ["Honeycrisp Apples", "Ripe Avocados", "Seedless Grapes", "Navel Oranges", "Alphonso Mangoes"],
+            ["Dairy"] = ["Whole Milk, 1 Gal", "Aged Cheddar Block", "Greek Yogurt Tub", "Salted Butter", "Free-Range Eggs, Dozen"],
+            ["Bakery"] = ["Sourdough Loaf", "Butter Croissants (4pk)", "Cinnamon Rolls (6pk)", "Baguette", "Blueberry Muffins (4pk)"],
+            ["Beverages"] = ["Cold Brew Coffee", "Sparkling Water (6pk)", "Fresh-Pressed Orange Juice", "Herbal Tea Sampler", "Kombucha"],
+        };
+
+        private static List<Product> BuildDemoProducts(Guid businessId, List<Category> categories)
+        {
+            if (categories.Count == 0)
+            {
+                return [];
+            }
+
+            var random = new Random();
+            var products = new List<Product>();
+            var now = DateTime.UtcNow;
+            var perCategory = Math.Max(1, DemoBusinessProductCount / categories.Count);
+
+            foreach (var category in categories)
+            {
+                var names = DemoProductNamesByCategory.TryGetValue(category.Name, out var curated)
+                    ? curated
+                    : Enumerable.Range(1, perCategory).Select(i => $"{category.Name} Item {i}").ToArray();
+
+                foreach (var name in names.Take(perCategory))
+                {
+                    if (products.Count >= DemoBusinessProductCount) break;
+
+                    var price = Math.Round((decimal)(random.NextDouble() * 180 + 15), 2);
+                    var onSale = random.Next(4) == 0;
+
+                    products.Add(new Product
+                    {
+                        Id = Guid.NewGuid(),
+                        BusinessId = businessId,
+                        CategoryId = category.Id,
+                        Title = name,
+                        Price = price,
+                        CompareAtPrice = onSale ? Math.Round(price * 1.25m, 2) : null,
+                        StockQuantity = random.Next(5, 120),
+                        CreatedAt = now.AddDays(-random.Next(1, DemoBusinessOrderHistoryDays)),
+                        UpdatedAt = now,
+                    });
+                }
+            }
+
+            return products;
+        }
+
+        private static readonly string[] DemoCustomerFirstNames =
+            ["Amara", "Liam", "Sofia", "Noah", "Elena", "Marcus", "Priya", "Ethan", "Yuki", "Daniel",
+             "Grace", "Omar", "Chloe", "Lucas", "Mia", "Adrian", "Nadia", "Jack", "Zara", "Felix"];
+
+        private static readonly string[] DemoCustomerLastNames =
+            ["Bennett", "Torres", "Nakamura", "Osei", "Kowalski", "Rossi", "Larsen", "Petrov", "Hughes", "Alvarez",
+             "Chen", "Meyer", "Novak", "Diallo", "Sato", "Reyes", "Fischer", "Hassan", "Moretti", "Blake"];
+
+        private static List<Customer> BuildDemoCustomers()
+        {
+            var now = DateTime.UtcNow;
+            var customers = new List<Customer>();
+
+            for (var i = 0; i < DemoBusinessCustomerCount; i++)
+            {
+                var first = DemoCustomerFirstNames[i % DemoCustomerFirstNames.Length];
+                var last = DemoCustomerLastNames[i % DemoCustomerLastNames.Length];
+                var createdAt = now.AddDays(-Random.Shared.Next(1, DemoBusinessOrderHistoryDays));
+
+                customers.Add(new Customer
+                {
+                    Id = Guid.NewGuid(),
+                    Email = $"{first.ToLowerInvariant()}.{last.ToLowerInvariant()}.demo{i}@example.com",
+                    PasswordHash = string.Empty,
+                    FirstName = first,
+                    LastName = last,
+                    CreatedAt = createdAt,
+                    UpdatedAt = createdAt,
+                });
+            }
+
+            return customers;
+        }
+
+        private static readonly OrderStatus[] DemoOrderStatuses =
+            [OrderStatus.Confirmed, OrderStatus.Confirmed, OrderStatus.Shipped, OrderStatus.Delivered,
+             OrderStatus.Delivered, OrderStatus.Pending, OrderStatus.Cancelled];
+
+        private static List<Order> BuildDemoOrders(Business business, List<Customer> customers, List<Product> products)
+        {
+            if (customers.Count == 0 || products.Count == 0)
+            {
+                return [];
+            }
+
+            var random = new Random();
+            var now = DateTime.UtcNow;
+            var orders = new List<Order>();
+
+            for (var i = 0; i < DemoBusinessOrderCount; i++)
+            {
+                var customer = customers[random.Next(customers.Count)];
+                var createdAt = now.AddDays(-random.Next(1, DemoBusinessOrderHistoryDays));
+                var itemCount = random.Next(1, 4);
+                var items = new List<OrderItem>();
+
+                foreach (var product in products.OrderBy(_ => random.Next()).Take(itemCount))
+                {
+                    var quantity = random.Next(1, 3);
+                    var lineTotal = product.Price * quantity;
+
+                    items.Add(new OrderItem
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = product.Id,
+                        ProductTitle = product.Title,
+                        ProductImageUrl = product.ImageUrl,
+                        UnitPrice = product.Price,
+                        Quantity = quantity,
+                        LineTotal = lineTotal,
+                    });
+                }
+
+                var subtotal = items.Sum(i => i.LineTotal);
+
+                orders.Add(new Order
+                {
+                    Id = Guid.NewGuid(),
+                    BusinessId = business.Id,
+                    CustomerId = customer.Id,
+                    CustomerName = $"{customer.FirstName} {customer.LastName}",
+                    CustomerEmail = customer.Email,
+                    ShippingAddressLine1 = "123 Market Street",
+                    ShippingCity = "Springfield",
+                    ShippingPostalCode = "00000",
+                    ShippingCountry = "US",
+                    Status = DemoOrderStatuses[random.Next(DemoOrderStatuses.Length)],
+                    Subtotal = subtotal,
+                    Total = subtotal,
+                    Currency = business.Currency,
+                    CreatedAt = createdAt,
+                    UpdatedAt = createdAt,
+                    Items = items,
+                });
+            }
+
+            return orders;
         }
 
         private static SocialLinksDto? ReadSocialLinks(JsonDocument? document) =>

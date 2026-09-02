@@ -160,6 +160,29 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
+        // ---- demo/showcase businesses ----
+
+        Task<bool> DemoBusinessExistsForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// The domain's active template with the lowest DisplayOrder, or null if it has
+        /// none. Only ever ambiguous (more than one active template) in a domain that
+        /// hasn't been cleaned up yet -- picking deterministically rather than throwing
+        /// keeps this usable regardless, since which one is "correct" isn't this
+        /// method's call to make.
+        /// </summary>
+        Task<WebsiteTemplate?> GetPrimaryActiveTemplateForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default);
+
+        /// <summary>Active platform categories for a domain (BusinessId == null) — what a demo business's seeded products are filed under.</summary>
+        Task<List<Category>> GetActivePlatformCategoriesForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default);
+
+        /// <summary>Persists a demo business's seeded catalog (products, customers, orders + their items) in one transaction.</summary>
+        Task CreateDemoBusinessCatalogAsync(
+            List<Product> products,
+            List<Customer> customers,
+            List<Order> orders,
+            CancellationToken cancellationToken = default);
+
         // ---- customers ----
 
         Task<(List<DashboardCustomerResponse> Items, int TotalCount)> GetCustomersAsync(

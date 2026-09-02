@@ -24,12 +24,12 @@ namespace MerchForge.api.Repositories.Implementations
 
         public async Task<int> CountBusinessesAsync(CancellationToken cancellationToken = default)
         {
-            return await _db.Businesses.CountAsync(cancellationToken);
+            return await _db.Businesses.CountAsync(b => !b.IsDemo, cancellationToken);
         }
 
         public async Task<int> CountProductsAsync(CancellationToken cancellationToken = default)
         {
-            return await _db.Products.CountAsync(cancellationToken);
+            return await _db.Products.CountAsync(p => !p.Business.IsDemo, cancellationToken);
         }
 
         public async Task<int> CountProductDraftsAsync(CancellationToken cancellationToken = default)
@@ -91,6 +91,7 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task<List<KeyCountResponse>> GetBusinessCountsByDomainAsync(CancellationToken cancellationToken = default)
         {
             var grouped = await _db.Businesses
+                .Where(b => !b.IsDemo)
                 .GroupBy(b => b.BusinessDomain != null ? b.BusinessDomain.Name : null)
                 .Select(g => new { DomainName = g.Key, Count = g.Count() })
                 .ToListAsync(cancellationToken);
@@ -125,18 +126,18 @@ namespace MerchForge.api.Repositories.Implementations
 
         public async Task<int> CountOrdersAsync(CancellationToken cancellationToken = default)
         {
-            return await _db.Orders.CountAsync(o => o.Status != OrderStatus.Cancelled, cancellationToken);
+            return await _db.Orders.CountAsync(o => o.Status != OrderStatus.Cancelled && !o.Business.IsDemo, cancellationToken);
         }
 
         public async Task<int> CountBusinessesCreatedSinceAsync(DateTime since, CancellationToken cancellationToken = default)
         {
-            return await _db.Businesses.CountAsync(b => b.CreatedAt >= since, cancellationToken);
+            return await _db.Businesses.CountAsync(b => b.CreatedAt >= since && !b.IsDemo, cancellationToken);
         }
 
         public async Task<List<CurrencyTotalResponse>> GetRecordedOrderRevenueByCurrencyAsync(CancellationToken cancellationToken = default)
         {
             return await _db.Orders
-                .Where(o => o.Status != OrderStatus.Cancelled)
+                .Where(o => o.Status != OrderStatus.Cancelled && !o.Business.IsDemo)
                 .GroupBy(o => o.Currency)
                 .Select(g => new CurrencyTotalResponse
                 {
@@ -150,6 +151,7 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task<List<DashboardBusinessResponse>> GetRecentBusinessesAsync(int take, CancellationToken cancellationToken = default)
         {
             return await _db.Businesses
+                .Where(b => !b.IsDemo)
                 .OrderByDescending(b => b.CreatedAt)
                 .Take(take)
                 .Select(b => new DashboardBusinessResponse
@@ -168,7 +170,7 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task<List<DateTime>> GetBusinessCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default)
         {
             return await _db.Businesses
-                .Where(b => b.CreatedAt >= since)
+                .Where(b => b.CreatedAt >= since && !b.IsDemo)
                 .Select(b => b.CreatedAt)
                 .ToListAsync(cancellationToken);
         }
@@ -176,7 +178,7 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task<List<DateTime>> GetProductCreationDatesSinceAsync(DateTime since, CancellationToken cancellationToken = default)
         {
             return await _db.Products
-                .Where(p => p.CreatedAt >= since)
+                .Where(p => p.CreatedAt >= since && !p.Business.IsDemo)
                 .Select(p => p.CreatedAt)
                 .ToListAsync(cancellationToken);
         }
@@ -433,6 +435,7 @@ namespace MerchForge.api.Repositories.Implementations
                 ProductCount = b.Products.Count,
                 b.Currency,
                 b.CreatedAt,
+                b.IsDemo,
             });
 
             projected = query.SortBy switch
@@ -512,6 +515,7 @@ namespace MerchForge.api.Repositories.Implementations
                         BillingInterval = hasSubscription ? subscription!.SubscriptionPlan.BillingInterval.ToString() : null,
                         SubscriptionStatus = hasSubscription ? subscription!.Status.ToString() : null,
                         CreatedAt = b.CreatedAt,
+                        IsDemo = b.IsDemo,
                     };
                 })
                 .ToList();
@@ -533,6 +537,45 @@ namespace MerchForge.api.Repositories.Implementations
         {
             return await _db.Businesses
                 .FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
+        }
+
+        public async Task<bool> DemoBusinessExistsForTemplateAsync(Guid websiteTemplateId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Businesses
+                .AnyAsync(b => b.WebsiteTemplateId == websiteTemplateId && b.IsDemo, cancellationToken);
+        }
+
+        public async Task<List<Category>> GetActivePlatformCategoriesForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Categories
+                .AsNoTracking()
+                .Where(c => c.BusinessDomainId == businessDomainId && c.BusinessId == null && c.IsActive)
+                .OrderBy(c => c.DisplayOrder)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task CreateDemoBusinessCatalogAsync(
+            List<Product> products,
+            List<Customer> customers,
+            List<Order> orders,
+            CancellationToken cancellationToken = default)
+        {
+            await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                await _db.Products.AddRangeAsync(products, cancellationToken);
+                await _db.Customers.AddRangeAsync(customers, cancellationToken);
+                await _db.Orders.AddRangeAsync(orders, cancellationToken);
+
+                await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
         }
 
         public async Task<List<ProductAttributeDefinition>> GetActiveAttributeDefinitionsForDomainAsync(

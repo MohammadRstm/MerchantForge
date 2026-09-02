@@ -40,4 +40,7 @@ public class DashboardBusinessResponse
     public string? SubscriptionStatus { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>True for a SuperAdmin-created showcase business — see Business.IsDemo's own doc comment.</summary>
+    public bool IsDemo { get; set; }
 }

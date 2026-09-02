@@ -138,6 +138,18 @@ public class Business
     /// </summary>
     public JsonDocument? MetadataShape { get; set; }
 
+    /// <summary>
+    /// True for a SuperAdmin-created showcase business (one per domain, e.g. a fashion
+    /// storefront prospects can be shown live) rather than a real merchant. Excluded
+    /// from every platform-wide aggregate stat (business/order counts, revenue,
+    /// business-growth chart, domain distribution) so demo activity never inflates
+    /// real numbers -- but still a fully real row everywhere else (still shows up in
+    /// the businesses list, still has real Orders/Products/a real Subscription) since
+    /// the whole point is a working storefront, not a stub. Only ever set at creation;
+    /// nothing flips it later.
+    /// </summary>
+    public bool IsDemo { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

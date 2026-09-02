@@ -59,6 +59,9 @@ public class BusinessDetailResponse
 
     public DateTime CreatedAt { get; set; }
 
+    /// <summary>True for a SuperAdmin-created showcase business — see Business.IsDemo's own doc comment.</summary>
+    public bool IsDemo { get; set; }
+
     public Guid OwnerUserId { get; set; }
 
     public string OwnerFullName { get; set; } = string.Empty;

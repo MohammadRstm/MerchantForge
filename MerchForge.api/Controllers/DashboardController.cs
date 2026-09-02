@@ -37,6 +37,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<AuditLogQueryRequest> _auditLogQueryValidator;
         private readonly IValidator<UpdateCustomerRequest> _updateCustomerValidator;
         private readonly IValidator<WebsiteTemplatesQueryRequest> _websiteTemplatesQueryValidator;
+        private readonly IValidator<CreateDemoBusinessRequest> _createDemoBusinessValidator;
 
         public DashboardController(
             IDashboardService dashboardService,
@@ -57,7 +58,8 @@ namespace MerchForge.api.Controllers
             IValidator<ChangeSubscriptionRequest> changeSubscriptionValidator,
             IValidator<AuditLogQueryRequest> auditLogQueryValidator,
             IValidator<UpdateCustomerRequest> updateCustomerValidator,
-            IValidator<WebsiteTemplatesQueryRequest> websiteTemplatesQueryValidator)
+            IValidator<WebsiteTemplatesQueryRequest> websiteTemplatesQueryValidator,
+            IValidator<CreateDemoBusinessRequest> createDemoBusinessValidator)
         {
             _dashboardService = dashboardService;
             _usersQueryValidator = usersQueryValidator;
@@ -78,6 +80,7 @@ namespace MerchForge.api.Controllers
             _auditLogQueryValidator = auditLogQueryValidator;
             _updateCustomerValidator = updateCustomerValidator;
             _websiteTemplatesQueryValidator = websiteTemplatesQueryValidator;
+            _createDemoBusinessValidator = createDemoBusinessValidator;
         }
 
         private bool TryGetActingUserId(out Guid actingUserId)
@@ -238,6 +241,18 @@ namespace MerchForge.api.Controllers
             CancellationToken cancellationToken)
         {
             var response = await _dashboardService.GetBusinessDetailAsync(businessId, cancellationToken);
+
+            return Ok(response);
+        }
+
+        [HttpPost("businesses/demo")]
+        public async Task<ActionResult<DemoBusinessResponse>> CreateDemoBusiness(
+            [FromBody] CreateDemoBusinessRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _createDemoBusinessValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+            var response = await _dashboardService.CreateDemoBusinessAsync(request, cancellationToken);
 
             return Ok(response);
         }

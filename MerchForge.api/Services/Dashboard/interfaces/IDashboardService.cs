@@ -58,6 +58,17 @@ namespace MerchForge.api.Services.Dashboard.interfaces
             Guid businessId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Creates a SuperAdmin-triggered showcase business for a domain: a real
+        /// business + owner login, wired to the domain's active template, subscribed to
+        /// Pro Yearly, and seeded with a realistic product/customer/order history. See
+        /// Business.IsDemo's doc comment for why this exists and what it's excluded
+        /// from. At most one per domain.
+        /// </summary>
+        Task<DemoBusinessResponse> CreateDemoBusinessAsync(
+            CreateDemoBusinessRequest request,
+            CancellationToken cancellationToken = default);
+
         Task<RevokeUserSessionsResponse> RevokeBusinessSessionsAsync(
             Guid businessId,
             CancellationToken cancellationToken = default);

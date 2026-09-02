@@ -160,6 +160,20 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
+        // ---- demo/showcase businesses ----
+
+        Task<bool> DemoBusinessExistsForTemplateAsync(Guid websiteTemplateId, CancellationToken cancellationToken = default);
+
+        /// <summary>Active platform categories for a domain (BusinessId == null) — what a demo business's seeded products are filed under.</summary>
+        Task<List<Category>> GetActivePlatformCategoriesForDomainAsync(Guid businessDomainId, CancellationToken cancellationToken = default);
+
+        /// <summary>Persists a demo business's seeded catalog (products, customers, orders + their items) in one transaction.</summary>
+        Task CreateDemoBusinessCatalogAsync(
+            List<Product> products,
+            List<Customer> customers,
+            List<Order> orders,
+            CancellationToken cancellationToken = default);
+
         // ---- customers ----
 
         Task<(List<DashboardCustomerResponse> Items, int TotalCount)> GetCustomersAsync(

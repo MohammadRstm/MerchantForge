@@ -1,0 +1,89 @@
+# Runs the containerized stack the way it's meant to run on a real host: api,
+# frontend (nginx), and db together, only nginx's port published outward.
+#
+# Deliberately references pre-built images, not `build:` contexts -- the frontend
+# image comes from a sibling repo (MerchForgeClient) with no fixed path relationship
+# to this one, and a real deployment host won't have both repos checked out at all.
+# Build each image once in its own repo (see each repo's Dockerfile), tag it to
+# match below, and this file just runs whatever is tagged that name -- a local
+# build today, or a registry pull later, with no change to this file either way.
+#
+# This is a separate Compose project from docker-compose.yml (dev DB): independent
+# network, independent volumes, can run alongside it with no collision.
+#
+# Copy .env.production.example to .env.production, fill in real values (never
+# commit that file), then:
+#   docker build -t merchforge-api:latest ./MerchForge.api
+#   docker build -t merchforge-frontend:latest ../MerchForgeClient
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# name: below pins this to its own Compose project ("merchforge-prod") regardless
+# of which directory it's run from. Without it, Compose derives the project name
+# from the current folder -- the same folder docker-compose.yml (dev) lives in --
+# so running this file here would fold both stacks into one implicit project.
+# Compose matches existing containers to services by (project, service name), not
+# by container_name, so a same-named "db" service in both files under one shared
+# project makes `up` treat them as the same slot and *replace* whichever container
+# is currently there, no matter which container_name each file gives it. Learned
+# this by triggering it: running this file recreated dev's live merchforge-db
+# container into merchforge-db-prod mid-session. The pinned name below closes
+# that off structurally, on top of already using distinct container/volume names.
+name: merchforge-prod
+
+services:
+  db:
+    image: mariadb:10.4
+    container_name: merchforge-db-prod
+    restart: unless-stopped
+    # Same reasoning as docker-compose.yml's dev db: set once at first init, kept
+    # consistent across environments so a dump/restore between them never hits the
+    # Hangfire table-casing collision fixed there.
+    command: ["--lower-case-table-names=1"]
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
+      MARIADB_DATABASE: merchforge
+    volumes:
+      - merchforge_mysql_prod_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  api:
+    image: merchforge-api:latest
+    container_name: merchforge-api-prod
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=db;Port=3306;Database=merchforge;User=root;Password=${DB_ROOT_PASSWORD};"
+      Jwt__SecretKey: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+      Email__Host: ${EMAIL_HOST}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__Username: ${EMAIL_USERNAME}
+      Email__Password: ${EMAIL_PASSWORD}
+      Email__FromEmail: ${EMAIL_FROM}
+      Email__FromName: MerchForge
+      Frontend__BaseUrl: ${PUBLIC_BASE_URL}
+      Cors__AllowedOrigins__0: ${PUBLIC_BASE_URL}
+      Ai__ApiKey: ${OPENAI_API_KEY:-}
+      GeminiFlash__ApiKey: ${GEMINI_API_KEY:-}
+    volumes:
+      - merchforge_api_wwwroot:/app/wwwroot
+
+  frontend:
+    image: merchforge-frontend:latest
+    container_name: merchforge-frontend-prod
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  merchforge_mysql_prod_data:
+  merchforge_api_wwwroot:

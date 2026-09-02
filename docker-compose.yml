@@ -1,0 +1,41 @@
+# Pinned explicitly (matching the implicit default this project already ran under,
+# so existing containers/volumes resolve unchanged) so this can never fold into the
+# same Compose project as docker-compose.prod.yml just by being run from the same
+# directory -- see the longer note in that file for what happens when two files
+# share a project and a same-named service.
+name: merchforge
+
+services:
+  db:
+    image: mariadb:10.4
+    container_name: merchforge-db
+    restart: unless-stopped
+    # Every local dev DB before this one ran on Windows MySQL, which folds table
+    # names case-insensitively (its lower_case_table_names default is 1). Linux
+    # (this image's default, 0) is case-sensitive. Hangfire.MySqlStorage manages
+    # its own tables (Job, JobParameter, ...) with hardcoded PascalCase names
+    # outside EF Core's control; under case-sensitive matching its "does this
+    # table already exist?" check misses the differently-cased tables from a
+    # Windows-originated dump and tries to recreate them, colliding with
+    # constraint names the originals already hold. Matching Windows' behavior
+    # here avoids that class of bug entirely. Can only be set at first init --
+    # changing it later requires recreating the volume.
+    command: ["--lower-case-table-names=1"]
+    environment:
+      # Matches the empty root password MerchForge.api's connection string already
+      # uses in appsettings.Development.json / integration test CI (backend.yml) --
+      # switching to this container requires no connection-string change.
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+    ports:
+      - "3306:3306"
+    volumes:
+      - merchforge_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  merchforge_mysql_data:

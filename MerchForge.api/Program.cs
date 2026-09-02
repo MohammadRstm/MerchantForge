@@ -709,7 +709,16 @@ app.MapHealthChecks("/health");
 // Rolls forward any Active subscription whose billing period has ended and
 // resets its ai.image_editing credits - the only recurring job in the app, so
 // hourly is plenty given periods are monthly/yearly.
-RecurringJob.AddOrUpdate<RenewSubscriptionPeriodsJob>(
+//
+// Uses the injected IRecurringJobManager, not the static RecurringJob API: the
+// static API reads JobStorage.Current, which previously only got set as a side
+// effect of app.UseHangfireDashboard() above resolving IGlobalConfiguration from
+// DI - a dev-only code path. In Production that block never runs, so
+// JobStorage.Current stayed unset and this crashed the app on every startup
+// (only ever observed once this ran in Production for the first time, in a
+// container). The service-based API Hangfire itself recommends has no such
+// ordering dependency.
+app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<RenewSubscriptionPeriodsJob>(
     "renew-subscription-periods",
     job => job.ExecuteAsync(CancellationToken.None),
     "0 * * * *");

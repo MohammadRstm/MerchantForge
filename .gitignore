@@ -42,3 +42,6 @@ MerchForge.api/wwwroot/uploads/
 # Database dumps produced locally by scripts/backup-db.sh - real data, never
 # committed.
 backups/
+
+# Local Claude Code project instructions - not shared via the repo.
+CLAUDE.md

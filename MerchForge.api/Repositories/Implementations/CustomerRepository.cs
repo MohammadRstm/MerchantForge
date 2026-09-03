@@ -1,4 +1,4 @@
-using MerchForge.api.Data;
+﻿using MerchForge.api.Data;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -32,9 +32,11 @@ namespace MerchForge.api.Repositories.Implementations
 
         public async Task AddAsync(
             Customer customer,
+            LegalAcceptance legalAcceptance,
             CancellationToken cancellationToken = default)
         {
             await _db.Customers.AddAsync(customer, cancellationToken);
+            await _db.LegalAcceptances.AddAsync(legalAcceptance, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
         }
 

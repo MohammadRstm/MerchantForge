@@ -1153,6 +1153,43 @@ namespace MerchForge.api.Migrations
                     b.ToTable("Invitations");
                 });
 
+            modelBuilder.Entity("MerchForge.api.Models.LegalAcceptance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("AcceptedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("PrivacyPolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("TermsVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("legal_acceptances", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_legal_acceptances_ExactlyOneOwner", "(`UserId` IS NULL) <> (`CustomerId` IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("MerchForge.api.Models.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2272,6 +2309,55 @@ namespace MerchForge.api.Migrations
                     b.ToTable("product_images", (string)null);
                 });
 
+            modelBuilder.Entity("MerchForge.api.Models.ProductReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("BusinessId", "CreatedAt");
+
+                    b.HasIndex("ProductId", "CustomerId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_product_reviews_OnePerCustomerPerProduct");
+
+                    b.HasIndex("ProductId", "IsHidden", "CreatedAt");
+
+                    b.ToTable("product_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_product_reviews_Rating_Range", "`Rating` BETWEEN 1 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("MerchForge.api.Models.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3103,6 +3189,19 @@ namespace MerchForge.api.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
+            modelBuilder.Entity("MerchForge.api.Models.LegalAcceptance", b =>
+                {
+                    b.HasOne("MerchForge.api.Models.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MerchForge.api.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("MerchForge.api.Models.Order", b =>
                 {
                     b.HasOne("MerchForge.api.Models.Business", "Business")
@@ -3236,6 +3335,29 @@ namespace MerchForge.api.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("MerchForge.api.Models.ProductReview", b =>
+                {
+                    b.HasOne("MerchForge.api.Models.Business", null)
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MerchForge.api.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MerchForge.api.Models.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("MerchForge.api.Models.RefreshToken", b =>

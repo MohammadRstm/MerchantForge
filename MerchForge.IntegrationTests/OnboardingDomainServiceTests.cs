@@ -1,6 +1,7 @@
 using FluentAssertions;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Onboarding;
+using MerchForge.api.Constants;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Services.Onboarding;
@@ -375,10 +376,19 @@ public class OnboardingDomainServiceTests : IClassFixture<CatalogDatabaseFixture
             },
         };
 
+        var legalAcceptance = new LegalAcceptance
+        {
+            Id = Guid.NewGuid(),
+            UserId = owner.Id,
+            TermsVersion = LegalDocumentVersions.TermsOfService,
+            PrivacyPolicyVersion = LegalDocumentVersions.PrivacyPolicy,
+            AcceptedAt = DateTime.UtcNow,
+        };
+
         await using (var act = _fixture.CreateContext())
         {
             await new UserRepository(act).FinishBusinessOwnerRegistration(
-                owner, business, businessUser, customCategories, invitation.Id);
+                owner, business, businessUser, customCategories, legalAcceptance, invitation.Id);
         }
 
         await using var verify = _fixture.CreateContext();
@@ -392,5 +402,10 @@ public class OnboardingDomainServiceTests : IClassFixture<CatalogDatabaseFixture
 
         (await verify.Invitations.FirstAsync(i => i.Id == invitation.Id))
             .AcceptedAt.Should().NotBeNull("the invitation is claimed in the same transaction");
+
+        var acceptance = await verify.LegalAcceptances.SingleAsync(a => a.UserId == owner.Id);
+        acceptance.CustomerId.Should().BeNull();
+        acceptance.TermsVersion.Should().Be(LegalDocumentVersions.TermsOfService);
+        acceptance.PrivacyPolicyVersion.Should().Be(LegalDocumentVersions.PrivacyPolicy);
     }
 }

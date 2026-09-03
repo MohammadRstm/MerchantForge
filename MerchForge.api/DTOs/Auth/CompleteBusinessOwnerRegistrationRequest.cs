@@ -45,5 +45,12 @@ namespace MerchForge.api.DTOs.Auth
         /// Optional — a business can run on the fixed fields alone.
         /// </summary>
         public List<string> SelectedProductAttributeKeys { get; set; } = [];
+
+        /// <summary>
+        /// Must be true. Enforced by CompleteBusinessOwnerRegistrationRequestValidator,
+        /// not just the frontend checkbox — a direct API call with this omitted or
+        /// false is rejected the same as the form would refuse to submit it.
+        /// </summary>
+        public bool AgreedToTerms { get; set; }
     }
 }

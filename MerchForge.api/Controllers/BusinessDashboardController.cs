@@ -1,10 +1,12 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using FluentValidation;
 using MerchForge.api.Authorization;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
+using MerchForge.api.Services.ProductReviews.interfaces;
+using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -37,6 +39,8 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<InventoryAnalyticsQueryRequest> _inventoryAnalyticsQueryValidator;
         private readonly IValidator<SaveWebsiteCustomizationDraftRequest> _saveWebsiteCustomizationDraftValidator;
         private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
+        private readonly IProductReviewService _productReviewService;
+        private readonly IValidator<ProductReviewsQueryRequest> _reviewsQueryValidator;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -58,7 +62,9 @@ namespace MerchForge.api.Controllers
             IValidator<ProductAnalyticsQueryRequest> productAnalyticsQueryValidator,
             IValidator<InventoryAnalyticsQueryRequest> inventoryAnalyticsQueryValidator,
             IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
-            IValidator<SubscribeToPlanRequest> subscribeToPlanValidator)
+            IValidator<SubscribeToPlanRequest> subscribeToPlanValidator,
+            IProductReviewService productReviewService,
+            IValidator<ProductReviewsQueryRequest> reviewsQueryValidator)
         {
             _businessDashboardService = businessDashboardService;
             _businessMemberService = businessMemberService;
@@ -80,6 +86,8 @@ namespace MerchForge.api.Controllers
             _inventoryAnalyticsQueryValidator = inventoryAnalyticsQueryValidator;
             _saveWebsiteCustomizationDraftValidator = saveWebsiteCustomizationDraftValidator;
             _subscribeToPlanValidator = subscribeToPlanValidator;
+            _productReviewService = productReviewService;
+            _reviewsQueryValidator = reviewsQueryValidator;
         }
 
         [HttpGet("stats")]
@@ -312,6 +320,52 @@ namespace MerchForge.api.Controllers
             var response = await _businessDashboardService.GetProductPerformanceAsync(businessId, query, cancellationToken);
 
             return Ok(response);
+        }
+
+        // ---- product reviews ----
+
+        /// <summary>
+        /// Every review on one of this business's products, newest first — including
+        /// ones the owner has hidden, which the storefront does not return. businessId
+        /// comes from the route, which the BusinessOwner policy has already checked.
+        /// </summary>
+        [HttpGet("products/{productId:guid}/reviews")]
+        public async Task<ActionResult<PagedResult<OwnerProductReviewResponse>>> GetProductReviews(
+            Guid businessId,
+            Guid productId,
+            [FromQuery] ProductReviewsQueryRequest query,
+            CancellationToken cancellationToken)
+        {
+            await _reviewsQueryValidator.ValidateAndThrowAsync(query, cancellationToken);
+
+            var response = await _productReviewService.GetReviewsForOwnerAsync(
+                businessId,
+                productId,
+                query,
+                cancellationToken);
+
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Hides or unhides one review. Hiding takes it off the storefront and out of
+        /// the product's average rating, but never deletes it — the owner keeps seeing
+        /// it in the list above, and can put it back.
+        /// </summary>
+        [HttpPut("products/{productId:guid}/reviews/{reviewId:guid}/visibility")]
+        public async Task<IActionResult> SetProductReviewVisibility(
+            Guid businessId,
+            Guid reviewId,
+            [FromBody] UpdateProductReviewVisibilityRequest request,
+            CancellationToken cancellationToken)
+        {
+            await _productReviewService.SetReviewVisibilityAsync(
+                businessId,
+                reviewId,
+                request.IsHidden,
+                cancellationToken);
+
+            return NoContent();
         }
 
         // ---- website template requests ----

@@ -26,6 +26,7 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly ISubscriptionRepository _subscriptionRepository;
         private readonly IWebsiteTemplateRequestRepository _websiteTemplateRequestRepository;
         private readonly IOrderRepository _orderRepository;
+        private readonly IProductReviewRepository _productReviewRepository;
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IFeatureCreditService _featureCreditService;
 
@@ -49,6 +50,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             ISubscriptionRepository subscriptionRepository,
             IWebsiteTemplateRequestRepository websiteTemplateRequestRepository,
             IOrderRepository orderRepository,
+            IProductReviewRepository productReviewRepository,
             IBackgroundJobClient backgroundJobClient,
             IFeatureCreditService featureCreditService)
         {
@@ -56,6 +58,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             _subscriptionRepository = subscriptionRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
             _orderRepository = orderRepository;
+            _productReviewRepository = productReviewRepository;
             _backgroundJobClient = backgroundJobClient;
             _featureCreditService = featureCreditService;
         }
@@ -556,6 +559,15 @@ namespace MerchForge.api.Services.BusinessDashboard
                 cancellationToken)
                 ?? throw new InsufficientStockException();
 
+            // BusinessProductResponse carries the product's rating, and this is the one
+            // place it isn't produced by a LINQ projection that can compute it inline.
+            // Fetching it keeps the DTO honest rather than returning a silent 0 that
+            // would read as "no reviews".
+            var reviewSummary = await _productReviewRepository.GetSummaryAsync(
+                businessId,
+                product.Id,
+                cancellationToken);
+
             return new StockAdjustmentResponse
             {
                 Product = new BusinessProductResponse
@@ -568,6 +580,8 @@ namespace MerchForge.api.Services.BusinessDashboard
                     ImageUrl = product.ImageUrl,
                     StockQuantity = product.StockQuantity,
                     Sku = product.Sku,
+                    AverageRating = reviewSummary.AverageRating,
+                    ReviewCount = reviewSummary.ReviewCount,
                     CreatedAt = product.CreatedAt,
                     UpdatedAt = product.UpdatedAt,
                 },

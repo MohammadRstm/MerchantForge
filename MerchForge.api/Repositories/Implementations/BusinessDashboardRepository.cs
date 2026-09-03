@@ -99,6 +99,14 @@ namespace MerchForge.api.Repositories.Implementations
                     ImageUrl = p.ImageUrl,
                     StockQuantity = p.StockQuantity,
                     Sku = p.Sku,
+                    // Visible reviews only, so the owner sees the same rating a
+                    // shopper does. Correlated subqueries rather than denormalized
+                    // columns, matching the storefront projections.
+                    AverageRating = _db.ProductReviews
+                        .Where(r => r.ProductId == p.Id && !r.IsHidden)
+                        .Average(r => (decimal?)r.Rating),
+                    ReviewCount = _db.ProductReviews
+                        .Count(r => r.ProductId == p.Id && !r.IsHidden),
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt,
                 })
@@ -200,6 +208,14 @@ namespace MerchForge.api.Repositories.Implementations
                 ImageUrl = p.ImageUrl,
                 StockQuantity = p.StockQuantity,
                 Sku = p.Sku,
+                // Visible reviews only, so the owner sees the same rating a
+                // shopper does. Correlated subqueries rather than denormalized
+                // columns, matching the storefront projections.
+                AverageRating = _db.ProductReviews
+                    .Where(r => r.ProductId == p.Id && !r.IsHidden)
+                    .Average(r => (decimal?)r.Rating),
+                ReviewCount = _db.ProductReviews
+                    .Count(r => r.ProductId == p.Id && !r.IsHidden),
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt,
             });
@@ -330,6 +346,12 @@ namespace MerchForge.api.Repositories.Implementations
                     Tags = p.Tags,
                     SaleEndsAt = p.SaleEndsAt,
                     Metadata = p.Metadata,
+                    // Visible reviews only, matching the storefront's own rating.
+                    AverageRating = _db.ProductReviews
+                        .Where(r => r.ProductId == p.Id && !r.IsHidden)
+                        .Average(r => (decimal?)r.Rating),
+                    ReviewCount = _db.ProductReviews
+                        .Count(r => r.ProductId == p.Id && !r.IsHidden),
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt,
                 })

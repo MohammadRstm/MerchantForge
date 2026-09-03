@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MerchForge.api.DTOs.Auth;
 
 namespace MerchForge.api.Validators.Auth
@@ -13,6 +13,10 @@ namespace MerchForge.api.Validators.Auth
             RuleFor(x => x.Password)
                 .NotEmpty()
                 .MinimumLength(8);
+
+            RuleFor(x => x.AgreedToTerms)
+                .Equal(true)
+                .WithMessage("You must agree to the Terms of Service and Privacy Policy to create an account.");
         }
     }
 }

@@ -58,6 +58,7 @@ public class CustomerAuthServiceTests : IClassFixture<CatalogDatabaseFixture>
         Password = "correct-horse",
         FirstName = "Jane",
         LastName = "Shopper",
+        AgreedToTerms = true,
     };
 
     [Fact]
@@ -76,6 +77,26 @@ public class CustomerAuthServiceTests : IClassFixture<CatalogDatabaseFixture>
         await using var verify = _fixture.CreateContext();
         var stored = await verify.Customers.AsNoTracking().FirstAsync(c => c.Email == email);
         stored.PasswordHash.Should().NotBe("correct-horse", "must be hashed, never stored raw");
+    }
+
+    [Fact]
+    public async Task Signup_records_a_legal_acceptance_tied_to_the_new_customer()
+    {
+        await using var db = _fixture.CreateContext();
+        var service = CreateService(db);
+        var email = $"{Guid.NewGuid():N}@example.test";
+
+        await service.SignupAsync(ValidSignup(email));
+
+        await using var verify = _fixture.CreateContext();
+        var customer = await verify.Customers.AsNoTracking().FirstAsync(c => c.Email == email);
+        var acceptance = await verify.LegalAcceptances.AsNoTracking()
+            .SingleAsync(a => a.CustomerId == customer.Id);
+
+        acceptance.UserId.Should().BeNull();
+        acceptance.TermsVersion.Should().Be(api.Constants.LegalDocumentVersions.TermsOfService);
+        acceptance.PrivacyPolicyVersion.Should().Be(api.Constants.LegalDocumentVersions.PrivacyPolicy);
+        acceptance.AcceptedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }
 
     [Fact]

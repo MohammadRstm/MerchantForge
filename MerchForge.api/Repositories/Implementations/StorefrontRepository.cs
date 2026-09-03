@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Storefront;
@@ -256,9 +256,20 @@ namespace MerchForge.api.Repositories.Implementations
                         Slug = p.Category.Slug,
                     },
                     Metadata = p.Metadata,
+                    // Correlated subqueries rather than denormalized columns on Product,
+                    // matching how StorefrontCategoryResponse.ProductCount is computed.
+                    // The (decimal?) cast is what makes an unreviewed product come back
+                    // as null instead of 0.
+                    AverageRating = _db.ProductReviews
+                        .Where(r => r.ProductId == p.Id && !r.IsHidden)
+                        .Average(r => (decimal?)r.Rating),
+                    ReviewCount = _db.ProductReviews
+                        .Count(r => r.ProductId == p.Id && !r.IsHidden),
                     CreatedAt = p.CreatedAt,
                 })
                 .ToListAsync(cancellationToken);
+
+            RoundAverageRatings(items);
 
             return (items, totalCount);
         }
@@ -270,7 +281,7 @@ namespace MerchForge.api.Repositories.Implementations
         {
             // Both predicates matter: matching on productId alone would let one
             // storefront read another business's product by id.
-            return await _db.Products
+            var product = await _db.Products
                 .AsNoTracking()
                 .Where(p => p.Id == productId && p.BusinessId == businessId)
                 .Select(p => new StorefrontProductDetailResponse
@@ -305,9 +316,25 @@ namespace MerchForge.api.Repositories.Implementations
                         Slug = p.Category.Slug,
                     },
                     Metadata = p.Metadata,
+                    // Correlated subqueries rather than denormalized columns on Product,
+                    // matching how StorefrontCategoryResponse.ProductCount is computed.
+                    // The (decimal?) cast is what makes an unreviewed product come back
+                    // as null instead of 0.
+                    AverageRating = _db.ProductReviews
+                        .Where(r => r.ProductId == p.Id && !r.IsHidden)
+                        .Average(r => (decimal?)r.Rating),
+                    ReviewCount = _db.ProductReviews
+                        .Count(r => r.ProductId == p.Id && !r.IsHidden),
                     CreatedAt = p.CreatedAt,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
+
+            if (product is not null)
+            {
+                product.AverageRating = RoundRating(product.AverageRating);
+            }
+
+            return product;
         }
 
         public async Task<bool> ProductExistsAsync(
@@ -342,7 +369,7 @@ namespace MerchForge.api.Repositories.Implementations
                 return [];
             }
 
-            return await _db.Products
+            var related = await _db.Products
                 .AsNoTracking()
                 .Where(p =>
                     p.BusinessId == businessId &&
@@ -381,9 +408,45 @@ namespace MerchForge.api.Repositories.Implementations
                         Slug = p.Category.Slug,
                     },
                     Metadata = p.Metadata,
+                    // Correlated subqueries rather than denormalized columns on Product,
+                    // matching how StorefrontCategoryResponse.ProductCount is computed.
+                    // The (decimal?) cast is what makes an unreviewed product come back
+                    // as null instead of 0.
+                    AverageRating = _db.ProductReviews
+                        .Where(r => r.ProductId == p.Id && !r.IsHidden)
+                        .Average(r => (decimal?)r.Rating),
+                    ReviewCount = _db.ProductReviews
+                        .Count(r => r.ProductId == p.Id && !r.IsHidden),
                     CreatedAt = p.CreatedAt,
                 })
                 .ToListAsync(cancellationToken);
+
+            RoundAverageRatings(related);
+
+            return related;
+        }
+
+        /// <summary>
+        /// Rounds the review average to two places after the query rather than inside
+        /// it. SQL's AVG over an integer column returns more precision than any
+        /// storefront wants to render, but rounding in the projection would mean either
+        /// running the aggregate twice or relying on Math.Round translating — this is
+        /// cheaper and can't fail at query time. Matches what
+        /// ProductReviewRepository.GetSummaryAsync does for the same figure.
+        /// </summary>
+        private static void RoundAverageRatings(List<StorefrontProductResponse> products)
+        {
+            foreach (var product in products)
+            {
+                product.AverageRating = RoundRating(product.AverageRating);
+            }
+        }
+
+        private static decimal? RoundRating(decimal? averageRating)
+        {
+            return averageRating is null
+                ? null
+                : Math.Round(averageRating.Value, 2, MidpointRounding.AwayFromZero);
         }
 
         private static IQueryable<Product> ApplySort(

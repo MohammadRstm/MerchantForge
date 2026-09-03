@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace MerchForge.api.DTOs.Storefront;
 
@@ -34,6 +34,18 @@ public class StorefrontProductDetailResponse
     public StorefrontProductCategoryResponse Category { get; set; } = new();
 
     public JsonDocument? Metadata { get; set; }
+
+
+    /// <summary>
+    /// Mean of this product's visible reviews, rounded to two places. Null when it has
+    /// none — a real average can never be 0, so null is what distinguishes "not rated
+    /// yet" from a genuinely bad score.
+    /// </summary>
+    public decimal? AverageRating { get; set; }
+
+    /// <summary>How many visible reviews the average is drawn from. Hidden reviews
+    /// count for nothing here.</summary>
+    public int ReviewCount { get; set; }
 
     public DateTime CreatedAt { get; set; }
 }

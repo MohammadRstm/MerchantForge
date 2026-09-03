@@ -1,3 +1,4 @@
+﻿using MerchForge.api.Constants;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.CustomerAuth;
 using MerchForge.api.Enums;
@@ -70,7 +71,16 @@ public class CustomerAuthService : ICustomerAuthService
 
         customer.PasswordHash = _passwordHasher.HashPassword(customer, request.Password);
 
-        await _customerRepository.AddAsync(customer, cancellationToken);
+        var legalAcceptance = new LegalAcceptance
+        {
+            Id = Guid.NewGuid(),
+            CustomerId = customer.Id,
+            TermsVersion = LegalDocumentVersions.TermsOfService,
+            PrivacyPolicyVersion = LegalDocumentVersions.PrivacyPolicy,
+            AcceptedAt = DateTime.UtcNow,
+        };
+
+        await _customerRepository.AddAsync(customer, legalAcceptance, cancellationToken);
 
         var (refreshToken, _) = await _customerRefreshTokenService.CreateAsync(customer, cancellationToken);
 

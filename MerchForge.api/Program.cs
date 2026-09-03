@@ -506,6 +506,7 @@ builder.Services.AddSingleton<IAmazonS3>(provider =>
 });
 
 builder.Services.AddScoped<IObjectStorage, CloudflareR2ObjectStorage>();
+builder.Services.AddScoped<IProductImageUrlResolver, ProductImageUrlResolver>();
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();

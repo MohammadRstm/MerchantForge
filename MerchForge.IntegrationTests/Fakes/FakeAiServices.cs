@@ -1,4 +1,4 @@
-using MerchForge.api.DTOs.ProductAi;
+﻿using MerchForge.api.DTOs.ProductAi;
 using MerchForge.api.Services.AI.Contracts;
 using MerchForge.api.Services.AI.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
@@ -78,23 +78,40 @@ public class FakeAiTranscriptionService : IAiTranscriptionService
     }
 }
 
-/// <summary>Skips disk entirely; the real upload path is covered by the product CRUD tests.</summary>
+/// <summary>
+/// Skips storage entirely. Validation, key construction and the ownership checks in
+/// the real service are covered by ProductImageServiceTests in the unit suite.
+/// </summary>
 public class FakeProductImageService : IProductImageService
 {
     public string SavedUrl { get; set; } = "/uploads/products/uploaded.png";
 
-    public Task<string> SaveAsync(
-        Guid businessId,
-        IFormFile file,
-        CancellationToken cancellationToken = default)
-        => Task.FromResult(SavedUrl);
+    /// <summary>
+    /// The product ids images were stored against, so a test can assert the draft flow
+    /// nests them under the product it will actually create.
+    /// </summary>
+    public List<Guid> SavedProductIds { get; } = [];
 
     public Task<string> SaveAsync(
         Guid businessId,
+        Guid productId,
+        IFormFile file,
+        CancellationToken cancellationToken = default)
+    {
+        SavedProductIds.Add(productId);
+        return Task.FromResult(SavedUrl);
+    }
+
+    public Task<string> SaveAsync(
+        Guid businessId,
+        Guid productId,
         byte[] bytes,
         string contentType,
         CancellationToken cancellationToken = default)
-        => Task.FromResult(SavedUrl);
+    {
+        SavedProductIds.Add(productId);
+        return Task.FromResult(SavedUrl);
+    }
 
     public byte[] ReadBytes { get; set; } = [1, 2, 3, 4];
 
@@ -102,9 +119,20 @@ public class FakeProductImageService : IProductImageService
 
     public Task<(byte[] Bytes, string ContentType)> ReadAsync(
         Guid businessId,
-        string url,
+        string storedValue,
         CancellationToken cancellationToken = default)
         => Task.FromResult((ReadBytes, ReadContentType));
+
+    public List<string> DeletedValues { get; } = [];
+
+    public Task DeleteManyAsync(
+        Guid businessId,
+        IReadOnlyCollection<string> storedValues,
+        CancellationToken cancellationToken = default)
+    {
+        DeletedValues.AddRange(storedValues);
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Records what was logged so tests can assert on it without a logging framework.</summary>

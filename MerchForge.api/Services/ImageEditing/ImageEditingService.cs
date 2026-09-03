@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MerchForge.api.DTOs.ImageEditing;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.AI;
@@ -44,6 +44,7 @@ public class ImageEditingService : IImageEditingService
     public async Task<ImageEditJobResponse> EditAsync(
         Guid businessId,
         Guid userId,
+        Guid productId,
         List<string> imageUrls,
         string? prompt,
         IFormFile? audioPrompt,
@@ -96,7 +97,7 @@ public class ImageEditingService : IImageEditingService
         }
 
         var outputUrl = await _imageService.SaveAsync(
-            businessId, result.ImageBytes, result.MimeType, cancellationToken);
+            businessId, productId, result.ImageBytes, result.MimeType, cancellationToken);
 
         // Charged after a successful call, never before - the same reasoning as AI
         // product generation: a failed provider call already returned above without

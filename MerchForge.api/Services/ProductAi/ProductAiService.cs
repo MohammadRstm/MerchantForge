@@ -143,7 +143,12 @@ namespace MerchForge.api.Services.ProductAi
 
             // Reuses the same validated upload path as manual product creation, so an
             // image supplied through the agent gets identical signature checking.
-            var imageUrl = await _imageService.SaveAsync(businessId, image, cancellationToken);
+            //
+            // The draft's own id doubles as the product id in the image key, and
+            // ConfirmAsync creates the product with that same id, so the key names the
+            // product it really belongs to. A draft becomes exactly one product, which
+            // is what makes reusing the id honest rather than convenient.
+            var imageUrl = await _imageService.SaveAsync(businessId, draft.Id, image, cancellationToken);
 
             draft.OriginalImageUrl = imageUrl;
 
@@ -242,6 +247,10 @@ namespace MerchForge.api.Services.ProductAi
 
             var request = new SaveProductRequest
             {
+                // Same id the draft's images were stored under, so
+                // businesses/{b}/products/{draft.Id}/images/... describes where the
+                // image actually ends up.
+                Id = draft.Id,
                 Title = state!.Title!,
                 Description = state.Description,
                 Price = state.Price!.Value,

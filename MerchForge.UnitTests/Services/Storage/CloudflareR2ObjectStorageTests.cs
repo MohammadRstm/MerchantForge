@@ -165,8 +165,13 @@ public class CloudflareR2ObjectStorageTests
         contentType.Should().Be("application/octet-stream");
     }
 
+    /// <summary>
+    /// A missing object and an unreachable bucket must not collapse into one answer:
+    /// one is a client-visible "that image is gone", the other is an outage that has
+    /// no business being reported as the owner's fault.
+    /// </summary>
     [Fact]
-    public async Task GetAsync_translates_a_missing_object()
+    public async Task GetAsync_reports_a_missing_object_as_not_found()
     {
         _s3
             .Setup(s => s.GetObjectAsync(Bucket, Key, It.IsAny<CancellationToken>()))
@@ -178,8 +183,26 @@ public class CloudflareR2ObjectStorageTests
 
         var act = async () => await _storage.GetAsync(Key);
 
-        (await act.Should().ThrowAsync<ObjectStorageException>())
-            .Which.Message.Should().Be("Could not read the image.");
+        await act.Should().ThrowAsync<ObjectNotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetAsync_reports_any_other_failure_as_a_general_storage_error()
+    {
+        _s3
+            .Setup(s => s.GetObjectAsync(Bucket, Key, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AmazonS3Exception("Service unavailable")
+            {
+                ErrorCode = "ServiceUnavailable",
+                StatusCode = HttpStatusCode.ServiceUnavailable,
+            });
+
+        var act = async () => await _storage.GetAsync(Key);
+
+        var thrown = await act.Should().ThrowAsync<ObjectStorageException>();
+
+        thrown.Which.Should().NotBeOfType<ObjectNotFoundException>();
+        thrown.Which.Message.Should().Be("Could not read the image.");
     }
 
     [Fact]

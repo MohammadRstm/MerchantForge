@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
@@ -419,6 +419,17 @@ namespace MerchForge.api.Repositories.Implementations
             await _db.SaveChangesAsync(cancellationToken);
 
             return product;
+        }
+
+        public async Task<Guid?> GetProductOwnerBusinessIdAsync(
+            Guid productId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _db.Products
+                .AsNoTracking()
+                .Where(p => p.Id == productId)
+                .Select(p => (Guid?)p.BusinessId)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<Product?> GetTrackedProductAsync(

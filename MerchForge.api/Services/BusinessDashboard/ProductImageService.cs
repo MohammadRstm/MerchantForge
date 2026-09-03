@@ -1,6 +1,9 @@
 using MerchForge.api.Configurations;
 using MerchForge.api.Exceptions.BusinessDashboard;
+using MerchForge.api.Exceptions.Storage;
+using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.Extensions.Options;
 
 namespace MerchForge.api.Services.BusinessDashboard
@@ -14,7 +17,14 @@ namespace MerchForge.api.Services.BusinessDashboard
         /// The signature check is the point: the browser-supplied content type and the
         /// filename extension are both attacker-controlled, so neither proves what a
         /// file is. Checking the real leading bytes stops a script or executable being
-        /// stored under an image extension and later served back from our own origin.
+        /// stored under an image extension and later served back as an image.
+        ///
+        /// It matters more since the move to object storage, not less. Files on the
+        /// API's own origin also got X-Content-Type-Options and a locked-down CSP from
+        /// the static-file handler as a second, independent layer; a public bucket
+        /// sends neither, so the content type written on the object - which is the
+        /// verified one from this table, never the client's claim - is what a browser
+        /// will trust.
         /// </summary>
         private static readonly (string ContentType, string Extension, byte[][] Signatures)[] AllowedImages =
         [
@@ -28,17 +38,30 @@ namespace MerchForge.api.Services.BusinessDashboard
 
         private readonly ProductImageOptions _options;
         private readonly IWebHostEnvironment _environment;
+        private readonly IObjectStorage _objectStorage;
+        private readonly IProductImageUrlResolver _urlResolver;
+        private readonly IBusinessDashboardRepository _businessDashboardRepository;
+        private readonly ILogger<ProductImageService> _logger;
 
         public ProductImageService(
             IOptions<ProductImageOptions> options,
-            IWebHostEnvironment environment)
+            IWebHostEnvironment environment,
+            IObjectStorage objectStorage,
+            IProductImageUrlResolver urlResolver,
+            IBusinessDashboardRepository businessDashboardRepository,
+            ILogger<ProductImageService> logger)
         {
             _options = options.Value;
             _environment = environment;
+            _objectStorage = objectStorage;
+            _urlResolver = urlResolver;
+            _businessDashboardRepository = businessDashboardRepository;
+            _logger = logger;
         }
 
         public async Task<string> SaveAsync(
             Guid businessId,
+            Guid productId,
             IFormFile file,
             CancellationToken cancellationToken = default)
         {
@@ -53,15 +76,18 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new InvalidProductImageException($"Images must be {maxMb} MB or smaller.");
             }
 
-            var extension = await ResolveVerifiedExtensionAsync(file, cancellationToken);
+            var verified = await ResolveVerifiedTypeAsync(file, cancellationToken);
+
+            await EnsureProductIsAvailableToBusinessAsync(businessId, productId, cancellationToken);
 
             await using var stream = file.OpenReadStream();
 
-            return await WriteAsync(businessId, stream, extension, cancellationToken);
+            return await WriteAsync(businessId, productId, stream, verified, cancellationToken);
         }
 
         public async Task<string> SaveAsync(
             Guid businessId,
+            Guid productId,
             byte[] bytes,
             string contentType,
             CancellationToken cancellationToken = default)
@@ -77,33 +103,154 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new InvalidProductImageException($"Images must be {maxMb} MB or smaller.");
             }
 
-            var extension = ResolveVerifiedExtension(contentType, bytes);
+            var verified = ResolveVerifiedType(contentType, bytes);
+
+            await EnsureProductIsAvailableToBusinessAsync(businessId, productId, cancellationToken);
 
             using var stream = new MemoryStream(bytes, writable: false);
 
-            return await WriteAsync(businessId, stream, extension, cancellationToken);
+            return await WriteAsync(businessId, productId, stream, verified, cancellationToken);
         }
 
         public async Task<(byte[] Bytes, string ContentType)> ReadAsync(
             Guid businessId,
-            string url,
+            string storedValue,
             CancellationToken cancellationToken = default)
         {
-            var relativeDirectory = Path.Combine(_options.RelativePath, businessId.ToString())
-                .Replace('\\', '/');
-            var expectedPrefix = $"/{relativeDirectory}/";
+            // The ownership check. ToStorageKey rejects anything that is not this
+            // business's, in either the object-key or the pre-migration shape, and
+            // gives a foreign value the same answer as a malformed one.
+            var key = _urlResolver.ToStorageKey(storedValue, businessId);
 
-            // Ownership is the url starting with exactly this business's own upload
-            // folder - a filename from anywhere else, or one containing ".." to climb
-            // out of it, is rejected the same way a nonexistent file is.
-            if (string.IsNullOrWhiteSpace(url)
-                || !url.StartsWith(expectedPrefix, StringComparison.Ordinal)
-                || url.Contains(".."))
+            if (_urlResolver.IsLegacyLocalPath(key))
             {
-                throw new InvalidProductImageException("That image does not belong to this business.");
+                return await ReadFromDiskAsync(key, cancellationToken);
             }
 
-            var absolutePath = Path.Combine(WebRootPath, url.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            try
+            {
+                return await _objectStorage.GetAsync(key, cancellationToken);
+            }
+            catch (ObjectNotFoundException)
+            {
+                // Same answer a missing file has always given. A bucket that is
+                // unreachable is a different matter and is left to propagate.
+                throw new InvalidProductImageException("That image could not be found.");
+            }
+        }
+
+        public async Task DeleteManyAsync(
+            Guid businessId,
+            IReadOnlyCollection<string> storedValues,
+            CancellationToken cancellationToken = default)
+        {
+            var keys = new List<string>(storedValues.Count);
+
+            foreach (var storedValue in storedValues)
+            {
+                // Pre-migration images are deliberately left on disk: they were never
+                // cleaned up before, and removing them is a separate, deliberate step.
+                if (_urlResolver.IsLegacyLocalPath(storedValue))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    keys.Add(_urlResolver.ToStorageKey(storedValue, businessId));
+                }
+                catch (InvalidProductImageException)
+                {
+                    // Cleanup is not the place to fail a delete over an unrecognised
+                    // stored value; skipping it leaves an orphan, which is the same
+                    // outcome the app had before it deleted anything at all.
+                    _logger.LogWarning(
+                        "Skipped cleanup of an unrecognised image reference on business {BusinessId}.",
+                        businessId);
+                }
+            }
+
+            if (keys.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                await _objectStorage.DeleteManyAsync(keys, cancellationToken);
+            }
+            catch (ObjectStorageException exception)
+            {
+                // The rows are already gone and the caller has been told the delete
+                // succeeded, so there is nothing useful to surface. An orphaned object
+                // costs storage; a failure here would cost correctness.
+                _logger.LogWarning(
+                    exception.InnerStorageException ?? exception,
+                    "Could not remove {Count} orphaned image(s) for business {BusinessId}. {Message}",
+                    keys.Count,
+                    businessId,
+                    exception.Message);
+            }
+        }
+
+        private async Task<string> WriteAsync(
+            Guid businessId,
+            Guid productId,
+            Stream content,
+            (string ContentType, string Extension) verified,
+            CancellationToken cancellationToken)
+        {
+            // The image id inside the key is generated here and never derived from
+            // client input, which would otherwise allow overwriting another image.
+            var key = _urlResolver.BuildKey(businessId, productId, verified.Extension);
+
+            await _objectStorage.PutAsync(key, content, verified.ContentType, cancellationToken);
+
+            return key;
+        }
+
+        /// <summary>
+        /// A product id is allowed to be one that does not exist yet - images are
+        /// uploaded before the product is committed - but never one that already
+        /// belongs to somebody else, which would put a key under this business naming
+        /// another business's product.
+        ///
+        /// This is not what prevents a cross-tenant write; businessId comes from the
+        /// authorized route, so the key is inside this business's prefix whatever is
+        /// passed here. It is what stops the hierarchy from lying.
+        /// </summary>
+        private async Task EnsureProductIsAvailableToBusinessAsync(
+            Guid businessId,
+            Guid productId,
+            CancellationToken cancellationToken)
+        {
+            if (productId == Guid.Empty)
+            {
+                throw new InvalidProductImageException("A product is required to store an image against.");
+            }
+
+            var ownerBusinessId = await _businessDashboardRepository.GetProductOwnerBusinessIdAsync(
+                productId,
+                cancellationToken);
+
+            if (ownerBusinessId is not null && ownerBusinessId != businessId)
+            {
+                throw new InvalidProductImageException("That product does not belong to this business.");
+            }
+        }
+
+        /// <summary>
+        /// Reads an image stored before the move to object storage. These are still
+        /// files under the web root and are still served by the API itself, so nothing
+        /// about them changed; only newly uploaded images go to the bucket.
+        /// </summary>
+        private async Task<(byte[] Bytes, string ContentType)> ReadFromDiskAsync(
+            string relativePath,
+            CancellationToken cancellationToken)
+        {
+            var absolutePath = Path.Combine(
+                WebRootPath,
+                relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
 
             if (!File.Exists(absolutePath))
             {
@@ -119,40 +266,12 @@ namespace MerchForge.api.Services.BusinessDashboard
             return (bytes, contentType);
         }
 
-        private async Task<string> WriteAsync(
-            Guid businessId,
-            Stream content,
-            string extension,
-            CancellationToken cancellationToken)
-        {
-            // Images are grouped per business so one business's uploads are never
-            // interleaved with another's on disk.
-            var relativeDirectory = Path.Combine(_options.RelativePath, businessId.ToString());
-            var absoluteDirectory = Path.Combine(WebRootPath, relativeDirectory);
-
-            Directory.CreateDirectory(absoluteDirectory);
-
-            // Filename is generated server-side and never derived from client input,
-            // which would otherwise allow path traversal (../../appsettings.json) or
-            // overwriting another business's file.
-            var fileName = $"{Guid.NewGuid():N}{extension}";
-            var absolutePath = Path.Combine(absoluteDirectory, fileName);
-
-            await using (var destination = new FileStream(absolutePath, FileMode.CreateNew))
-            {
-                await content.CopyToAsync(destination, cancellationToken);
-            }
-
-            // Forward slashes: this becomes a URL, not a filesystem path.
-            return $"/{relativeDirectory.Replace('\\', '/')}/{fileName}";
-        }
-
         private string WebRootPath =>
             // WebRootPath is null when wwwroot doesn't exist yet on a fresh checkout.
             _environment.WebRootPath
             ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
 
-        private static async Task<string> ResolveVerifiedExtensionAsync(
+        private static async Task<(string ContentType, string Extension)> ResolveVerifiedTypeAsync(
             IFormFile file,
             CancellationToken cancellationToken)
         {
@@ -190,10 +309,10 @@ namespace MerchForge.api.Services.BusinessDashboard
                     "The uploaded file isn't a valid image of the type it claims to be.");
             }
 
-            return candidate.Extension;
+            return (candidate.ContentType, candidate.Extension);
         }
 
-        private static string ResolveVerifiedExtension(string contentType, byte[] bytes)
+        private static (string ContentType, string Extension) ResolveVerifiedType(string contentType, byte[] bytes)
         {
             var declared = contentType?.ToLowerInvariant() ?? string.Empty;
 
@@ -217,7 +336,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                     "The image isn't a valid image of the type it claims to be.");
             }
 
-            return candidate.Extension;
+            return (candidate.ContentType, candidate.Extension);
         }
 
         private static bool MatchesSignature(

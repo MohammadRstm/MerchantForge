@@ -1,3 +1,4 @@
+using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
 using MerchForge.api.Configurations;
@@ -92,6 +93,15 @@ namespace MerchForge.api.Services.Storage
                     : response.Headers.ContentType;
 
                 return (buffer.ToArray(), contentType);
+            }
+            catch (AmazonS3Exception exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+            {
+                // Distinguished from a general failure so the caller can report a
+                // missing image rather than an outage. Logged at a lower level for the
+                // same reason: nothing is broken.
+                _logger.LogInformation("R2 has no object at key {Key}.", key);
+
+                throw new ObjectNotFoundException("That image could not be found.", exception);
             }
             catch (AmazonS3Exception exception)
             {

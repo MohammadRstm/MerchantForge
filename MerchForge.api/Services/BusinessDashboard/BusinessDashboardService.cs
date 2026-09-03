@@ -327,7 +327,11 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             var product = new Models.Product
             {
-                Id = Guid.NewGuid(),
+                // The client's id when it has already uploaded images against one, so
+                // the keys those images live under name this product. A duplicate is
+                // caught by the primary key rather than silently overwriting, and an id
+                // owned by another business was already refused at upload.
+                Id = request.Id ?? Guid.NewGuid(),
                 BusinessId = businessId,
                 CategoryId = request.CategoryId,
                 Title = request.Title.Trim(),

@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using MerchForge.api.Authorization;
 using MerchForge.api.DTOs.ImageEditing;
 using MerchForge.api.Services.ImageEditing.Interfaces;
@@ -36,7 +36,8 @@ namespace MerchForge.api.Controllers
 
         /// <summary>
         /// imageUrls reference images already uploaded via the same product-image
-        /// upload endpoint the manual form uses - this never accepts raw file bytes
+        /// upload endpoint the manual form uses, and productId is the product they
+        /// belong to, so the edited result is stored beside them - this never accepts raw file bytes
         /// for the images themselves, only which of the owner's own uploads to edit.
         /// The instruction is either prompt (typed) or audioPrompt (spoken); send
         /// exactly one.
@@ -45,13 +46,14 @@ namespace MerchForge.api.Controllers
         [RequestSizeLimit(26 * 1024 * 1024)]
         public async Task<ActionResult<ImageEditJobResponse>> Edit(
             Guid businessId,
+            [FromForm] Guid productId,
             [FromForm] List<string> imageUrls,
             [FromForm] string? prompt,
             IFormFile? audioPrompt,
             CancellationToken cancellationToken)
         {
             var response = await _imageEditingService.EditAsync(
-                businessId, CurrentUserId, imageUrls, prompt, audioPrompt, cancellationToken);
+                businessId, CurrentUserId, productId, imageUrls, prompt, audioPrompt, cancellationToken);
 
             return CreatedAtAction(nameof(Get), new { businessId, jobId = response.Id }, response);
         }

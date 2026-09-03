@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using MerchForge.api.DTOs.CustomerAuth;
 
 namespace MerchForge.api.Validators.CustomerAuth
@@ -28,6 +28,10 @@ namespace MerchForge.api.Validators.CustomerAuth
                 .Must(BeAValidAbsoluteUrl)
                 .When(x => !string.IsNullOrWhiteSpace(x.ReturnUrl))
                 .WithMessage("ReturnUrl must be an absolute URL");
+
+            RuleFor(x => x.AgreedToTerms)
+                .Equal(true)
+                .WithMessage("You must agree to the Terms of Service and Privacy Policy to create an account.");
         }
 
         private static bool BeAValidAbsoluteUrl(string? url)

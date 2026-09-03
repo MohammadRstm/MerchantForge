@@ -63,6 +63,7 @@ namespace MerchForge.api.Repositories.Implementations
             Business business,
             BusinessUser businessUser,
             IReadOnlyList<Category> customCategories,
+            LegalAcceptance legalAcceptance,
             Guid invitationId,
             CancellationToken cancellationToken = default)
         {
@@ -92,6 +93,7 @@ namespace MerchForge.api.Repositories.Implementations
                 await _db.Users.AddAsync(user, cancellationToken);
                 await _db.Businesses.AddAsync(business, cancellationToken);
                 await _db.BusinessUsers.AddAsync(businessUser, cancellationToken);
+                await _db.LegalAcceptances.AddAsync(legalAcceptance, cancellationToken);
 
                 if (customCategories.Count > 0)
                 {
@@ -112,6 +114,7 @@ namespace MerchForge.api.Repositories.Implementations
         public async Task CompleteBusinessMemberRegistration(
             Guid userId,
             string passwordHash,
+            LegalAcceptance legalAcceptance,
             Guid invitationId,
             CancellationToken cancellationToken = default)
         {
@@ -145,6 +148,9 @@ namespace MerchForge.api.Repositories.Implementations
                             .SetProperty(u => u.PasswordHash, passwordHash)
                             .SetProperty(u => u.UpdatedAt, DateTime.UtcNow),
                         cancellationToken);
+
+                await _db.LegalAcceptances.AddAsync(legalAcceptance, cancellationToken);
+                await _db.SaveChangesAsync(cancellationToken);
 
                 await transaction.CommitAsync(cancellationToken);
             }

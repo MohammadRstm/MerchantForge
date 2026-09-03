@@ -54,6 +54,10 @@ namespace MerchForge.api.Validators.Auth
             RuleForEach(x => x.SelectedProductAttributeKeys)
                 .NotEmpty()
                 .MaximumLength(100);
+
+            RuleFor(x => x.AgreedToTerms)
+                .Equal(true)
+                .WithMessage("You must agree to the Terms of Service and Privacy Policy to create an account.");
         }
     }
 }

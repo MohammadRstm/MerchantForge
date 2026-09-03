@@ -57,6 +57,8 @@ namespace MerchForge.api.Data
 
         public DbSet<CustomerExchangeCode> CustomerExchangeCodes => Set<CustomerExchangeCode>();
 
+        public DbSet<LegalAcceptance> LegalAcceptances => Set<LegalAcceptance>();
+
         public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
         public DbSet<Feature> Features => Set<Feature>();
         public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();

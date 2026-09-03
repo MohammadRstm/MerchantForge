@@ -16,4 +16,11 @@ public class CustomerSignupRequest
     /// Absent for a customer who signs up directly on the platform.
     /// </summary>
     public string? ReturnUrl { get; set; }
+
+    /// <summary>
+    /// Must be true. Enforced by CustomerSignupRequestValidator, not just the
+    /// frontend checkbox that sets it — a direct API call with this omitted or false
+    /// is rejected the same as the form would refuse to submit it.
+    /// </summary>
+    public bool AgreedToTerms { get; set; }
 }

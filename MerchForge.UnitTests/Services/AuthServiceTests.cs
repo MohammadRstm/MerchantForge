@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.DTOs.Auth;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Auth;
@@ -233,9 +233,9 @@ public class AuthServiceTests
         _userRepository
             .Setup(r => r.FinishBusinessOwnerRegistration(
                 It.IsAny<User>(), It.IsAny<Business>(), It.IsAny<BusinessUser>(),
-                It.IsAny<IReadOnlyList<Category>>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .Callback<User, Business, BusinessUser, IReadOnlyList<Category>, Guid, CancellationToken>(
-                (u, _, _, _, _, _) => created = u)
+                It.IsAny<IReadOnlyList<Category>>(), It.IsAny<LegalAcceptance>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Callback<User, Business, BusinessUser, IReadOnlyList<Category>, LegalAcceptance, Guid, CancellationToken>(
+                (u, _, _, _, _, _, _) => created = u)
             .Returns(Task.CompletedTask);
 
         var (response, _) = await _service.CompleteBusinessOwnerRegistration(new CompleteBusinessOwnerRegistrationRequest
@@ -312,8 +312,8 @@ public class AuthServiceTests
 
         string? capturedHash = null;
         _userRepository
-            .Setup(r => r.CompleteBusinessMemberRegistration(member.Id, It.IsAny<string>(), invitation.Id, It.IsAny<CancellationToken>()))
-            .Callback<Guid, string, Guid, CancellationToken>((_, hash, _, _) => capturedHash = hash)
+            .Setup(r => r.CompleteBusinessMemberRegistration(member.Id, It.IsAny<string>(), It.IsAny<LegalAcceptance>(), invitation.Id, It.IsAny<CancellationToken>()))
+            .Callback<Guid, string, LegalAcceptance, Guid, CancellationToken>((_, hash, _, _, _) => capturedHash = hash)
             .Returns(Task.CompletedTask);
 
         var (response, refreshToken) = await _service.CompleteBusinessMemberRegistration(
@@ -345,7 +345,7 @@ public class AuthServiceTests
 
         await act.Should().ThrowAsync<InvitationAlreadyUsedException>();
         _userRepository.Verify(
-            r => r.CompleteBusinessMemberRegistration(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            r => r.CompleteBusinessMemberRegistration(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<LegalAcceptance>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 }

@@ -12,6 +12,7 @@ public class CompleteBusinessMemberRegistrationRequestValidatorTests
     {
         InvitationToken = "some-opaque-token",
         Password = "correct-horse",
+        AgreedToTerms = true,
     };
 
     [Fact]
@@ -43,6 +44,15 @@ public class CompleteBusinessMemberRegistrationRequestValidatorTests
     {
         var request = Valid();
         request.Password = "short1";
+
+        _validator.Validate(request).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Rejects_a_request_that_did_not_agree_to_terms()
+    {
+        var request = Valid();
+        request.AgreedToTerms = false;
 
         _validator.Validate(request).IsValid.Should().BeFalse();
     }

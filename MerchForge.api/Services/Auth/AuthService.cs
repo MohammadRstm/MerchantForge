@@ -1,4 +1,5 @@
 ﻿using MerchForge.api.Data;
+using MerchForge.api.Constants;
 using MerchForge.api.DTOs.Auth;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Auth;
@@ -314,8 +315,17 @@ public class AuthService : IAuthService
             request.NewCategoryNames,
             cancellationToken);
 
+        var legalAcceptance = new LegalAcceptance
+        {
+            Id = Guid.NewGuid(),
+            UserId = owner.Id,
+            TermsVersion = LegalDocumentVersions.TermsOfService,
+            PrivacyPolicyVersion = LegalDocumentVersions.PrivacyPolicy,
+            AcceptedAt = DateTime.UtcNow,
+        };
+
         await _userRepository.FinishBusinessOwnerRegistration(
-            owner, business, businessUser, customCategories, invitation.Id, cancellationToken);
+            owner, business, businessUser, customCategories, legalAcceptance, invitation.Id, cancellationToken);
 
         var (refreshToken, _) =
             await _refreshTokenService.CreateAsync(owner, cancellationToken);
@@ -392,8 +402,17 @@ public class AuthService : IAuthService
 
         var passwordHash = _passwordHasher.HashPassword(member, request.Password);
 
+        var legalAcceptance = new LegalAcceptance
+        {
+            Id = Guid.NewGuid(),
+            UserId = member.Id,
+            TermsVersion = LegalDocumentVersions.TermsOfService,
+            PrivacyPolicyVersion = LegalDocumentVersions.PrivacyPolicy,
+            AcceptedAt = DateTime.UtcNow,
+        };
+
         await _userRepository.CompleteBusinessMemberRegistration(
-            member.Id, passwordHash, invitation.Id, cancellationToken);
+            member.Id, passwordHash, legalAcceptance, invitation.Id, cancellationToken);
 
         var (refreshToken, _) = await _refreshTokenService.CreateAsync(member, cancellationToken);
 

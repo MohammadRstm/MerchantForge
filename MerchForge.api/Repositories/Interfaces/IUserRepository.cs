@@ -24,6 +24,7 @@ namespace MerchForge.api.Repositories.Interfaces
             Business business,
             BusinessUser businessUser,
             IReadOnlyList<Category> customCategories,
+            LegalAcceptance legalAcceptance,
             Guid invitationId,
             CancellationToken cancellationToken = default);
 
@@ -36,6 +37,7 @@ namespace MerchForge.api.Repositories.Interfaces
         Task CompleteBusinessMemberRegistration(
             Guid userId,
             string passwordHash,
+            LegalAcceptance legalAcceptance,
             Guid invitationId,
             CancellationToken cancellationToken = default);
 

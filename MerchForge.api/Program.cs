@@ -43,6 +43,8 @@ using MerchForge.api.Services.Onboarding;
 using MerchForge.api.Services.Onboarding.interfaces;
 using MerchForge.api.Services.ProductAi;
 using MerchForge.api.Services.ProductAi.Interfaces;
+using MerchForge.api.Services.ProductReviews;
+using MerchForge.api.Services.ProductReviews.interfaces;
 using MerchForge.api.Services.Storefront;
 using MerchForge.api.Services.Storefront.interfaces;
 using MerchForge.api.Services.Subscription;
@@ -460,6 +462,10 @@ builder.Services
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();
 
+// Product Reviews — serves both the storefront and the owner's moderation view, so
+// it's registered once here rather than alongside either one.
+builder.Services.AddScoped<IProductReviewService, ProductReviewService>();
+
 // Onboarding Services
 builder.Services.AddScoped<IDomainService, DomainService>();
 
@@ -669,6 +675,7 @@ builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 builder.Services.AddScoped<IBusinessDashboardRepository, BusinessDashboardRepository>();
 builder.Services.AddScoped<IStorefrontRepository, StorefrontRepository>();
+builder.Services.AddScoped<IProductReviewRepository, ProductReviewRepository>();
 builder.Services.AddScoped<IDomainRepository, DomainRepository>();
 builder.Services.AddScoped<IProductDraftRepository, ProductDraftRepository>();
 builder.Services.AddScoped<IFeatureCreditRepository, FeatureCreditRepository>();

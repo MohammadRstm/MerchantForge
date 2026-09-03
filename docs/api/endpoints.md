@@ -59,6 +59,8 @@ Route base: `api/businesses/{businessId:guid}/dashboard`. Class-level
 | POST | `/products/image` | multipart `IFormFile file`, `[RequestSizeLimit(6 MB)]` | (byte-signature check in the service) | `200 OK` → `ProductImageUploadResponse { ImageUrl }` | `InvalidProductImageException` (400) |
 | GET | `/website-template` | — | — | `200 OK` → `BusinessWebsiteTemplateStatusResponse` | `BusinessNotFoundException` (404), `BusinessHasNoDomainException` (400) |
 | POST | `/website-template` | `ChooseWebsiteTemplateRequest` | `ChooseWebsiteTemplateRequestValidator` | `200 OK` → `ChosenWebsiteTemplateResponse` | `BusinessNotFoundException` (404), `BusinessHasNoDomainException` (400), `WebsiteTemplateAlreadyChosenException` (409), `WebsiteTemplateWrongDomainException` (400) |
+| GET | `/products/{productId:guid}/reviews` | query: `ProductReviewsQueryRequest` (paging only) | `ProductReviewsQueryRequestValidator` | `200 OK` → `PagedResult<OwnerProductReviewResponse>` | `ProductNotFoundException` (404). Unlike the storefront list, this **includes hidden reviews** — hiding one must not hide it from the owner who hid it |
+| PUT | `/products/{productId:guid}/reviews/{reviewId:guid}/visibility` | `UpdateProductReviewVisibilityRequest { IsHidden }` | — | `204 No Content` | `ProductReviewNotFoundException` (404 — same error whether the review doesn't exist or belongs to another business). Re-sending the current state is a no-op |
 
 ## `ProductDraftsController`
 
@@ -153,6 +155,10 @@ by discipline, not by a framework guarantee.
 | GET | `/products` | query: `businessId`, `StorefrontProductsQueryRequest` (search/category/price/sort) | `StorefrontProductsQueryRequestValidator` | `200 OK` → `PagedResult<StorefrontProductResponse>` | — |
 | GET | `/products/{productId:guid}` | query: `businessId` | — | `200 OK` → `StorefrontProductDetailResponse` | `ProductNotFoundException` (404, `Exceptions/Storefront` — same error whether the product doesn't exist or belongs to a different business, by design) |
 | GET | `/products/{productId:guid}/related` | query: `businessId`, `limit` (default 4) | — | `200 OK` → `List<StorefrontProductResponse>` | — |
+| GET | `/products/{productId:guid}/reviews` | query: `businessId`, `ProductReviewsQueryRequest` (paging only) | `ProductReviewsQueryRequestValidator` | `200 OK` → `PagedResult<StorefrontProductReviewResponse>` | `ProductNotFoundException` (404). Hidden reviews are excluded here and from the summary |
+| GET | `/products/{productId:guid}/reviews/summary` | query: `businessId` | — | `200 OK` → `ProductReviewSummaryResponse` (average, count, 1-5 breakdown) | `ProductNotFoundException` (404) |
+| GET | `/products/{productId:guid}/reviews/me` | query: `businessId` | — | `200 OK` → `ProductReviewEligibilityResponse` | `401` without a `"Customer"` bearer token — enforced in the action, not by an attribute, since the class is `[AllowAnonymous]` |
+| POST | `/products/{productId:guid}/reviews` | query: `businessId`, body `CreateProductReviewRequest` | `CreateProductReviewRequestValidator` | `200 OK` → `MyProductReviewResponse` | `401` without a customer token; `ProductNotFoundException` (404); `ReviewRequiresPurchaseException` (409). Upsert: a second submission edits the customer's existing review |
 
 ## Summary: authorization policy by controller
 

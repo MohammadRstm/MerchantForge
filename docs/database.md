@@ -312,6 +312,47 @@ rows — a second main image for the same product collides on this computed valu
 is rejected, while any number of non-main images coexist freely. Also indexed on
 `(ProductId, DisplayOrder)` — the shape every gallery read query uses.
 
+### `ProductReview`
+Table: `product_reviews`. A customer's rating of one product: a required 1-5 star
+rating plus an optional comment. That two-field shape is a platform-wide convention
+every storefront template renders the same way, not a per-business setting.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `Id` | `Guid` | PK |
+| `ProductId` | `Guid` | FK → `Product`, **Cascade** |
+| `BusinessId` | `Guid` | FK → `Business`, **Cascade**. Denormalized from `Product.BusinessId` so owner-side moderation queries don't join through `Product` — same reasoning as `StockMovement.BusinessId`. A product never moves between businesses, so it can't drift |
+| `CustomerId` | `Guid` | FK → `Customer`, **Cascade** |
+| `Rating` | `int` | required, `CK_product_reviews_Rating_Range` (`BETWEEN 1 AND 5`) |
+| `Comment` | `string?` | max 2000 |
+| `IsHidden` | `bool` | required |
+| `CreatedAt` / `UpdatedAt` | `DateTime` | required |
+
+**One review per customer per product, enforced by the database.** A unique index
+`UX_product_reviews_OnePerCustomerPerProduct` on `(ProductId, CustomerId)` means the
+write path is an upsert rather than an insert — a customer re-submitting edits their
+existing review instead of adding a second one, and the constraint holds even under a
+race that a check-then-insert in the service would lose.
+
+**Only verified purchasers can create one.** Eligibility is "has at least one order
+with this business, not `Cancelled`, containing this product" — the same loose
+definition of a real order that `DashboardRepository` and `OrderRepository` already
+use. `PaymentStatus` is deliberately not consulted, since there is no payment gateway
+and it is effectively always `Pending`. Because purchase is required, every row is a
+verified purchase by construction and there is no `IsVerifiedPurchase` column. Guest
+orders have no `CustomerId` and can never qualify their buyer.
+
+**Hiding is not deleting.** `IsHidden` removes a review from the storefront list and
+from the product's average rating, but it stays in the table and stays visible in the
+owner's moderation view, so it can be put back. Editing a hidden review does not
+un-hide it.
+
+Indexed on `(ProductId, IsHidden, CreatedAt)` for the storefront read and
+`(BusinessId, CreatedAt)` for the owner's. Average rating and review count are
+computed as correlated subqueries in the storefront product projections rather than
+denormalized onto `Product`, matching how `StorefrontCategoryResponse.ProductCount`
+is done.
+
 ### `ProductDraft`
 Table: `product_drafts`. Full field reference in
 [ai/product-generation.md](ai/product-generation.md#data-model-productdraft).
@@ -477,6 +518,9 @@ tracker together rather than one of them bypassing it via `ExecuteUpdateAsync`.
 | `Product.BusinessId` → `Business` | Cascade | A business's catalog is genuinely owned data. |
 | `Product.CategoryId` → `Category` | Restrict | A category is shared reference data across the whole domain. |
 | `ProductImage.ProductId` → `Product` | Cascade | A gallery is genuinely owned by its product. |
+| `ProductReview.ProductId` → `Product` | Cascade | Reviews of a deleted product have nothing left to be about. |
+| `ProductReview.BusinessId` → `Business` | Cascade | |
+| `ProductReview.CustomerId` → `Customer` | Cascade | Unlike `Order.CustomerId`, which is SetNull because an order is the business's financial record: a review is the customer's own words, so deleting the account takes them with it. |
 | `ProductDraft.BusinessId` → `Business` | Cascade | |
 | `ProductDraft.ProductId` → `Product` | SetNull | Deleting a product must not erase the conversation that created it. |
 | `ImageEditJob.BusinessId` → `Business` | Cascade | |

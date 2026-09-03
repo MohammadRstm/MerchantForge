@@ -39,6 +39,8 @@ namespace MerchForge.api.Data
 
         public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
+        public DbSet<ProductReview> ProductReviews => Set<ProductReview>();
+
         public DbSet<Order> Orders => Set<Order>();
 
         public DbSet<OrderItem> OrderItems => Set<OrderItem>();

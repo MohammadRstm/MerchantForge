@@ -89,6 +89,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
             subscriptionRepository,
             new WebsiteTemplateRequestRepository(db),
             new OrderRepository(db),
+            new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
             featureCreditService);
 

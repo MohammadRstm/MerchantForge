@@ -74,6 +74,7 @@ public class LiveEndToEndConversationTest
             subscriptionRepository,
             new WebsiteTemplateRequestRepository(context),
             new OrderRepository(context),
+            new ProductReviewRepository(context),
             new FakeBackgroundJobClient(),
             featureCreditService);
 

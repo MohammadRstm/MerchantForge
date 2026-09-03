@@ -39,6 +39,18 @@ public class BusinessProductDetailResponse
 
     public JsonDocument? Metadata { get; set; }
 
+
+    /// <summary>
+    /// Mean of this product's reviews as shoppers see them — hidden reviews are
+    /// excluded, so this matches the rating on the storefront exactly. Null when the
+    /// product has no visible reviews; never 0, so "not rated yet" stays
+    /// distinguishable from a genuinely low score.
+    /// </summary>
+    public decimal? AverageRating { get; set; }
+
+    /// <summary>How many visible reviews the average is drawn from.</summary>
+    public int ReviewCount { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

@@ -72,6 +72,18 @@ services:
       Cors__AllowedOrigins__0: ${PUBLIC_BASE_URL}
       Ai__ApiKey: ${OPENAI_API_KEY:-}
       GeminiFlash__ApiKey: ${GEMINI_API_KEY:-}
+      # Cloudflare R2, where product images and template previews live. Unlike the
+      # AI keys these are not optional: R2Options validates on start, so the api
+      # container refuses to boot with any of them missing rather than failing on
+      # the first upload. R2_PUBLIC_BASE_URL is the anonymous read origin the
+      # browser loads images from - a different URL from R2_ENDPOINT, which is the
+      # authenticated S3 API and never reaches a browser.
+      R2__AccountId: ${R2_ACCOUNT_ID:?R2_ACCOUNT_ID is required}
+      R2__AccessKeyId: ${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID is required}
+      R2__SecretAccessKey: ${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY is required}
+      R2__BucketName: ${R2_BUCKET_NAME:?R2_BUCKET_NAME is required}
+      R2__Endpoint: ${R2_ENDPOINT:?R2_ENDPOINT is required}
+      R2__PublicBaseUrl: ${R2_PUBLIC_BASE_URL:?R2_PUBLIC_BASE_URL is required}
     volumes:
       - merchforge_api_wwwroot:/app/wwwroot
 

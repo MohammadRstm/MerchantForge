@@ -6,14 +6,16 @@ decides whether a file is genuinely an image of an allowed type, and the only pl
 that decides where it is stored.
 
 Product images live in **Cloudflare R2**, and browsers load them directly from the
-bucket rather than through the API. Images uploaded before that move are still files
-on local disk and are still served by the API; nothing was migrated or deleted. Both
-shapes are supported everywhere, so an older product keeps working unchanged.
+bucket rather than through the API.
 
-> **Scope.** Only product images moved. Business logos, favicons, website
-> customization images and website-template previews are still written to local disk
-> by `WebsiteCustomizationImageService` and `WebsiteTemplateImageService`, which are
-> untouched by this.
+Images that predated the move were migrated on 2026-09-04 by
+`tools/MigrateImagesToR2`, and their local copies removed. The code still reads and
+accepts the old API-relative paths, so a row that somehow still holds one keeps
+working — one does, pointing at a file that was already missing beforehand.
+
+> **Scope.** Product images and website-template previews are in the bucket. Business
+> logos, favicons and website customization images are still written to local disk by
+> `WebsiteCustomizationImageService`, which is untouched by this.
 
 ## Components
 
@@ -21,8 +23,9 @@ shapes are supported everywhere, so an older product keeps working unchanged.
 |---|---|---|
 | Image rules | `IProductImageService` / `ProductImageService` | `Services/BusinessDashboard/…` |
 | Object store | `IObjectStorage` / `CloudflareR2ObjectStorage` | `Services/Storage/…` |
-| Key ↔ URL | `IProductImageUrlResolver` / `ProductImageUrlResolver` | `Services/Storage/…` |
-| Configuration | `ProductImageOptions`, `R2Options` | `Configurations/…` |
+| Key ↔ URL | `IStoredImageUrlResolver` / `IProductImageUrlResolver` | `Services/Storage/…` |
+| Optimization | `IImageOptimizer` / `SkiaImageOptimizer` | `Services/Images/…` |
+| Configuration | `ProductImageOptions`, `R2Options`, `ImageOptimizationOptions` | `Configurations/…` |
 
 The layering is deliberate. `IObjectStorage` is a flat keyed byte store that knows
 nothing about businesses, products or URLs; `ProductImageService` owns every domain

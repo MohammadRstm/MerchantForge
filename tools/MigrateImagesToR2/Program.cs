@@ -33,7 +33,10 @@ var config = new ConfigurationBuilder()
     .SetBasePath(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../MerchForge.api")))
     .AddJsonFile("appsettings.json", optional: true)
     .AddJsonFile("appsettings.Development.json", optional: true)
-    .AddUserSecrets(typeof(Program).Assembly, optional: true)
+    // GetExecutingAssembly rather than typeof(Program): MerchForge.api has a Program
+    // of its own, so that reference is ambiguous and could read the wrong assembly's
+    // UserSecretsId attribute.
+    .AddUserSecrets(System.Reflection.Assembly.GetExecutingAssembly(), optional: true)
     .AddEnvironmentVariables()
     .Build();
 

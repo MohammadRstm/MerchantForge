@@ -17,6 +17,17 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
   </ItemGroup>
 
+  <!-- Pinned to the same versions MerchForge.api compiles against. Without a direct
+       reference these resolve transitively from Pomelo at 9.0.0, which wins as the
+       primary reference and then fails at runtime when the API assembly asks for
+       9.0.17. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.17" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql.Json.Microsoft" Version="9.0.0" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\MerchForge.api\MerchForge.api.csproj" />
   </ItemGroup>

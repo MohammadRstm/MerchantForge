@@ -25,7 +25,7 @@ public class ImageEditingService : IImageEditingService
     private readonly IAiTranscriptionService _transcription;
     private readonly IFeatureCreditService _featureCreditService;
     private readonly ILogger<ImageEditingService> _logger;
-    private readonly IProductImageUrlResolver _productImageUrlResolver;
+    private readonly IStoredImageUrlResolver _productImageUrlResolver;
 
     public ImageEditingService(
         IImageEditJobRepository jobRepository,
@@ -34,7 +34,7 @@ public class ImageEditingService : IImageEditingService
         IAiTranscriptionService transcription,
         IFeatureCreditService featureCreditService,
         ILogger<ImageEditingService> logger,
-        IProductImageUrlResolver productImageUrlResolver)
+        IStoredImageUrlResolver productImageUrlResolver)
     {
         _productImageUrlResolver = productImageUrlResolver;
         _jobRepository = jobRepository;

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.Audit;
 using MerchForge.api.DTOs.Dashboard;
@@ -6,6 +6,7 @@ using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using Microsoft.EntityFrameworkCore;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -81,7 +82,7 @@ public class UsersSecurityManagementTests : IClassFixture<CatalogDatabaseFixture
         await AddMembershipAsync(db, user.Id, _businessA.Id, BusinessRole.Owner, DateTime.UtcNow.AddDays(-2));
         await AddMembershipAsync(db, user.Id, _businessB.Id, BusinessRole.Member, DateTime.UtcNow.AddDays(-1));
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var act = () => repository.GetUsersAsync(new UsersQueryRequest { Search = user.Email, PageSize = 50 });
 
@@ -99,7 +100,7 @@ public class UsersSecurityManagementTests : IClassFixture<CatalogDatabaseFixture
         await AddMembershipAsync(db, user.Id, _businessB.Id, BusinessRole.Member, DateTime.UtcNow.AddDays(-1));
         await AddMembershipAsync(db, user.Id, _businessA.Id, BusinessRole.Owner, DateTime.UtcNow.AddDays(-5));
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var (items, _) = await repository.GetUsersAsync(new UsersQueryRequest { Search = user.Email, PageSize = 50 });
 
         items.Should().ContainSingle().Which.BusinessName.Should().Be(_businessA.Name);
@@ -118,7 +119,7 @@ public class UsersSecurityManagementTests : IClassFixture<CatalogDatabaseFixture
         await AddMembershipAsync(db, owner.Id, _businessA.Id, BusinessRole.Owner);
         await AddMembershipAsync(db, member.Id, _businessA.Id, BusinessRole.Member);
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var (owners, _) = await repository.GetUsersAsync(new UsersQueryRequest { BusinessRole = BusinessRole.Owner, PageSize = 200 });
         owners.Should().Contain(u => u.Id == owner.Id);
@@ -138,7 +139,7 @@ public class UsersSecurityManagementTests : IClassFixture<CatalogDatabaseFixture
         await AddMembershipAsync(db, user.Id, _businessA.Id, BusinessRole.Owner);
         await AddMembershipAsync(db, user.Id, _businessB.Id, BusinessRole.Member);
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var detail = await repository.GetUserDetailAsync(user.Id);
 
         detail.Should().NotBeNull();

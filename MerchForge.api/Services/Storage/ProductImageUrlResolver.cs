@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using MerchForge.api.Configurations;
 using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Services.Storage.interfaces;
@@ -6,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace MerchForge.api.Services.Storage
 {
-    public class ProductImageUrlResolver : IProductImageUrlResolver
+    public class ProductImageUrlResolver : StoredImageUrlResolver, IProductImageUrlResolver
     {
         private const string BusinessesSegment = "businesses";
         private const string ProductsSegment = "products";
@@ -21,48 +20,19 @@ namespace MerchForge.api.Services.Storage
         /// </summary>
         private static readonly string[] AllowedExtensions = [".jpg", ".png", ".gif", ".webp"];
 
-        private readonly string _publicBaseUrl;
         private readonly string _legacyRelativePath;
 
         public ProductImageUrlResolver(
             IOptions<R2Options> r2Options,
             IOptions<ProductImageOptions> productImageOptions)
+            : base(r2Options)
         {
-            _publicBaseUrl = r2Options.Value.PublicBaseUrl.TrimEnd('/');
             _legacyRelativePath = productImageOptions.Value.RelativePath.Trim('/');
         }
 
         public string BuildKey(Guid businessId, Guid productId, string extension)
         {
             return $"{BusinessesSegment}/{businessId}/{ProductsSegment}/{productId}/{ImagesSegment}/{Guid.NewGuid()}{extension}";
-        }
-
-        [return: NotNullIfNotNull(nameof(storedValue))]
-        public string? ToPublicUrl(string? storedValue)
-        {
-            if (string.IsNullOrWhiteSpace(storedValue))
-            {
-                return storedValue;
-            }
-
-            // Images written before the R2 migration are still files under wwwroot and
-            // are still served by the API itself, so their stored path is already what
-            // the client needs.
-            if (IsLegacyLocalPath(storedValue))
-            {
-                return storedValue;
-            }
-
-            // Already absolute. Nothing writes this today, but staying idempotent means
-            // a projection that accidentally resolves twice produces the right answer
-            // instead of a doubled origin.
-            if (storedValue.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || storedValue.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            {
-                return storedValue;
-            }
-
-            return $"{_publicBaseUrl}/{storedValue}";
         }
 
         public string ToStorageKey(string incoming, Guid businessId)
@@ -113,11 +83,6 @@ namespace MerchForge.api.Services.Storage
             }
 
             throw NotThisBusiness();
-        }
-
-        public bool IsLegacyLocalPath([NotNullWhen(true)] string? storedValue)
-        {
-            return storedValue is not null && storedValue.StartsWith('/');
         }
 
         /// <summary>

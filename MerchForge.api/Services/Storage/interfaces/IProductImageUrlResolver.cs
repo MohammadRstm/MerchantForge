@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace MerchForge.api.Services.Storage.interfaces
 {
     /// <summary>
@@ -14,7 +12,7 @@ namespace MerchForge.api.Services.Storage.interfaces
     /// persisted data is what makes moving product images to a custom domain later a
     /// configuration change instead of a data migration.
     /// </summary>
-    public interface IProductImageUrlResolver
+    public interface IProductImageUrlResolver : IStoredImageUrlResolver
     {
         /// <summary>
         /// A new key for an image about to be written:
@@ -25,15 +23,6 @@ namespace MerchForge.api.Services.Storage.interfaces
         /// have come from a verified byte signature rather than from a filename.
         /// </summary>
         string BuildKey(Guid businessId, Guid productId, string extension);
-
-        /// <summary>
-        /// Turns a stored value into something an img tag can load.
-        ///
-        /// Idempotent, and a no-op for the legacy API-relative paths of images still
-        /// on local disk, so applying it twice or to a pre-R2 image is harmless.
-        /// </summary>
-        [return: NotNullIfNotNull(nameof(storedValue))]
-        string? ToPublicUrl(string? storedValue);
 
         /// <summary>
         /// Turns a value coming back from a client into the value to store, rejecting
@@ -47,11 +36,5 @@ namespace MerchForge.api.Services.Storage.interfaces
         /// </summary>
         string ToStorageKey(string incoming, Guid businessId);
 
-        /// <summary>
-        /// Whether a stored value refers to a file on the API's own disk rather than
-        /// to an object in the bucket. Callers that clean up storage use this to leave
-        /// pre-migration images alone.
-        /// </summary>
-        bool IsLegacyLocalPath([NotNullWhen(true)] string? storedValue);
     }
 }

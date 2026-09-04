@@ -36,7 +36,7 @@ namespace MerchForge.api.Services.ProductAi
         private readonly IProductImageService _imageService;
         private readonly IAiInteractionLogger _aiLogger;
         private readonly IFeatureCreditService _featureCreditService;
-        private readonly IProductImageUrlResolver _productImageUrlResolver;
+        private readonly IStoredImageUrlResolver _productImageUrlResolver;
 
         public ProductAiService(
             IProductDraftRepository draftRepository,
@@ -47,7 +47,7 @@ namespace MerchForge.api.Services.ProductAi
             IProductImageService imageService,
             IAiInteractionLogger aiLogger,
             IFeatureCreditService featureCreditService,
-            IProductImageUrlResolver productImageUrlResolver)
+            IStoredImageUrlResolver productImageUrlResolver)
         {
             _productImageUrlResolver = productImageUrlResolver;
             _draftRepository = draftRepository;

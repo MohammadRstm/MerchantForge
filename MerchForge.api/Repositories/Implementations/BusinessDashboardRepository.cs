@@ -13,11 +13,11 @@ namespace MerchForge.api.Repositories.Implementations
     public class BusinessDashboardRepository : IBusinessDashboardRepository
     {
         private readonly MerchForgeDbContext _db;
-        private readonly IProductImageUrlResolver _productImageUrlResolver;
+        private readonly IStoredImageUrlResolver _productImageUrlResolver;
 
         public BusinessDashboardRepository(
             MerchForgeDbContext db,
-            IProductImageUrlResolver productImageUrlResolver)
+            IStoredImageUrlResolver productImageUrlResolver)
         {
             _db = db;
             _productImageUrlResolver = productImageUrlResolver;
@@ -649,14 +649,16 @@ namespace MerchForge.api.Repositories.Implementations
             return info is null
                 ? null
                 : (info.BusinessDomainId, info.DomainName, info.WebsiteTemplateId, info.WebsiteTemplateName,
-                    info.WebsiteTemplateLabel, info.WebsiteTemplatePreviewImageUrl, info.WebsiteTemplateChosenAt);
+                    info.WebsiteTemplateLabel,
+                    _productImageUrlResolver.ToPublicUrl(info.WebsiteTemplatePreviewImageUrl),
+                    info.WebsiteTemplateChosenAt);
         }
 
         public async Task<List<WebsiteTemplateOptionResponse>> GetActiveWebsiteTemplatesByDomainAsync(
             Guid businessDomainId,
             CancellationToken cancellationToken = default)
         {
-            return await _db.WebsiteTemplates
+            var options = await _db.WebsiteTemplates
                 .AsNoTracking()
                 .Where(t => t.BusinessDomainId == businessDomainId && t.IsActive)
                 .OrderBy(t => t.DisplayOrder)
@@ -670,6 +672,13 @@ namespace MerchForge.api.Repositories.Implementations
                     PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                 })
                 .ToListAsync(cancellationToken);
+
+            foreach (var option in options)
+            {
+                option.PreviewImageUrl = _productImageUrlResolver.ToPublicUrl(option.PreviewImageUrl);
+            }
+
+            return options;
         }
 
         public async Task<WebsiteTemplateOptionResponse?> GetActiveWebsiteTemplateInDomainAsync(
@@ -677,7 +686,7 @@ namespace MerchForge.api.Repositories.Implementations
             Guid businessDomainId,
             CancellationToken cancellationToken = default)
         {
-            return await _db.WebsiteTemplates
+            var option = await _db.WebsiteTemplates
                 .AsNoTracking()
                 .Where(t => t.Id == websiteTemplateId && t.BusinessDomainId == businessDomainId && t.IsActive)
                 .Select(t => new WebsiteTemplateOptionResponse
@@ -689,6 +698,13 @@ namespace MerchForge.api.Repositories.Implementations
                     PreviewWebsiteUrl = t.PreviewWebsiteUrl,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
+
+            if (option is not null)
+            {
+                option.PreviewImageUrl = _productImageUrlResolver.ToPublicUrl(option.PreviewImageUrl);
+            }
+
+            return option;
         }
 
         // ---- inventory ----

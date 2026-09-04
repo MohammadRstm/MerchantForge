@@ -14,11 +14,11 @@ namespace MerchForge.api.Repositories.Implementations;
 public class OrderRepository : IOrderRepository
 {
     private readonly MerchForgeDbContext _db;
-    private readonly IProductImageUrlResolver _productImageUrlResolver;
+    private readonly IStoredImageUrlResolver _productImageUrlResolver;
 
     public OrderRepository(
         MerchForgeDbContext db,
-        IProductImageUrlResolver productImageUrlResolver)
+        IStoredImageUrlResolver productImageUrlResolver)
     {
         _db = db;
         _productImageUrlResolver = productImageUrlResolver;

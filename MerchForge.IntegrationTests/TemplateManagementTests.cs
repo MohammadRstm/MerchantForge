@@ -1,10 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using Microsoft.EntityFrameworkCore;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -64,7 +65,7 @@ public class TemplateManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         db.WebsiteTemplates.Add(template);
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var (items, _) = await repository.GetWebsiteTemplatesAsync(
             new WebsiteTemplatesQueryRequest { Search = marker, PageSize = 50 });
 
@@ -92,7 +93,7 @@ public class TemplateManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         business.WebsiteTemplateChosenAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var (byDomain, _) = await repository.GetWebsiteTemplatesAsync(
             new WebsiteTemplatesQueryRequest { BusinessDomainId = CatalogDatabaseFixture.RestaurantDomainId, PageSize = 200 });
@@ -126,7 +127,7 @@ public class TemplateManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         db.WebsiteTemplateRequests.AddRange(MakeRequest(template.Id), MakeRequest(template.Id));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var (items, _) = await repository.GetWebsiteTemplatesAsync(
             new WebsiteTemplatesQueryRequest { Search = template.Name, PageSize = 50 });
 
@@ -146,7 +147,7 @@ public class TemplateManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         business.WebsiteTemplateChosenAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var stats = await repository.GetTemplateStatsAsync();
 
         stats.TotalTemplates.Should().BeGreaterThanOrEqualTo(1);
@@ -167,7 +168,7 @@ public class TemplateManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         business.WebsiteTemplateChosenAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var summary = await repository.GetDomainTemplateSummaryAsync();
 
         var fashion = summary.Should().Contain(s => s.BusinessDomainId == CatalogDatabaseFixture.FashionDomainId).Which;
@@ -187,7 +188,7 @@ public class TemplateManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         db.WebsiteTemplateRequests.AddRange(MakeRequest(popular.Id), MakeRequest(popular.Id), MakeRequest(rare.Id));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var ranked = await repository.GetRequestedTemplatesAsync(50);
 
         var popularEntry = ranked.Should().Contain(r => r.Key == popular.Label).Which;
@@ -203,7 +204,7 @@ public class TemplateManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         db.WebsiteTemplates.Add(template);
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var tracked = await repository.GetTrackedWebsiteTemplateAsync(template.Id);
         tracked.Should().NotBeNull();
         tracked!.IsActive = true;

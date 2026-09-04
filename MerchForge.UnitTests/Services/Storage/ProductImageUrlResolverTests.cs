@@ -144,6 +144,30 @@ public class ProductImageUrlResolverTests
         _resolver.ToStorageKey(legacy, BusinessId).Should().Be(legacy);
     }
 
+    /// <summary>
+    /// Images carried over from local disk that no product ever claimed - referenced
+    /// only by an edit job - land under legacy-images, because inventing a product id
+    /// would put a lie in the part of the key that is meant to be trustworthy. They
+    /// still have to be editable afterwards.
+    /// </summary>
+    [Fact]
+    public void ToStorageKey_accepts_a_carried_over_image_with_no_product()
+    {
+        var key = $"businesses/{BusinessId}/legacy-images/{Guid.NewGuid()}.jpg";
+
+        _resolver.ToStorageKey(key, BusinessId).Should().Be(key);
+    }
+
+    [Fact]
+    public void ToStorageKey_rejects_a_carried_over_image_from_another_business()
+    {
+        var key = $"businesses/{OtherBusinessId}/legacy-images/{Guid.NewGuid()}.jpg";
+
+        var act = () => _resolver.ToStorageKey(key, BusinessId);
+
+        act.Should().Throw<InvalidProductImageException>();
+    }
+
     // ---- ToStorageKey: rejections ----
 
     [Fact]

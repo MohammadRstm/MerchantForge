@@ -10,6 +10,7 @@ namespace MerchForge.api.Services.Storage
         private const string BusinessesSegment = "businesses";
         private const string ProductsSegment = "products";
         private const string ImagesSegment = "images";
+        private const string LegacyImagesSegment = "legacy-images";
 
         /// <summary>
         /// Mirrors the extensions ProductImageService derives from a verified byte
@@ -101,20 +102,30 @@ namespace MerchForge.api.Services.Storage
 
             var segments = key.Split('/');
 
-            if (segments.Length != 6
-                || segments[0] != BusinessesSegment
-                || segments[2] != ProductsSegment
-                || segments[4] != ImagesSegment)
+            if (segments.Length < 2 || segments[0] != BusinessesSegment || !Guid.TryParse(segments[1], out businessId))
             {
                 return false;
             }
 
-            if (!Guid.TryParse(segments[1], out businessId) || !Guid.TryParse(segments[3], out _))
+            return segments.Length switch
             {
-                return false;
-            }
+                // businesses/{businessId}/products/{productId}/images/{imageId}.{ext}
+                6 => segments[2] == ProductsSegment
+                    && segments[4] == ImagesSegment
+                    && Guid.TryParse(segments[3], out _)
+                    && IsImageFileName(segments[5]),
 
-            var fileName = segments[5];
+                // businesses/{businessId}/legacy-images/{imageId}.{ext} - images carried
+                // over from the local-disk era that no product ever claimed, so there
+                // was nothing truthful to nest them under. Nothing new is written here.
+                4 => segments[2] == LegacyImagesSegment && IsImageFileName(segments[3]),
+
+                _ => false,
+            };
+        }
+
+        private static bool IsImageFileName(string fileName)
+        {
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
 
             return AllowedExtensions.Contains(extension)

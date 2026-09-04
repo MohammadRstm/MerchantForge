@@ -31,6 +31,7 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IFeatureCreditService _featureCreditService;
         private readonly IProductImageUrlResolver _productImageUrlResolver;
+        private readonly IProductImageService _productImageService;
 
         /// <summary>
         /// Pending -> Confirmed | Cancelled; Confirmed -> Shipped | Cancelled;
@@ -55,9 +56,11 @@ namespace MerchForge.api.Services.BusinessDashboard
             IProductReviewRepository productReviewRepository,
             IBackgroundJobClient backgroundJobClient,
             IFeatureCreditService featureCreditService,
-            IProductImageUrlResolver productImageUrlResolver)
+            IProductImageUrlResolver productImageUrlResolver,
+            IProductImageService productImageService)
         {
             _productImageUrlResolver = productImageUrlResolver;
+            _productImageService = productImageService;
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
@@ -414,10 +417,31 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new ProductHasOrdersException();
             }
 
-            // The image file is intentionally left on disk. Deleting it here would be
-            // wrong if the same URL was ever reused, and orphaned files are a cleanup
-            // concern rather than a correctness one.
+            // Collected before the rows go, since that is the only place the keys are
+            // recorded. ImageUrl is included because it is denormalised from the main
+            // image and can, on older products, be the only reference there is.
+            var imageKeys = product.Images
+                .Select(i => i.Url)
+                .Append(product.ImageUrl)
+                .Where(url => !string.IsNullOrWhiteSpace(url))
+                .Select(url => url!)
+                .Distinct()
+                .ToList();
+
             await _businessDashboardRepository.DeleteProductAsync(product, cancellationToken);
+
+            // After the commit, and never allowed to fail the delete. Removing objects
+            // first would risk a live row pointing at a missing image if the commit
+            // then failed; this way the worst case is an orphaned object, which costs
+            // storage rather than correctness. Images still on local disk are left
+            // alone - clearing those out is a separate, deliberate step.
+            //
+            // Only reached for a product with no order items, which the check above
+            // already guarantees. That matters: OrderItem.ProductImageUrl is a snapshot
+            // taken at order time, so deleting an image a past order still points at
+            // would break its receipt. For the same reason, replacing a product's
+            // gallery deliberately does not clean up the images it dropped.
+            await _productImageService.DeleteManyAsync(businessId, imageKeys, cancellationToken);
         }
 
         public async Task<ProductCatalogOverviewResponse> GetProductCatalogOverviewAsync(

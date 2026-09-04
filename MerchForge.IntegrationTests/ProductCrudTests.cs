@@ -52,9 +52,15 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    private BusinessDashboardService CreateService(out api.Data.MerchForgeDbContext db)
+    private BusinessDashboardService CreateService(out api.Data.MerchForgeDbContext db) =>
+        CreateService(out db, out _);
+
+    private BusinessDashboardService CreateService(
+        out api.Data.MerchForgeDbContext db,
+        out FakeProductImageService images)
     {
         db = _fixture.CreateContext();
+        images = new FakeProductImageService();
 
         var featureCreditRepo = new FeatureCreditRepository(db);
         var subscriptionRepository = new SubscriptionRepository(db);
@@ -69,7 +75,8 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
             new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
             featureCreditService,
-            TestImageUrls.Resolver);
+            TestImageUrls.Resolver,
+            images);
     }
 
     /// <summary>
@@ -393,6 +400,41 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
 
         var act = async () => await service.GetProductAsync(_business.Id, created.Id);
         await act.Should().ThrowAsync<ProductNotFoundException>();
+    }
+
+    /// <summary>
+    /// Storage cleanup happens after the rows are gone, and only for a product with no
+    /// orders - which DeleteProductAsync already refuses. That ordering is what keeps a
+    /// failed commit from stranding a live row against a deleted image.
+    /// </summary>
+    [Fact]
+    public async Task Deleting_a_product_cleans_up_its_stored_images()
+    {
+        var service = CreateService(out var db, out var images);
+        await using var _ = db;
+
+        var created = await service.CreateProductAsync(
+            _business.Id,
+            Request(CatalogDatabaseFixture.ShoesCategoryId,
+                imageUrl: TestImageUrls.ImageKey(_business.Id, "doomed")));
+
+        await service.DeleteProductAsync(_business.Id, created.Id);
+
+        images.DeletedValues.Should().Contain(TestImageUrls.ImageKey(_business.Id, "doomed"));
+    }
+
+    [Fact]
+    public async Task A_product_that_cannot_be_deleted_keeps_its_images()
+    {
+        var service = CreateService(out var db, out var images);
+        await using var _ = db;
+
+        var mine = await service.CreateProductAsync(_business.Id, Request(CatalogDatabaseFixture.ShoesCategoryId));
+
+        var delete = async () => await service.DeleteProductAsync(_rivalBusiness.Id, mine.Id);
+        await delete.Should().ThrowAsync<ProductNotFoundException>();
+
+        images.DeletedValues.Should().BeEmpty("a refused delete must not take the images with it");
     }
 
     [Fact]

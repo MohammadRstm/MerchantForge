@@ -81,7 +81,8 @@ public class SubscriptionRenewalTests : IClassFixture<CatalogDatabaseFixture>, I
             new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
             featureCreditService,
-            TestImageUrls.Resolver);
+            TestImageUrls.Resolver,
+            new FakeProductImageService());
     }
 
     [Fact]

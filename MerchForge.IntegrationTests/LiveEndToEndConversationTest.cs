@@ -77,7 +77,8 @@ public class LiveEndToEndConversationTest
             new ProductReviewRepository(context),
             new FakeBackgroundJobClient(),
             featureCreditService,
-            TestImageUrls.Resolver);
+            TestImageUrls.Resolver,
+            new FakeProductImageService());
 
         var transcription = new FakeAiTranscriptionService();
 

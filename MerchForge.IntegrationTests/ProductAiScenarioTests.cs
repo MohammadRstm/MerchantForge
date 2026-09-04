@@ -110,7 +110,8 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
             featureCreditService,
-            TestImageUrls.Resolver);
+            TestImageUrls.Resolver,
+            new FakeProductImageService());
 
         return new Harness
         {

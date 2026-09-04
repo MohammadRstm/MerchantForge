@@ -418,25 +418,139 @@ var deleted = 0;
 
 if (deleteLocal)
 {
-    foreach (var path in uploaded.Keys)
+    // Everything above proved the objects exist to an authenticated caller. A browser
+    // fetches them anonymously from the public origin, which is a different code path
+    // and a different permission. Checking it here rather than earlier is deliberate:
+    // this is the only step that cannot be undone.
+    var publicBaseUrl = Require("R2:PublicBaseUrl").TrimEnd('/');
+
+    // Sampled from what the database actually points at now, not from this run's
+    // uploads - so the check still works when the migration happened earlier and this
+    // is a standalone cleanup pass.
+    var liveKeys = await db.ProductImages
+        .AsNoTracking()
+        .Where(i => !i.Url.StartsWith("/"))
+        .Select(i => i.Url)
+        .Take(5)
+        .ToListAsync();
+
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+
+    var unreachable = new List<string>();
+
+    foreach (var key in liveKeys)
     {
-        var absolute = Path.Combine(webRoot, path.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+        var url = $"{publicBaseUrl}/{key}";
 
         try
         {
-            File.Delete(absolute);
-            deleted++;
+            var response = await http.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                unreachable.Add($"{(int)response.StatusCode} {response.StatusCode}  {url}");
+            }
         }
         catch (Exception ex)
         {
-            // The row already points at the bucket, so a file left behind is only
-            // clutter. Worth reporting, not worth failing over.
-            Console.WriteLine($"    could not delete {path}: {ex.Message}");
+            unreachable.Add($"{ex.GetType().Name}: {ex.Message}  {url}");
         }
     }
 
-    Console.WriteLine($"{deleted} local file(s) deleted.");
+    if (unreachable.Count > 0)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"Refusing to delete: {unreachable.Count} of {liveKeys.Count} sampled objects are not");
+        Console.WriteLine("readable from the public origin, so removing the local copies would leave images");
+        Console.WriteLine("broken in every browser.");
+        unreachable.ForEach(u => Console.WriteLine($"    {u}"));
+        Console.WriteLine();
+        Console.WriteLine("Check that Public Development URL is enabled on the bucket and that");
+        Console.WriteLine("R2:PublicBaseUrl matches it. The database is already migrated, so this command");
+        Console.WriteLine("can simply be run again once that is fixed.");
+
+        Report();
+        return 1;
+    }
+
+    Console.WriteLine($"public read  ok ({liveKeys.Count} sampled)");
+
+    // What the database still points at on disk. Anything under the upload folders
+    // that is NOT in this set is unreachable through the application, because every
+    // row that used to name it now names an object in the bucket.
+    var stillReferenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    void Keep(string? value)
+    {
+        if (IsLocal(value))
+        {
+            stillReferenced.Add(Path.GetFullPath(Path.Combine(
+                webRoot, value!.TrimStart('/').Replace('/', Path.DirectorySeparatorChar))));
+        }
+    }
+
+    foreach (var url in await db.ProductImages.AsNoTracking().Select(i => i.Url).ToListAsync()) Keep(url);
+    foreach (var url in await db.Products.AsNoTracking().Select(p => p.ImageUrl).ToListAsync()) Keep(url);
+    foreach (var url in await db.OrderItems.AsNoTracking().Select(i => i.ProductImageUrl).ToListAsync()) Keep(url);
+    foreach (var url in await db.WebsiteTemplates.AsNoTracking().Select(t => t.PreviewImageUrl).ToListAsync()) Keep(url);
+
+    foreach (var d in await db.ProductDrafts.AsNoTracking().Select(d => new { d.OriginalImageUrl, d.ProcessedImageUrl }).ToListAsync())
+    {
+        Keep(d.OriginalImageUrl);
+        Keep(d.ProcessedImageUrl);
+    }
+
+    foreach (var job in await db.ImageEditJobs.AsNoTracking().Select(j => new { j.OutputImageUrl, Inputs = j.InputImageUrls }).ToListAsync())
+    {
+        Keep(job.OutputImageUrl);
+
+        foreach (var input in ReadUrls(job.Inputs))
+        {
+            Keep(input);
+        }
+    }
+
+    // Only the folders that moved. Logos and the rest of website customization stay
+    // on disk, so their folders are never walked.
+    var migratedFolders = new[] { "uploads/products", "uploads/website-templates" };
+    var kept = 0;
+
+    foreach (var folder in migratedFolders)
+    {
+        var absoluteFolder = Path.Combine(webRoot, folder.Replace('/', Path.DirectorySeparatorChar));
+
+        if (!Directory.Exists(absoluteFolder))
+        {
+            continue;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(absoluteFolder, "*", SearchOption.AllDirectories))
+        {
+            if (stillReferenced.Contains(Path.GetFullPath(file)))
+            {
+                // A row that could not be migrated still names this file, so it is the
+                // only copy there is.
+                kept++;
+                continue;
+            }
+
+            try
+            {
+                File.Delete(file);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                // Its row already points at the bucket, so a file left behind is only
+                // clutter. Worth reporting, not worth failing over.
+                Console.WriteLine($"    could not delete {file}: {ex.Message}");
+            }
+        }
+    }
+
+    Console.WriteLine($"{deleted} local file(s) deleted, {kept} kept because a row still points at them.");
 }
+
 else
 {
     Console.WriteLine("Local files left in place. Re-run with --delete-local once you are satisfied.");

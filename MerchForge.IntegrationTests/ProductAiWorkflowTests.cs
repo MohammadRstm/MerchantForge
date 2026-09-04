@@ -77,7 +77,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var transcription = new FakeAiTranscriptionService();
         var logger = new RecordingAiInteractionLogger();
 
-        var dashboardRepository = new BusinessDashboardRepository(db);
+        var dashboardRepository = new BusinessDashboardRepository(db, TestImageUrls.Resolver);
 
         var featureCreditRepo = new FeatureCreditRepository(db);
         var subscriptionRepository = new SubscriptionRepository(db);
@@ -88,10 +88,12 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
             dashboardRepository,
             subscriptionRepository,
             new WebsiteTemplateRequestRepository(db),
-            new OrderRepository(db),
+            new OrderRepository(db, TestImageUrls.Resolver),
             new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
-            featureCreditService);
+            featureCreditService,
+            TestImageUrls.Resolver,
+            new FakeProductImageService());
 
         return new Harness
         {
@@ -107,7 +109,8 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
                 transcription,
                 new FakeProductImageService(),
                 logger,
-                featureCreditService),
+                featureCreditService,
+                TestImageUrls.Resolver),
         };
     }
 
@@ -646,7 +649,9 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var result = await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
 
-        result.OriginalImageUrl.Should().Be("/uploads/products/uploaded.png");
+        result.OriginalImageUrl.Should().Be(
+            TestImageUrls.PublicImageUrl(_business.Id, started.Id, "uploaded"),
+            "the stored key is resolved to a loadable url on the way out");
     }
 
     [Fact]
@@ -657,7 +662,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var result = await h.Service.ResolveImageModificationAsync(_business.Id, _userId, started, approved: true);
 
-        result.OriginalImageUrl.Should().Be("/uploads/products/edited.png");
+        result.OriginalImageUrl.Should().Be(TestImageUrls.PublicImageUrl(_business.Id, started, "edited"));
         result.ProcessedImageUrl.Should().BeNull();
         result.Status.Should().Be(nameof(ProductDraftStatus.CollectingInformation));
     }
@@ -670,7 +675,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var result = await h.Service.ResolveImageModificationAsync(_business.Id, _userId, started, approved: false);
 
-        result.OriginalImageUrl.Should().Be("/uploads/products/uploaded.png");
+        result.OriginalImageUrl.Should().Be(TestImageUrls.PublicImageUrl(_business.Id, started, "uploaded"));
         result.ProcessedImageUrl.Should().BeNull("a rejected edit is discarded, not kept around to be confused later");
         result.ImageModificationPrompt.Should().BeNull();
     }
@@ -700,7 +705,7 @@ public class ProductAiWorkflowTests : IClassFixture<CatalogDatabaseFixture>, IAs
         await h.Service.AttachImageAsync(_business.Id, _userId, started.Id, FakeFile("p.png", "image/png"));
 
         var draft = await h.Db.ProductDrafts.FirstAsync(x => x.Id == started.Id);
-        draft.ProcessedImageUrl = "/uploads/products/edited.png";
+        draft.ProcessedImageUrl = TestImageUrls.ImageKey(_business.Id, started.Id, "edited");
         draft.ImageModificationPrompt = "Make the background neutral";
         draft.Status = ProductDraftStatus.WaitingForImageApproval;
         await h.Db.SaveChangesAsync();

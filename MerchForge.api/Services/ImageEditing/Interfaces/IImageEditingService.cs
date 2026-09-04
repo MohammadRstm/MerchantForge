@@ -1,4 +1,4 @@
-using MerchForge.api.DTOs.ImageEditing;
+﻿using MerchForge.api.DTOs.ImageEditing;
 
 namespace MerchForge.api.Services.ImageEditing.Interfaces;
 
@@ -10,13 +10,16 @@ public interface IImageEditingService
     /// the result. imageUrls are urls a prior upload already returned - ownership is
     /// re-verified here, nothing is trusted from the request alone. The instruction
     /// is either typed (prompt) or spoken (audioPrompt, transcribed before use) -
-    /// exactly one is expected. Synchronous - there's no conversation to resume, so
+    /// exactly one is expected. productId is the product the edited result belongs
+    /// to, which is what nests the output image alongside the inputs it came from.
+    /// Synchronous - there's no conversation to resume, so
     /// the whole call either lands as a Completed job or throws, and a Failed job is
     /// recorded either way for audit.
     /// </summary>
     Task<ImageEditJobResponse> EditAsync(
         Guid businessId,
         Guid userId,
+        Guid productId,
         List<string> imageUrls,
         string? prompt,
         IFormFile? audioPrompt,

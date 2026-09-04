@@ -1,4 +1,4 @@
-using MerchForge.api.Data;
+﻿using MerchForge.api.Data;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Enums;
@@ -6,6 +6,7 @@ using MerchForge.api.Exceptions.Orders;
 using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace MerchForge.api.Repositories.Implementations;
@@ -13,10 +14,14 @@ namespace MerchForge.api.Repositories.Implementations;
 public class OrderRepository : IOrderRepository
 {
     private readonly MerchForgeDbContext _db;
+    private readonly IStoredImageUrlResolver _productImageUrlResolver;
 
-    public OrderRepository(MerchForgeDbContext db)
+    public OrderRepository(
+        MerchForgeDbContext db,
+        IStoredImageUrlResolver productImageUrlResolver)
     {
         _db = db;
+        _productImageUrlResolver = productImageUrlResolver;
     }
 
     // ---- storefront ----
@@ -165,7 +170,7 @@ public class OrderRepository : IOrderRepository
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
-        return await _db.Orders
+        var order = await _db.Orders
             .AsNoTracking()
             .Where(o => o.Id == orderId && o.BusinessId == businessId)
             .Select(o => new StorefrontOrderResponse
@@ -198,6 +203,16 @@ public class OrderRepository : IOrderRepository
                 }).ToList(),
             })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (order is not null)
+        {
+            foreach (var item in order.Items)
+            {
+                item.ProductImageUrl = _productImageUrlResolver.ToPublicUrl(item.ProductImageUrl);
+            }
+        }
+
+        return order;
     }
 
     // ---- dashboard ----
@@ -264,7 +279,7 @@ public class OrderRepository : IOrderRepository
         Guid orderId,
         CancellationToken cancellationToken = default)
     {
-        return await _db.Orders
+        var order = await _db.Orders
             .AsNoTracking()
             .Where(o => o.Id == orderId && o.BusinessId == businessId)
             .Select(o => new BusinessOrderDetailResponse
@@ -307,6 +322,16 @@ public class OrderRepository : IOrderRepository
                         .Max(o2 => (DateTime?)o2.CreatedAt),
             })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (order is not null)
+        {
+            foreach (var item in order.Items)
+            {
+                item.ProductImageUrl = _productImageUrlResolver.ToPublicUrl(item.ProductImageUrl);
+            }
+        }
+
+        return order;
     }
 
     public async Task<Order?> GetTrackedOrderAsync(

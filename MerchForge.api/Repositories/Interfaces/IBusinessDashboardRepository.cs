@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.Models;
@@ -88,6 +88,18 @@ namespace MerchForge.api.Repositories.Interfaces
 
         Task<Product> CreateProductAsync(
             Product product,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Which business owns a product, or null when no product has that id.
+        ///
+        /// Unscoped on purpose. Every other product read here is filtered to one
+        /// business; this one exists to answer the opposite question - whether an id
+        /// supplied by a client is already spoken for by somebody else - which a
+        /// scoped query cannot distinguish from the id simply not existing yet.
+        /// </summary>
+        Task<Guid?> GetProductOwnerBusinessIdAsync(
+            Guid productId,
             CancellationToken cancellationToken = default);
 
         /// <summary>Loads a tracked product scoped to the business, for update/delete.</summary>

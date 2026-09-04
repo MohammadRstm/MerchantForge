@@ -95,7 +95,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var transcription = new FakeAiTranscriptionService();
         var logger = new RecordingAiInteractionLogger();
 
-        var repo = new BusinessDashboardRepository(db);
+        var repo = new BusinessDashboardRepository(db, TestImageUrls.Resolver);
 
         var featureCreditRepo = new FeatureCreditRepository(db);
         var subscriptionRepository = new SubscriptionRepository(db);
@@ -106,10 +106,12 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             repo,
             subscriptionRepository,
             new WebsiteTemplateRequestRepository(db),
-            new OrderRepository(db),
+            new OrderRepository(db, TestImageUrls.Resolver),
             new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
-            featureCreditService);
+            featureCreditService,
+            TestImageUrls.Resolver,
+            new FakeProductImageService());
 
         return new Harness
         {
@@ -119,7 +121,8 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
             Logger = logger,
             Service = new ProductAiService(
                 new ProductDraftRepository(db), repo, dashboard,
-                ai, transcription, new FakeProductImageService(), logger, featureCreditService),
+                ai, transcription, new FakeProductImageService(), logger, featureCreditService,
+                TestImageUrls.Resolver),
         };
     }
 
@@ -503,7 +506,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var approved = await h.Service.ResolveImageModificationAsync(_fashion.Id, _ownerA, d, approved: true);
 
-        approved.OriginalImageUrl.Should().Be("/uploads/products/edited.png");
+        approved.OriginalImageUrl.Should().Be(TestImageUrls.PublicImageUrl(_fashion.Id, d, "edited"));
         approved.Status.Should().Be(nameof(ProductDraftStatus.CollectingInformation));
 
         // Approving a picture is not approving a product.
@@ -551,7 +554,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         var rejected = await h.Service.ResolveImageModificationAsync(_fashion.Id, _ownerA, d, approved: false);
 
-        rejected.OriginalImageUrl.Should().Be("/uploads/products/uploaded.png");
+        rejected.OriginalImageUrl.Should().Be(TestImageUrls.PublicImageUrl(_fashion.Id, d, "uploaded"));
         rejected.ProcessedImageUrl.Should().BeNull();
         rejected.ImageModificationPrompt.Should().BeNull();
 
@@ -926,7 +929,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         // that — so it's simulated the same way anything outside the chat turn would
         // arrive: written straight onto the draft).
         var draft = await h.Db.ProductDrafts.FirstAsync(x => x.Id == d.Id);
-        draft.ProcessedImageUrl = "/uploads/products/edited.png";
+        draft.ProcessedImageUrl = TestImageUrls.ImageKey(_fashion.Id, d.Id, "edited");
         draft.ImageModificationPrompt = "Replace the background with a clean white studio backdrop.";
         draft.Status = ProductDraftStatus.WaitingForImageApproval;
         await h.Db.SaveChangesAsync();
@@ -938,7 +941,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         // "Looks good." — image only.
         var imageApproved = await h.Service.ResolveImageModificationAsync(_fashion.Id, _ownerA, d.Id, approved: true);
-        imageApproved.OriginalImageUrl.Should().Be("/uploads/products/edited.png");
+        imageApproved.OriginalImageUrl.Should().Be(TestImageUrls.PublicImageUrl(_fashion.Id, d.Id, "edited"));
 
         await using (var mid = _fixture.CreateContext())
         {
@@ -951,7 +954,8 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
 
         product.Title.Should().Be("Black Cotton Hoodie");
         product.Price.Should().Be(55m, "the correction, not the original price");
-        product.ImageUrl.Should().Be("/uploads/products/edited.png", "the approved image");
+        product.ImageUrl.Should().Be(
+            TestImageUrls.PublicImageUrl(_fashion.Id, d.Id, "edited"), "the approved image");
         product.Metadata!.RootElement.GetProperty("sizes")
             .EnumerateArray().Select(e => e.GetString()).Should().Equal(["M", "L", "XL"]);
 
@@ -1131,7 +1135,7 @@ public class ProductAiScenarioTests : IClassFixture<CatalogDatabaseFixture>, IAs
         var d = await ReachReviewAsync(h);
 
         var draft = await h.Db.ProductDrafts.FirstAsync(x => x.Id == d);
-        draft.ProcessedImageUrl = "/uploads/products/edited.png";
+        draft.ProcessedImageUrl = TestImageUrls.ImageKey(_fashion.Id, d, "edited");
         draft.ImageModificationPrompt = "Make the background white.";
         draft.Status = ProductDraftStatus.WaitingForImageApproval;
         await h.Db.SaveChangesAsync();

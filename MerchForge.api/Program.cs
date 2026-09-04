@@ -1,4 +1,5 @@
 ﻿using FluentValidation;
+using Amazon.S3;
 using Hangfire;
 using Hangfire.MySql;
 using MerchForge.api.Authorization;
@@ -35,6 +36,16 @@ using MerchForge.api.Services.ImageEditing.Interfaces;
 using MerchForge.api.Services.ImageSuggestion;
 using MerchForge.api.Services.ImageSuggestion.Interfaces;
 using MerchForge.api.Services.Invitation;
+using MerchForge.api.Services.Images;
+using MerchForge.api.Services.Images.interfaces;
+using MerchForge.api.Services.Storage;
+using MerchForge.api.Services.Storage.interfaces;
+using Microsoft.Extensions.Options;
+// Aliased rather than importing Amazon.Runtime wholesale: that namespace
+// has its own ErrorType, which collides with MerchForge.api.Enums.ErrorType.
+using BasicAWSCredentials = Amazon.Runtime.BasicAWSCredentials;
+using RequestChecksumCalculation = Amazon.Runtime.RequestChecksumCalculation;
+using ResponseChecksumValidation = Amazon.Runtime.ResponseChecksumValidation;
 using MerchForge.api.Services.Invitation.interfaces;
 using MerchForge.api.Services.AI;
 using MerchForge.api.Services.AI.Interfaces;
@@ -458,6 +469,54 @@ builder.Services
 builder.Services
     .AddOptions<WebsiteCustomizationImageOptions>()
     .Bind(builder.Configuration.GetSection(WebsiteCustomizationImageOptions.SectionName));
+
+// Object storage (Cloudflare R2), where product images live. Unlike the three
+// options blocks above this one is validated on start: the others fall back to
+// sensible local defaults, whereas an unbound R2 section would only surface as a
+// signature failure on the first upload.
+builder.Services
+    .AddOptions<R2Options>()
+    .Bind(builder.Configuration.GetSection(R2Options.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// AmazonS3Client is thread-safe and pools its connections, so one instance for the
+// process. Credentials are read from configuration here and nowhere else.
+builder.Services.AddSingleton<IAmazonS3>(provider =>
+{
+    var r2 = provider.GetRequiredService<IOptions<R2Options>>().Value;
+
+    var config = new AmazonS3Config
+    {
+        ServiceURL = r2.Endpoint,
+
+        // R2 is one global namespace with no regions, but SigV4 still needs a region
+        // in the signature and Cloudflare specifies "auto".
+        AuthenticationRegion = "auto",
+        ForcePathStyle = true,
+
+        // R2 rejects the flexible checksums the v4 SDK adds to every request by
+        // default. WHEN_REQUIRED keeps them only for the operations that genuinely
+        // cannot work without one.
+        RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+        ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
+    };
+
+    return new AmazonS3Client(
+        new BasicAWSCredentials(r2.AccessKeyId, r2.SecretAccessKey),
+        config);
+});
+
+builder.Services.AddScoped<IObjectStorage, CloudflareR2ObjectStorage>();
+builder.Services.AddScoped<IStoredImageUrlResolver, StoredImageUrlResolver>();
+builder.Services.AddScoped<IProductImageUrlResolver, ProductImageUrlResolver>();
+
+// Shrinks uploads before they are stored. Stateless, so a singleton.
+builder.Services.AddSingleton<IImageOptimizer, SkiaImageOptimizer>();
+
+builder.Services
+    .AddOptions<ImageOptimizationOptions>()
+    .Bind(builder.Configuration.GetSection(ImageOptimizationOptions.SectionName));
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();

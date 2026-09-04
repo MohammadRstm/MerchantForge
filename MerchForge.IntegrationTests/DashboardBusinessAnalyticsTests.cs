@@ -1,9 +1,10 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using Microsoft.EntityFrameworkCore;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -69,7 +70,7 @@ public class DashboardBusinessAnalyticsTests : IClassFixture<CatalogDatabaseFixt
 
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var (items, _) = await repository.GetBusinessesAsync(new BusinessesQueryRequest { PageSize = 50 });
 
@@ -89,7 +90,7 @@ public class DashboardBusinessAnalyticsTests : IClassFixture<CatalogDatabaseFixt
     public async Task Business_list_reports_no_plan_info_when_no_subscription_exists()
     {
         await using var db = _fixture.CreateContext();
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var (items, _) = await repository.GetBusinessesAsync(new BusinessesQueryRequest { PageSize = 50 });
 
@@ -103,7 +104,7 @@ public class DashboardBusinessAnalyticsTests : IClassFixture<CatalogDatabaseFixt
     public async Task Platform_revenue_is_grouped_by_currency_and_excludes_cancelled_orders()
     {
         await using var db = _fixture.CreateContext();
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         // The fixture's database is shared across every test method in this class, so
         // other tests' orders are already in it - assert the delta this test's own
@@ -135,7 +136,7 @@ public class DashboardBusinessAnalyticsTests : IClassFixture<CatalogDatabaseFixt
     public async Task CountOrdersAsync_excludes_cancelled_orders_platform_wide()
     {
         await using var db = _fixture.CreateContext();
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var before = await repository.CountOrdersAsync();
 
@@ -180,7 +181,7 @@ public class DashboardBusinessAnalyticsTests : IClassFixture<CatalogDatabaseFixt
 
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var (items, totalCount) = await repository.GetCustomersAsync(
             new CustomersQueryRequest { BusinessId = _businessWithOrders.Id, PageSize = 50 });

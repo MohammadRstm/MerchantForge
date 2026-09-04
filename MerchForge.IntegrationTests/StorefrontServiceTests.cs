@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.BusinessDashboard;
@@ -6,6 +6,7 @@ using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Services.Storefront;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -107,7 +108,7 @@ public class StorefrontServiceTests : IClassFixture<CatalogDatabaseFixture>, IAs
     private StorefrontService CreateService(out MerchForgeDbContextScope scope)
     {
         scope = new MerchForgeDbContextScope(_fixture.CreateContext());
-        return new StorefrontService(new StorefrontRepository(scope.Db), new OrderRepository(scope.Db));
+        return new StorefrontService(new StorefrontRepository(scope.Db, TestImageUrls.Resolver), new OrderRepository(scope.Db, TestImageUrls.Resolver));
     }
 
     private sealed class MerchForgeDbContextScope(api.Data.MerchForgeDbContext db) : IDisposable

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MerchForge.api.DTOs.ImageEditing;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.AI;
@@ -9,6 +9,7 @@ using MerchForge.api.Services.AI.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.ImageEditing.Interfaces;
 using MerchForge.api.Services.Subscription.interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace MerchForge.api.Services.ImageEditing;
@@ -24,6 +25,7 @@ public class ImageEditingService : IImageEditingService
     private readonly IAiTranscriptionService _transcription;
     private readonly IFeatureCreditService _featureCreditService;
     private readonly ILogger<ImageEditingService> _logger;
+    private readonly IStoredImageUrlResolver _productImageUrlResolver;
 
     public ImageEditingService(
         IImageEditJobRepository jobRepository,
@@ -31,8 +33,10 @@ public class ImageEditingService : IImageEditingService
         IProductImageEditingClient editingClient,
         IAiTranscriptionService transcription,
         IFeatureCreditService featureCreditService,
-        ILogger<ImageEditingService> logger)
+        ILogger<ImageEditingService> logger,
+        IStoredImageUrlResolver productImageUrlResolver)
     {
+        _productImageUrlResolver = productImageUrlResolver;
         _jobRepository = jobRepository;
         _imageService = imageService;
         _editingClient = editingClient;
@@ -44,6 +48,7 @@ public class ImageEditingService : IImageEditingService
     public async Task<ImageEditJobResponse> EditAsync(
         Guid businessId,
         Guid userId,
+        Guid productId,
         List<string> imageUrls,
         string? prompt,
         IFormFile? audioPrompt,
@@ -95,8 +100,8 @@ public class ImageEditingService : IImageEditingService
             throw new ImageEditingException("The image editing provider is unavailable right now. Please try again.", ex);
         }
 
-        var outputUrl = await _imageService.SaveAsync(
-            businessId, result.ImageBytes, result.MimeType, cancellationToken);
+        var outputUrl = (await _imageService.SaveAsync(
+            businessId, productId, result.ImageBytes, result.MimeType, cancellationToken)).Key;
 
         // Charged after a successful call, never before - the same reasoning as AI
         // product generation: a failed provider call already returned above without
@@ -188,16 +193,20 @@ public class ImageEditingService : IImageEditingService
             ErrorMessage = error,
         };
 
-    private static ImageEditJobResponse ToResponse(ImageEditJob job) => new()
+    /// <summary>
+    /// Inputs and output are both stored as object keys, so both need resolving before
+    /// the dashboard can render them.
+    /// </summary>
+    private ImageEditJobResponse ToResponse(ImageEditJob job) => new()
     {
         Id = job.Id,
         Status = job.Status.ToString(),
         Prompt = job.Prompt,
         InputImageUrls = job.InputImageUrls.RootElement
             .EnumerateArray()
-            .Select(e => e.GetString()!)
+            .Select(e => _productImageUrlResolver.ToPublicUrl(e.GetString()!))
             .ToList(),
-        OutputImageUrl = job.OutputImageUrl,
+        OutputImageUrl = _productImageUrlResolver.ToPublicUrl(job.OutputImageUrl),
         ErrorMessage = job.ErrorMessage,
         CreatedAt = job.CreatedAt,
     };

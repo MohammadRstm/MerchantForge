@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Orders;
@@ -6,6 +6,7 @@ using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using Microsoft.EntityFrameworkCore;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -69,7 +70,7 @@ public class OrderRepositoryTests : IClassFixture<CatalogDatabaseFixture>, IAsyn
     {
         var product = await CreateProductAsync(stockQuantity: 10, price: 20m);
         await using var db = _fixture.CreateContext();
-        var repo = new OrderRepository(db);
+        var repo = new OrderRepository(db, TestImageUrls.Resolver);
 
         var order = await repo.CreateOrderAsync(
             _business.Id, BuildRequest((product.Id, 3)), customerId: null);
@@ -95,7 +96,7 @@ public class OrderRepositoryTests : IClassFixture<CatalogDatabaseFixture>, IAsyn
     {
         var product = await CreateProductAsync(stockQuantity: null);
         await using var db = _fixture.CreateContext();
-        var repo = new OrderRepository(db);
+        var repo = new OrderRepository(db, TestImageUrls.Resolver);
 
         await repo.CreateOrderAsync(_business.Id, BuildRequest((product.Id, 5)), customerId: null);
 
@@ -125,7 +126,7 @@ public class OrderRepositoryTests : IClassFixture<CatalogDatabaseFixture>, IAsyn
         await seed.SaveChangesAsync();
 
         await using var db = _fixture.CreateContext();
-        var repo = new OrderRepository(db);
+        var repo = new OrderRepository(db, TestImageUrls.Resolver);
 
         var act = () => repo.CreateOrderAsync(_business.Id, BuildRequest((foreignProduct.Id, 1)), customerId: null);
 
@@ -137,7 +138,7 @@ public class OrderRepositoryTests : IClassFixture<CatalogDatabaseFixture>, IAsyn
     {
         var product = await CreateProductAsync(stockQuantity: 2);
         await using var db = _fixture.CreateContext();
-        var repo = new OrderRepository(db);
+        var repo = new OrderRepository(db, TestImageUrls.Resolver);
 
         var act = () => repo.CreateOrderAsync(_business.Id, BuildRequest((product.Id, 3)), customerId: null);
 
@@ -154,7 +155,7 @@ public class OrderRepositoryTests : IClassFixture<CatalogDatabaseFixture>, IAsyn
         var insufficient = await CreateProductAsync(stockQuantity: 1);
 
         await using var db = _fixture.CreateContext();
-        var repo = new OrderRepository(db);
+        var repo = new OrderRepository(db, TestImageUrls.Resolver);
 
         var act = () => repo.CreateOrderAsync(
             _business.Id, BuildRequest((affordable.Id, 2), (insufficient.Id, 5)), customerId: null);
@@ -177,7 +178,7 @@ public class OrderRepositoryTests : IClassFixture<CatalogDatabaseFixture>, IAsyn
     {
         var product = await CreateProductAsync(stockQuantity: 10);
         await using var db = _fixture.CreateContext();
-        var repo = new OrderRepository(db);
+        var repo = new OrderRepository(db, TestImageUrls.Resolver);
 
         var order = await repo.CreateOrderAsync(_business.Id, BuildRequest((product.Id, 4)), customerId: null);
 
@@ -212,7 +213,7 @@ public class OrderRepositoryTests : IClassFixture<CatalogDatabaseFixture>, IAsyn
     {
         var product = await CreateProductAsync(stockQuantity: null);
         await using var db = _fixture.CreateContext();
-        var repo = new OrderRepository(db);
+        var repo = new OrderRepository(db, TestImageUrls.Resolver);
 
         var order = await repo.CreateOrderAsync(_business.Id, BuildRequest((product.Id, 2)), customerId: null);
         var tracked = await repo.GetTrackedOrderAsync(_business.Id, order.Id) ?? throw new InvalidOperationException();

@@ -1,4 +1,4 @@
-namespace MerchForge.api.Constants;
+﻿namespace MerchForge.api.Constants;
 
 /// <summary>
 /// The current version of each legal document, stamped onto every new
@@ -18,7 +18,7 @@ public static class LegalDocumentVersions
 {
     public const string TermsOfService = "1.0";
 
-    public const string PrivacyPolicy = "1.0";
+    public const string PrivacyPolicy = "1.1";
 
     public const string AcceptableUse = "1.0";
 

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
@@ -74,13 +74,15 @@ public class SubscriptionRenewalTests : IClassFixture<CatalogDatabaseFixture>, I
         var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService, subscriptionRepository);
 
         return new BusinessDashboardService(
-            new BusinessDashboardRepository(db),
+            new BusinessDashboardRepository(db, TestImageUrls.Resolver),
             subscriptionRepository,
             new WebsiteTemplateRequestRepository(db),
-            new OrderRepository(db),
+            new OrderRepository(db, TestImageUrls.Resolver),
             new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
-            featureCreditService);
+            featureCreditService,
+            TestImageUrls.Resolver,
+            new FakeProductImageService());
     }
 
     [Fact]

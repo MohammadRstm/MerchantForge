@@ -6,6 +6,7 @@ using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.WebsiteTemplateRequests;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.ProductReviews.interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
@@ -41,6 +42,7 @@ namespace MerchForge.api.Controllers
         private readonly IValidator<SubscribeToPlanRequest> _subscribeToPlanValidator;
         private readonly IProductReviewService _productReviewService;
         private readonly IValidator<ProductReviewsQueryRequest> _reviewsQueryValidator;
+        private readonly IProductImageUrlResolver _productImageUrlResolver;
 
         public BusinessDashboardController(
             IBusinessDashboardService businessDashboardService,
@@ -64,9 +66,11 @@ namespace MerchForge.api.Controllers
             IValidator<SaveWebsiteCustomizationDraftRequest> saveWebsiteCustomizationDraftValidator,
             IValidator<SubscribeToPlanRequest> subscribeToPlanValidator,
             IProductReviewService productReviewService,
-            IValidator<ProductReviewsQueryRequest> reviewsQueryValidator)
+            IValidator<ProductReviewsQueryRequest> reviewsQueryValidator,
+            IProductImageUrlResolver productImageUrlResolver)
         {
             _businessDashboardService = businessDashboardService;
+            _productImageUrlResolver = productImageUrlResolver;
             _businessMemberService = businessMemberService;
             _productImageService = productImageService;
             _websiteCustomizationService = websiteCustomizationService;
@@ -273,17 +277,36 @@ namespace MerchForge.api.Controllers
         /// Stores a product image and returns its URL. Separate from saving the
         /// product so the form can show a preview before anything is committed, and
         /// so an image can be replaced without re-sending the rest of the product.
+        ///
+        /// productId is where the image will live inside the business, and does not
+        /// have to exist yet - for a product being created the client picks the id up
+        /// front and sends the same one when it saves. It is not a trust boundary:
+        /// businessId comes from the route the BusinessOwner policy has already
+        /// checked, so the object lands inside this business whatever is passed here,
+        /// and the service separately refuses an id another business already owns.
         /// </summary>
         [HttpPost("products/image")]
         [RequestSizeLimit(6 * 1024 * 1024)]
         public async Task<ActionResult<ProductImageUploadResponse>> UploadProductImage(
             Guid businessId,
+            [FromQuery] Guid productId,
             IFormFile file,
             CancellationToken cancellationToken)
         {
-            var imageUrl = await _productImageService.SaveAsync(businessId, file, cancellationToken);
+            var stored = await _productImageService.SaveAsync(businessId, productId, file, cancellationToken);
 
-            return Ok(new ProductImageUploadResponse { ImageUrl = imageUrl });
+            // The database holds the key; the URL is built here, at the boundary, so
+            // the delivery origin never gets baked into stored data. The client sends
+            // this value straight back on save, where it is turned into a key again.
+            //
+            // Dimensions come from the stored image rather than the uploaded one, which
+            // are not the same thing once an oversized photo has been scaled down.
+            return Ok(new ProductImageUploadResponse
+            {
+                ImageUrl = _productImageUrlResolver.ToPublicUrl(stored.Key),
+                Width = stored.Width,
+                Height = stored.Height,
+            });
         }
 
         [HttpGet("products/analytics/overview")]

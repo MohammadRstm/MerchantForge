@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
@@ -10,6 +10,7 @@ using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Subscription;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -174,7 +175,7 @@ public class SubscriptionPlanManagementTests : IClassFixture<CatalogDatabaseFixt
         db.Subscriptions.AddRange(activeMonthly, cancelledYearly);
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var (byPlan, _) = await repository.GetSubscriptionsAsync(
             new SubscriptionsQueryRequest { PlanId = monthly.Id, PageSize = 50 });
@@ -214,7 +215,7 @@ public class SubscriptionPlanManagementTests : IClassFixture<CatalogDatabaseFixt
         db.Subscriptions.AddRange(firstSubscription, switchedSubscription, otherBusinessFirstSubscription);
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var recent = await repository.GetRecentSubscriptionActivityAsync(50);
 
         var switchEntry = recent.Single(r => r.BusinessId == _businessA.Id && r.PlanName == planTwo.Name);

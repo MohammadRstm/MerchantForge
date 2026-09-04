@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace MerchForge.api.DTOs.BusinessDashboard;
 
@@ -9,6 +9,20 @@ namespace MerchForge.api.DTOs.BusinessDashboard;
 /// </summary>
 public class SaveProductRequest
 {
+    /// <summary>
+    /// The id to create the product with. Optional, and ignored on update.
+    ///
+    /// Exists because images are uploaded before the product is committed and their
+    /// object keys are nested under the product they belong to, so the id has to be
+    /// settled before the first upload. The client picks one, uploads against it, and
+    /// sends the same value here.
+    ///
+    /// Not a trust boundary: the product is still created under the business from the
+    /// route, and an id another business already owns is refused at upload. Null falls
+    /// back to a server-generated id, which is what the pre-upload path still does.
+    /// </summary>
+    public Guid? Id { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     public string? Description { get; set; }

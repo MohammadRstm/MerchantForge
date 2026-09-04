@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using MerchForge.api.DTOs.Audit;
@@ -20,6 +20,7 @@ using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Dashboard.interfaces;
 using MerchForge.api.Services.Onboarding.interfaces;
 using MerchForge.api.Services.Subscription.interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 
 namespace MerchForge.api.Services.Dashboard
 {
@@ -48,6 +49,7 @@ namespace MerchForge.api.Services.Dashboard
         private readonly ICurrentUserAccessor _currentUserAccessor;
         private readonly IUserRepository _userRepository;
         private readonly IPasswordHasher<User> _passwordHasher;
+        private readonly IStoredImageUrlResolver _storedImageUrlResolver;
 
         public DashboardService(
             IDashboardRepository dashboardRepository,
@@ -66,8 +68,10 @@ namespace MerchForge.api.Services.Dashboard
             IAuditLogService auditLogService,
             ICurrentUserAccessor currentUserAccessor,
             IUserRepository userRepository,
-            IPasswordHasher<User> passwordHasher)
+            IPasswordHasher<User> passwordHasher,
+            IStoredImageUrlResolver storedImageUrlResolver)
         {
+            _storedImageUrlResolver = storedImageUrlResolver;
             _dashboardRepository = dashboardRepository;
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
@@ -1135,7 +1139,8 @@ namespace MerchForge.api.Services.Dashboard
                 BusinessDomainId = request.BusinessDomainId,
                 Name = request.Name,
                 Label = request.Label,
-                PreviewImageUrl = request.PreviewImageUrl,
+                // Stored as an object key, whatever shape the client sent it in.
+                PreviewImageUrl = _websiteTemplateImageService.ToStorageKey(request.PreviewImageUrl),
                 PreviewWebsiteUrl = string.IsNullOrWhiteSpace(request.PreviewWebsiteUrl) ? null : request.PreviewWebsiteUrl.Trim(),
                 DisplayOrder = request.DisplayOrder,
                 IsActive = true,
@@ -1162,7 +1167,7 @@ namespace MerchForge.api.Services.Dashboard
                 DomainName = domainName,
                 Name = template.Name,
                 Label = template.Label,
-                PreviewImageUrl = template.PreviewImageUrl,
+                PreviewImageUrl = _storedImageUrlResolver.ToPublicUrl(template.PreviewImageUrl),
                 PreviewWebsiteUrl = template.PreviewWebsiteUrl,
                 IsActive = template.IsActive,
                 DisplayOrder = template.DisplayOrder,
@@ -1177,7 +1182,11 @@ namespace MerchForge.api.Services.Dashboard
             IFormFile file,
             CancellationToken cancellationToken = default)
         {
-            return await _websiteTemplateImageService.SaveAsync(file, cancellationToken);
+            var key = await _websiteTemplateImageService.SaveAsync(file, cancellationToken);
+
+            // The key is what gets stored; the url is built here, at the boundary, and
+            // is what the client sends back when it saves the template.
+            return _storedImageUrlResolver.ToPublicUrl(key);
         }
 
         public async Task<WebsiteTemplateDetailResponse> GetWebsiteTemplateDetailAsync(
@@ -1197,7 +1206,7 @@ namespace MerchForge.api.Services.Dashboard
                 ?? throw new WebsiteTemplateNotFoundException();
 
             template.Label = request.Label;
-            template.PreviewImageUrl = request.PreviewImageUrl;
+            template.PreviewImageUrl = _websiteTemplateImageService.ToStorageKey(request.PreviewImageUrl);
             template.PreviewWebsiteUrl = string.IsNullOrWhiteSpace(request.PreviewWebsiteUrl) ? null : request.PreviewWebsiteUrl.Trim();
             template.DisplayOrder = request.DisplayOrder;
             template.UpdatedAt = DateTime.UtcNow;
@@ -1277,7 +1286,7 @@ namespace MerchForge.api.Services.Dashboard
                 DomainName = detail.DomainName,
                 Name = detail.Name,
                 Label = detail.Label,
-                PreviewImageUrl = detail.PreviewImageUrl,
+                PreviewImageUrl = _storedImageUrlResolver.ToPublicUrl(detail.PreviewImageUrl),
                 PreviewWebsiteUrl = detail.PreviewWebsiteUrl,
                 IsActive = detail.IsActive,
                 DisplayOrder = detail.DisplayOrder,

@@ -1,10 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.Data;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using Microsoft.EntityFrameworkCore;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -75,7 +76,7 @@ public class CustomerManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
             MakeOrder(_businessB.Id, customer.Id, 500m, "EUR"));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var (items, _) = await repository.GetCustomersAsync(new CustomersQueryRequest { Search = customer.Email, PageSize = 50 });
 
         var item = items.Should().ContainSingle(c => c.Id == customer.Id).Which;
@@ -95,7 +96,7 @@ public class CustomerManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
             MakeOrder(_businessA.Id, customer.Id, 999m, "USD", OrderStatus.Cancelled));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var (items, _) = await repository.GetCustomersAsync(new CustomersQueryRequest { Search = customer.Email, PageSize = 50 });
 
         var item = items.Should().ContainSingle().Which;
@@ -113,7 +114,7 @@ public class CustomerManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
         db.Orders.Add(MakeOrder(_businessA.Id, withOrders.Id, 50m, "USD"));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
 
         var (hasOrders, _) = await repository.GetCustomersAsync(
             new CustomersQueryRequest { HasOrders = true, PageSize = 500 });
@@ -139,7 +140,7 @@ public class CustomerManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
             MakeOrder(_businessA.Id, oneTimeCustomer.Id, 10m, "USD"));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var statsBefore = await repository.GetCustomerStatsAsync(newCustomersPeriodDays: 30);
 
         // Add a third, unrelated, order-less customer to change the denominator predictably.
@@ -166,7 +167,7 @@ public class CustomerManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
             MakeOrder(_businessA.Id, customer2.Id, 10m, "USD"));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var distribution = await repository.GetCustomerDistributionByBusinessAsync();
 
         distribution.Should().Contain(d => d.Key == _businessA.Name && d.Count >= 2);
@@ -185,7 +186,7 @@ public class CustomerManagementTests : IClassFixture<CatalogDatabaseFixture>, IA
             MakeOrder(_businessB.Id, customer.Id, 70m, "EUR", createdAt: thisMonth));
         await db.SaveChangesAsync();
 
-        var repository = new DashboardRepository(db);
+        var repository = new DashboardRepository(db, TestImageUrls.Resolver);
         var points = await repository.GetCustomerSpendOverTimeAsync(customer.Id);
 
         points.Should().Contain(p => p.Currency == "USD" && p.Total == 30m);

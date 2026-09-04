@@ -5,6 +5,7 @@ using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 using MerchForge.api.Services.Common;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,10 +14,14 @@ namespace MerchForge.api.Repositories.Implementations
     public class StorefrontRepository : IStorefrontRepository
     {
         private readonly MerchForgeDbContext _db;
+        private readonly IStoredImageUrlResolver _productImageUrlResolver;
 
-        public StorefrontRepository(MerchForgeDbContext db)
+        public StorefrontRepository(
+            MerchForgeDbContext db,
+            IStoredImageUrlResolver productImageUrlResolver)
         {
             _db = db;
+            _productImageUrlResolver = productImageUrlResolver;
         }
 
         public async Task<StorefrontBusinessResponse?> GetBusinessAsync(
@@ -270,6 +275,7 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToListAsync(cancellationToken);
 
             RoundAverageRatings(items);
+            ResolveProductImageUrls(items);
 
             return (items, totalCount);
         }
@@ -332,6 +338,13 @@ namespace MerchForge.api.Repositories.Implementations
             if (product is not null)
             {
                 product.AverageRating = RoundRating(product.AverageRating);
+
+                product.ImageUrl = _productImageUrlResolver.ToPublicUrl(product.ImageUrl);
+
+                foreach (var image in product.Images)
+                {
+                    image.Url = _productImageUrlResolver.ToPublicUrl(image.Url);
+                }
             }
 
             return product;
@@ -422,6 +435,7 @@ namespace MerchForge.api.Repositories.Implementations
                 .ToListAsync(cancellationToken);
 
             RoundAverageRatings(related);
+            ResolveProductImageUrls(related);
 
             return related;
         }
@@ -434,6 +448,24 @@ namespace MerchForge.api.Repositories.Implementations
         /// cheaper and can't fail at query time. Matches what
         /// ProductReviewRepository.GetSummaryAsync does for the same figure.
         /// </summary>
+        /// <summary>
+        /// Product images are persisted as object keys, so a storefront gets a URL only
+        /// once this has run. After the query for the same reason the rounding above is:
+        /// EF has no translation for it.
+        /// </summary>
+        private void ResolveProductImageUrls(List<StorefrontProductResponse> products)
+        {
+            foreach (var product in products)
+            {
+                product.ImageUrl = _productImageUrlResolver.ToPublicUrl(product.ImageUrl);
+
+                foreach (var image in product.Images)
+                {
+                    image.Url = _productImageUrlResolver.ToPublicUrl(image.Url);
+                }
+            }
+        }
+
         private static void RoundAverageRatings(List<StorefrontProductResponse> products)
         {
             foreach (var product in products)

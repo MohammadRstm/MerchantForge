@@ -1,9 +1,10 @@
-using MerchForge.api.Data;
+﻿using MerchForge.api.Data;
 using MerchForge.api.DTOs.Common;
 using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace MerchForge.api.Repositories.Implementations
@@ -11,10 +12,14 @@ namespace MerchForge.api.Repositories.Implementations
     public class DashboardRepository : IDashboardRepository
     {
         private readonly MerchForgeDbContext _db;
+        private readonly IStoredImageUrlResolver _storedImageUrlResolver;
 
-        public DashboardRepository(MerchForgeDbContext db)
+        public DashboardRepository(
+            MerchForgeDbContext db,
+            IStoredImageUrlResolver storedImageUrlResolver)
         {
             _db = db;
+            _storedImageUrlResolver = storedImageUrlResolver;
         }
 
         public async Task<int> CountUsersAsync(CancellationToken cancellationToken = default)
@@ -797,6 +802,13 @@ namespace MerchForge.api.Repositories.Implementations
                 })
                 .ToListAsync(cancellationToken);
 
+            // Preview images are stored as object keys; EF cannot translate the
+            // resolver, so this runs after materialization.
+            foreach (var item in items)
+            {
+                item.PreviewImageUrl = _storedImageUrlResolver.ToPublicUrl(item.PreviewImageUrl);
+            }
+
             return (items, totalCount);
         }
 
@@ -891,7 +903,7 @@ namespace MerchForge.api.Repositories.Implementations
             Guid id,
             CancellationToken cancellationToken = default)
         {
-            return await _db.WebsiteTemplates
+            var template = await _db.WebsiteTemplates
                 .AsNoTracking()
                 .Where(t => t.Id == id)
                 .Select(t => new WebsiteTemplateDetailResponse
@@ -914,6 +926,13 @@ namespace MerchForge.api.Repositories.Implementations
                         .ToList(),
                 })
                 .FirstOrDefaultAsync(cancellationToken);
+
+            if (template is not null)
+            {
+                template.PreviewImageUrl = _storedImageUrlResolver.ToPublicUrl(template.PreviewImageUrl);
+            }
+
+            return template;
         }
 
         /// <summary>Loads a tracked entity for an update/deactivate mutation.</summary>

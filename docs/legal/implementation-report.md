@@ -215,18 +215,33 @@ stated plainly in both the Terms and the codebase's own comments, e.g.
 | **Google Gemini** (`gemini-3.1-flash-lite-image`, per `GeminiOptions.cs`) | Full product photo bytes + text instruction | AI image editing |
 | **Google Gemini** | Full product photo bytes + business category/field list | "Suggest details from a photo" |
 | SMTP relay | Recipient email + transactional content | Invitation and order/notification emails |
+| **Cloudflare R2** | Product image and template preview file contents; viewer IP and request details when an image is loaded | Image storage and delivery |
 
-No cloud object storage (R2, S3, Azure Blob, or otherwise) is used anywhere in
-the codebase — every uploaded file is stored on the API server's own local
-disk. This is called out explicitly in the Privacy Policy (§5) along with its
-most important consequence: **an uploaded image's URL is publicly fetchable by
-anyone who has or guesses it — there is no per-file access check.** This is
-by design for storefront images (they're meant to be public), but it means
-nothing should ever be uploaded through a product-image field that isn't
-meant to be publicly visible.
+> **Updated 2026-09-04 (Privacy Policy v1.1).** This section previously stated
+> that no cloud object storage was used and that every uploaded file lived on
+> the API server's own disk. That is no longer true and the statement has been
+> corrected here and in Privacy Policy §4/§5/§8.
 
-No analytics, monitoring/error-tracking, CDN, or payment processor is
-integrated today.
+Product images and storefront template previews are stored in **Cloudflare R2**
+and served to browsers directly from Cloudflare, not through the API. The
+bucket is configured for a Cloudflare region in **Eastern Europe**. Business
+logos, favicons and storefront customization images are still on the API
+server's own local disk.
+
+Two consequences worth stating plainly, because neither is obvious:
+
+- **Cloudflare now sees storefront traffic.** Because images load directly from
+  its network, Cloudflare receives the IP address and browser details of anyone
+  who views a page containing one — including shoppers who have no MerchForge
+  account and never agreed to anything.
+- **An uploaded image's URL is publicly fetchable** by anyone who has or guesses
+  it, with no per-file access check. This was already true on local disk and
+  remains true on R2; public read access on the bucket is what makes storefront
+  images render at all. Nothing should be uploaded through an image field that
+  is not meant to be publicly visible.
+
+No analytics, monitoring/error-tracking or payment processor is integrated
+today. Cloudflare serves images; no other CDN is used.
 
 ---
 
@@ -294,6 +309,17 @@ each item names the exact document and section it affects.
 - [ ] **Contact address.** Replace every `[CONTACT EMAIL]` placeholder
       (appears in Terms, Privacy, and is referenced from AI Terms) with a real
       monitored inbox.
+- [ ] **Cloudflare as a data processor.** Product images moved to Cloudflare R2
+      on 2026-09-04 (Privacy Policy v1.1). Confirm whether a data processing
+      agreement with Cloudflare is required, which Cloudflare terms apply to
+      this account, and whether storing images in an Eastern Europe region —
+      plus Cloudflare receiving storefront viewers' IP addresses — creates any
+      cross-border transfer obligation (Privacy §4, §5, §8).
+- [ ] **Re-acceptance of the updated Privacy Policy.** Bumping the version
+      constant only changes what NEW registrations record; existing accounts
+      still hold their acceptance of v1.0, which described image storage
+      differently. Confirm whether existing users must be notified or asked to
+      re-accept, and whether that needs building.
 - [ ] **Data protection obligations.** Confirm which data-protection regime(s)
       actually apply — Lebanese law, and separately whether MerchForge
       intends to serve EU customers (which would trigger GDPR obligations

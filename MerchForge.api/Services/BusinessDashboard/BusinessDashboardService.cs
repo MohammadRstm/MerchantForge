@@ -15,6 +15,7 @@ using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Subscription.interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 
 namespace MerchForge.api.Services.BusinessDashboard
 {
@@ -29,6 +30,8 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly IProductReviewRepository _productReviewRepository;
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IFeatureCreditService _featureCreditService;
+        private readonly IProductImageUrlResolver _productImageUrlResolver;
+        private readonly IProductImageService _productImageService;
 
         /// <summary>
         /// Pending -> Confirmed | Cancelled; Confirmed -> Shipped | Cancelled;
@@ -52,8 +55,12 @@ namespace MerchForge.api.Services.BusinessDashboard
             IOrderRepository orderRepository,
             IProductReviewRepository productReviewRepository,
             IBackgroundJobClient backgroundJobClient,
-            IFeatureCreditService featureCreditService)
+            IFeatureCreditService featureCreditService,
+            IProductImageUrlResolver productImageUrlResolver,
+            IProductImageService productImageService)
         {
+            _productImageUrlResolver = productImageUrlResolver;
+            _productImageService = productImageService;
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
@@ -323,11 +330,15 @@ namespace MerchForge.api.Services.BusinessDashboard
             await EnsureCategoryIsUsableAsync(businessId, request.CategoryId, cancellationToken);
 
             var now = DateTime.UtcNow;
-            var images = BuildProductImages(request.Images);
+            var images = BuildProductImages(businessId, request.Images);
 
             var product = new Models.Product
             {
-                Id = Guid.NewGuid(),
+                // The client's id when it has already uploaded images against one, so
+                // the keys those images live under name this product. A duplicate is
+                // caught by the primary key rather than silently overwriting, and an id
+                // owned by another business was already refused at upload.
+                Id = request.Id ?? Guid.NewGuid(),
                 BusinessId = businessId,
                 CategoryId = request.CategoryId,
                 Title = request.Title.Trim(),
@@ -367,7 +378,7 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             await EnsureCategoryIsUsableAsync(businessId, request.CategoryId, cancellationToken);
 
-            var images = BuildProductImages(request.Images);
+            var images = BuildProductImages(businessId, request.Images);
 
             product.Title = request.Title.Trim();
             product.Description = NormalizeDescription(request.Description);
@@ -406,10 +417,31 @@ namespace MerchForge.api.Services.BusinessDashboard
                 throw new ProductHasOrdersException();
             }
 
-            // The image file is intentionally left on disk. Deleting it here would be
-            // wrong if the same URL was ever reused, and orphaned files are a cleanup
-            // concern rather than a correctness one.
+            // Collected before the rows go, since that is the only place the keys are
+            // recorded. ImageUrl is included because it is denormalised from the main
+            // image and can, on older products, be the only reference there is.
+            var imageKeys = product.Images
+                .Select(i => i.Url)
+                .Append(product.ImageUrl)
+                .Where(url => !string.IsNullOrWhiteSpace(url))
+                .Select(url => url!)
+                .Distinct()
+                .ToList();
+
             await _businessDashboardRepository.DeleteProductAsync(product, cancellationToken);
+
+            // After the commit, and never allowed to fail the delete. Removing objects
+            // first would risk a live row pointing at a missing image if the commit
+            // then failed; this way the worst case is an orphaned object, which costs
+            // storage rather than correctness. Images still on local disk are left
+            // alone - clearing those out is a separate, deliberate step.
+            //
+            // Only reached for a product with no order items, which the check above
+            // already guarantees. That matters: OrderItem.ProductImageUrl is a snapshot
+            // taken at order time, so deleting an image a past order still points at
+            // would break its receipt. For the same reason, replacing a product's
+            // gallery deliberately does not clean up the images it dropped.
+            await _productImageService.DeleteManyAsync(businessId, imageKeys, cancellationToken);
         }
 
         public async Task<ProductCatalogOverviewResponse> GetProductCatalogOverviewAsync(
@@ -577,7 +609,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                     Category = product.Category.Name,
                     Price = product.Price,
                     CompareAtPrice = product.CompareAtPrice,
-                    ImageUrl = product.ImageUrl,
+                    ImageUrl = _productImageUrlResolver.ToPublicUrl(product.ImageUrl),
                     StockQuantity = product.StockQuantity,
                     Sku = product.Sku,
                     AverageRating = reviewSummary.AverageRating,
@@ -784,7 +816,15 @@ namespace MerchForge.api.Services.BusinessDashboard
         /// DisplayOrder is just submission order: the merchant controls gallery order
         /// by however they arrange images in the form, not by a separate field.
         /// </summary>
-        private static List<Models.ProductImage> BuildProductImages(List<ProductImageRequest> images)
+        /// <summary>
+        /// The client sends back the URLs a prior upload returned; what gets stored is
+        /// the object key behind each one.
+        ///
+        /// ToStorageKey is the ownership check, and it is new. Inbound image references
+        /// were previously taken on trust after a trim, which let a business attach
+        /// another business's image to its own product simply by sending that URL.
+        /// </summary>
+        private List<Models.ProductImage> BuildProductImages(Guid businessId, List<ProductImageRequest> images)
         {
             var now = DateTime.UtcNow;
 
@@ -792,7 +832,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 .Select((image, index) => new Models.ProductImage
                 {
                     Id = Guid.NewGuid(),
-                    Url = image.Url.Trim(),
+                    Url = _productImageUrlResolver.ToStorageKey(image.Url, businessId),
                     IsMain = image.IsMain,
                     Width = image.Width,
                     Height = image.Height,

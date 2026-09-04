@@ -1,17 +1,34 @@
 # Image Storage
 
 All product images — manually uploaded, AI-generated product photos, and AI-edited
-photos — go through one service: `ProductImageService`. It is the only place in the
-backend that touches the filesystem for images, and the only place that decides
-whether a file is actually a genuine image of an allowed type.
+photos — go through one service: `ProductImageService`. It is the only place that
+decides whether a file is genuinely an image of an allowed type, and the only place
+that decides where it is stored.
 
-## Component
+Product images live in **Cloudflare R2**, and browsers load them directly from the
+bucket rather than through the API. Images uploaded before that move are still files
+on local disk and are still served by the API; nothing was migrated or deleted. Both
+shapes are supported everywhere, so an older product keeps working unchanged.
+
+> **Scope.** Only product images moved. Business logos, favicons, website
+> customization images and website-template previews are still written to local disk
+> by `WebsiteCustomizationImageService` and `WebsiteTemplateImageService`, which are
+> untouched by this.
+
+## Components
 
 | Layer | Class | File |
 |---|---|---|
-| Interface | `IProductImageService` | `Services/BusinessDashboard/interfaces/IProductImageService.cs` |
-| Implementation | `ProductImageService` | `Services/BusinessDashboard/ProductImageService.cs` |
-| Configuration | `ProductImageOptions` | `Configurations/ProductImageOptions.cs` |
+| Image rules | `IProductImageService` / `ProductImageService` | `Services/BusinessDashboard/…` |
+| Object store | `IObjectStorage` / `CloudflareR2ObjectStorage` | `Services/Storage/…` |
+| Key ↔ URL | `IProductImageUrlResolver` / `ProductImageUrlResolver` | `Services/Storage/…` |
+| Configuration | `ProductImageOptions`, `R2Options` | `Configurations/…` |
+
+The layering is deliberate. `IObjectStorage` is a flat keyed byte store that knows
+nothing about businesses, products or URLs; `ProductImageService` owns every domain
+rule; `ProductImageUrlResolver` owns the key format. `CloudflareR2ObjectStorage` is
+the only type in the application that references `IAmazonS3`, so replacing the
+provider means replacing that one file.
 
 Consumers: `BusinessDashboardController.UploadProductImage` (manual upload),
 `ProductAiService.AttachImageAsync` ([product-generation.md](../ai/product-generation.md)),
@@ -20,121 +37,183 @@ Consumers: `BusinessDashboardController.UploadProductImage` (manual upload),
 
 ## Storage model
 
-Files are written to disk under the application's web root, in a per-business
-subfolder:
+Objects are keyed by the business and product they belong to:
 
 ```
-{WebRootPath}/{ProductImageOptions.RelativePath}/{businessId}/{generatedFileName}
+businesses/{businessId}/products/{productId}/images/{imageId}.{extension}
 ```
 
-- `RelativePath` defaults to `"uploads/products"` (configurable via the
-  `ProductImages` configuration section — see [configuration.md](../configuration.md)).
-- **Grouped per business** so one business's uploads are never interleaved with
-  another's on disk — this is also what makes the ownership check in `ReadAsync`
-  possible as a simple prefix match (see below).
-- **Filenames are always generated server-side**: `{Guid.NewGuid():N}{extension}` —
-  never derived from client input. A client-controlled filename would otherwise
-  allow path traversal (e.g. `../../appsettings.json`) or overwriting another
-  business's file.
-- The returned URL always uses forward slashes (`/uploads/products/{businessId}/{file}`)
-  regardless of the OS path separator used internally, since it becomes a URL, not a
-  filesystem path.
-- `WebRootPath` is resolved defensively: `IWebHostEnvironment.WebRootPath` is `null`
-  on a fresh checkout where `wwwroot` doesn't exist yet, so the service falls back to
-  `ContentRootPath/wwwroot`. `Program.cs` also explicitly creates this directory at
-  startup before building the static-file provider, for the same reason (see
-  [architecture.md](../architecture.md)).
+- **`businessId` always comes from the authorized route**, never from the request
+  body or query. The `BusinessOwner` policy has already validated it, so an object
+  cannot land outside the caller's own prefix whatever else is sent.
+- **`productId` does not have to exist yet.** Images are uploaded before a new
+  product is committed, so the form can preview a file before anything is saved. The
+  client settles the id up front, uploads against it, and sends the same value as
+  `SaveProductRequest.Id` when it saves. The AI draft flow reuses `ProductDraft.Id`,
+  since a draft becomes exactly one product.
+- The service refuses a `productId` **another business already owns**. This is not
+  what prevents a cross-tenant write — the route prefix already does that. It stops
+  a key under one business from naming another business's product.
+- **`imageId` is always generated server-side** (`Guid.NewGuid()`), never derived
+  from a filename. A client-controlled name would allow overwriting another image.
+- `extension` comes from the **verified byte signature**, never from the uploaded
+  filename or the declared content type.
 
-## Serving stored files
+### What the database stores
 
-`Program.cs` mounts a `StaticFileOptions` provider over the web root, with two
-response headers set on every served file:
+`ProductImage.Url` and `Product.ImageUrl` hold the **object key**, not a URL. The
+delivery origin is never persisted, which is what makes moving to a custom image
+domain later a configuration change rather than a data migration. The column names
+predate this and were left alone; renaming them would ripple through ~15 DTOs, the
+SDK schema and every storefront template for no functional gain.
 
-- `X-Content-Type-Options: nosniff`
-- `Content-Security-Policy: default-src 'none'; img-src 'self'`
+`ProductImageUrlResolver` converts in both directions:
 
-These exist because uploaded files are served from the API's own origin — if
-something slipped past upload validation, `nosniff` stops the browser from
-content-type-guessing its way into treating it as active content, and the CSP
-neutralizes any embedded script/content regardless of what the file actually
-contains.
+- **Outbound (`ToPublicUrl`)** — prefixes `R2:PublicBaseUrl` onto a key. A value
+  starting with `/` is a pre-migration local path and is returned untouched. The
+  method is idempotent, so a projection that resolves twice still produces the right
+  URL rather than a doubled origin.
+- **Inbound (`ToStorageKey`)** — turns a value coming back from a client into the
+  value to store. Accepts an absolute URL, a bare key, or a pre-migration local path,
+  and **requires the business segment to match the caller**.
 
-`Cache-Control: no-cache` is also set explicitly — not "no caching at all", but a
-forced conditional revalidation (`If-None-Match`/`If-Modified-Since`) on every
-request. Without this, browsers fall back to heuristic caching off `Last-Modified`
-and can keep serving a stale image indefinitely, even across normal reloads —
-relevant specifically because a merchant replacing a product photo re-uses the same
-upload flow but gets a *new* URL each time regardless (see below), so this mainly
-protects against a stale cached copy of a URL that legitimately still exists.
+`ToStorageKey` is an authorization check as much as a parse. Inbound image references
+used to be accepted after nothing but a `.Trim()`, which let a business attach
+another business's image to its own product simply by sending that URL back. It
+matches on the *path shape* rather than on the configured `PublicBaseUrl`, so a URL
+issued before a move to a custom domain still resolves afterwards.
+
+Resolution is applied **after materialization**, not inside the EF projections, which
+cannot translate it into SQL — the same technique `StorefrontRepository` already uses
+to round review averages.
+
+## Serving stored objects
+
+Objects are publicly readable at `{R2:PublicBaseUrl}/{key}` and loaded directly by
+the browser. The API is not in the path, which is the point: it is no longer a
+bandwidth bottleneck for image traffic.
+
+Public read access is **bucket-level**. R2 does not support per-object ACLs, so no
+`x-amz-acl` is sent. This is the same exposure model the local `wwwroot` already
+had — served publicly with no auth, protected only by unguessable ids — so nothing
+sensitive belongs in this bucket.
+
+### Two header differences from the old local serving
+
+**Lost: `nosniff` and CSP.** `Program.cs` sets `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: default-src 'none'; img-src 'self'` on every statically
+served file, as a second layer independent of upload validation. **R2 sends
+neither.** What partly replaces it is that the `Content-Type` written on each object
+is the one proved by the byte signature, never the client's claim — which is why the
+signature check below matters more now, not less. Full parity would need a Cloudflare
+Transform Rule or Worker on the bucket hostname; that is not in place.
+
+**Improved: caching.** Local files are served `Cache-Control: no-cache` (a forced
+conditional revalidation) because a merchant replacing a photo could otherwise see a
+stale copy. Object keys embed a freshly generated image id and are never written
+twice, so an object at a given key cannot change — uploads therefore set
+`public, max-age=31536000, immutable`.
+
+### R2-specific client configuration
+
+R2 implements neither the streaming SigV4 signing nor the trailing checksums
+`AWSSDK.S3` sends by default. Every upload sets `DisablePayloadSigning` and
+`DisableDefaultChecksumValidation`, and the client is built with
+`RequestChecksumCalculation`/`ResponseChecksumValidation` of `WHEN_REQUIRED`,
+`AuthenticationRegion = "auto"` and `ForcePathStyle = true`. Getting this wrong fails
+every upload against a real bucket while every mocked test keeps passing, so
+`CloudflareR2ObjectStorageTests` asserts both flags explicitly.
 
 ## Method documentation — `IProductImageService`
 
-### `SaveAsync(Guid businessId, IFormFile file, CancellationToken)`
+Every method takes and returns the value stored in the database — an **object key**,
+not a URL. Turning that into something loadable happens at the API boundary.
 
-**Purpose**: Validates and stores an uploaded product image from an HTTP form
-upload.
+### `SaveAsync(Guid businessId, Guid productId, IFormFile file, CancellationToken)`
 
-**Parameters**: `businessId` — whose upload folder to store under; `file` — the
-posted file.
+**Purpose**: Validates and stores an uploaded product image from an HTTP form upload.
 
-**Returns**: `Task<string>` — the relative URL to save on the product (or draft).
+**Returns**: `Task<string>` — the object key to save on the product (or draft).
 
 **Process**:
 1. Rejects `file.Length == 0` with `InvalidProductImageException("The uploaded file
    is empty.")`.
 2. Rejects `file.Length > ProductImageOptions.MaxBytes` with a message naming the
-   limit in MB. (This is enforced here in addition to the framework's own request
-   body limit, specifically so an oversized file gets a clear, specific error instead
-   of a generic HTTP 413.)
-3. `ResolveVerifiedExtensionAsync` — see [Signature verification](#signature-verification-why-two-checks) below.
-4. Opens the file's read stream and calls the shared `WriteAsync` helper.
+   limit in MB. Enforced here in addition to the framework's request body limit, so
+   an oversized file gets a specific error instead of a generic HTTP 413.
+3. `ResolveVerifiedTypeAsync` — see [Signature verification](#signature-verification-why-two-checks).
+4. `EnsureProductIsAvailableToBusinessAsync` — rejects `Guid.Empty`, and rejects a
+   product id another business owns.
+5. Builds the key and hands the stream to `IObjectStorage.PutAsync` with the
+   **verified** content type.
 
-### `SaveAsync(Guid businessId, byte[] bytes, string contentType, CancellationToken)`
+### `SaveAsync(Guid businessId, Guid productId, byte[] bytes, string contentType, CancellationToken)`
 
-**Purpose**: The same validation and storage path, for bytes that did not arrive
-through a form upload — specifically, an AI-generated or AI-edited image.
+**Purpose**: The same path for bytes that did not arrive through a form upload —
+an AI-edited image.
 
 **Parameters**: `contentType` is **trusted from the caller** rather than re-derived,
-since the caller (`ImageEditingService`) already knows what it asked the AI provider
-to return. The byte-signature check below still runs regardless, so a mismatched or
-falsified `contentType` is still caught.
+since `ImageEditingService` already knows what it asked the provider to return. The
+byte-signature check still runs, so a mismatched or falsified value is still caught.
 
-**Process**: Same empty/size checks as the `IFormFile` overload, then
-`ResolveVerifiedExtension(contentType, bytes)` (the synchronous, in-memory sibling of
-the async signature check), then `WriteAsync` from a `MemoryStream`.
+### `ReadAsync(Guid businessId, string storedValue, CancellationToken)`
 
-### `ReadAsync(Guid businessId, string url, CancellationToken)`
-
-**Purpose**: Reads back the bytes of a previously stored image, used only by the
-[image-editing pipeline](../ai/image-editing.md) to load an owner's already-uploaded
-photo before sending it to Gemini.
+**Purpose**: Reads back the bytes of a stored image, used by the
+[image-editing pipeline](../ai/image-editing.md) and by image suggestion to load an
+owner's photo before sending it to Gemini.
 
 **Returns**: `Task<(byte[] Bytes, string ContentType)>`.
 
-**Ownership verification** (the reason this method exists rather than the caller
-reading the file directly): the expected prefix
-`/{ProductImageOptions.RelativePath}/{businessId}/` is computed, and the given `url`
-must start with **exactly** that prefix and must not contain `".."`. Either violation
-throws `InvalidProductImageException("That image does not belong to this
-business.")` — the same exception and message whether the url belongs to a different
-business or is simply malformed/traversal-attempting, so a caller cannot distinguish
-"not yours" from "doesn't exist" from "you're trying to escape the directory". If the
-resolved absolute path then doesn't exist on disk, `InvalidProductImageException("That
-image could not be found.")` is thrown instead.
+**Ownership verification** — the reason this method exists rather than callers
+fetching the object themselves. `ToStorageKey` rejects anything that is not this
+business's, in either the object-key or the pre-migration shape, with
+`InvalidProductImageException("That image does not belong to this business.")`. A
+foreign value and a malformed one get the **same** message, so a caller cannot
+distinguish "not yours" from "doesn't exist" from "traversal attempt".
 
-**Content type on read**: derived from the file's extension via a lookup into the
-same `AllowedImages` table used for validation, defaulting to
-`"application/octet-stream"` if the extension isn't recognized (this should not
-normally happen, since only recognized extensions are ever written).
+**Both storage shapes.** A key is fetched from the bucket; a `/uploads/...` path is
+read from disk exactly as before. This is what keeps pre-migration products editable.
 
-### `WriteAsync` (private)
+**Missing versus unreachable.** `CloudflareR2ObjectStorage` maps a 404 to
+`ObjectNotFoundException`, which surfaces as `InvalidProductImageException("That
+image could not be found.")` — the same answer a missing file always gave. Any other
+storage failure propagates as `ObjectStorageException`, so an outage is not reported
+as the owner's file being missing.
 
-Shared by both `SaveAsync` overloads. Ensures the per-business directory exists
-(`Directory.CreateDirectory`), generates the random filename, opens a
-`FileStream(..., FileMode.CreateNew)` — `CreateNew` rather than `Create`, so a
-filename collision (astronomically unlikely with a GUID, but structurally prevented
-regardless) throws rather than silently overwriting an existing file — and copies the
-source stream into it.
+### `DeleteManyAsync(Guid businessId, IReadOnlyCollection<string> storedValues, CancellationToken)`
+
+**Purpose**: Best-effort cleanup of images that no longer have a row pointing at them.
+
+**Never throws.** Values belonging to another business are skipped and logged rather
+than rejected, images still on local disk are skipped entirely, and a storage failure
+is logged and swallowed. See below for why.
+
+## Deletion
+
+Nothing was deleted at all before this — `File.Delete` appears nowhere in the repo.
+On a disk we already own that was a defensible trade; R2 bills per stored gigabyte,
+so orphans now have a running cost.
+
+`BusinessDashboardService.DeleteProductAsync` collects the product's image keys
+**while the rows still exist**, commits the delete, and only then asks storage to
+remove the objects — where a failure is never allowed to fail the operation.
+
+The ordering is the whole design:
+
+| Failure | Outcome |
+|---|---|
+| Storage removed first, then the commit fails | A live row pointing at a missing image. **Unacceptable**, so this order is never used. |
+| Commit succeeds, then storage fails | An orphaned object nothing references. Costs storage, not correctness — logged and ignored. |
+
+**Gallery replacement deliberately does not clean up.** `OrderItem.ProductImageUrl`
+is a snapshot taken at order time, so replacing a product's main image leaves past
+orders pointing at the previous object; deleting it would break their receipts.
+Product *deletion* is safe only because it is already refused for a product with
+order items (`ProductHasOrdersException`). Replacement orphans are therefore a known,
+deliberate gap that a future reconciliation job could sweep.
+
+Pre-migration images on local disk are never deleted. Clearing those out is a
+separate, deliberate step.
 
 ## Signature verification: why two checks
 
@@ -151,40 +230,22 @@ private static readonly (string ContentType, string Extension, byte[][] Signatur
 ];
 ```
 
-The declared content type (from the browser, or a caller's claim) and the filename
-extension are both attacker-controlled and prove nothing on their own. The service:
+The declared content type and the filename extension are both attacker-controlled and
+prove nothing on their own. The service:
 
-1. Looks up an `AllowedImages` entry matching the **declared** content type — reject
-   immediately (`"Images must be JPEG, PNG, GIF or WEBP."`) if none matches.
+1. Looks up an entry matching the **declared** content type — reject immediately
+   (`"Images must be JPEG, PNG, GIF or WEBP."`) if none matches.
 2. Reads the first up-to-12 bytes of the actual content and checks them against that
-   entry's real signature(s) — reject (`"...isn't a valid image of the type it
-   claims to be."`) on a mismatch, **without echoing the declared type back** in the
-   error (the doc comment notes the mismatch is the whole finding; restating the
-   client's claim would only invite confusion).
+   entry's real signature(s) — reject (`"...isn't a valid image of the type it claims
+   to be."`) on a mismatch, **without echoing the declared type back**: the mismatch
+   is the whole finding, and restating the client's claim only invites confusion.
 3. **WEBP gets an extra check**: the four-byte `RIFF` marker alone is ambiguous — AVI
-   and WAV files share it — so a WEBP candidate additionally requires the literal
-   bytes `W E B P` at offset 8.
+   and WAV share it — so a WEBP candidate additionally requires the literal bytes
+   `W E B P` at offset 8.
 
-This stops a script or executable being stored under an image extension and later
-served back from the API's own origin as if it were trusted content — the direct
-motivation for the `nosniff`/CSP headers described above being a second, independent
-layer rather than the only protection.
-
-## No deletion path
-
-There is no method on `IProductImageService` (nor anywhere else in the inspected
-codebase) that deletes a stored image file. `BusinessDashboardService.DeleteProductAsync`
-removes the `Product` row and its `ProductImage` rows from the database but
-explicitly leaves the underlying files on disk — the code comment reasons that
-deleting the file here would be wrong if the same URL were ever reused, and treats
-orphaned files as a cleanup concern rather than a correctness one. Similarly,
-replacing a product's images (`UpdateProductAsync` → `ReplaceProductImagesAsync`)
-removes the old `ProductImage` database rows but does not delete their files.
-
-**In practice this means the `uploads/products/{businessId}/` folder only grows.**
-Whether any out-of-band cleanup process exists (a scheduled job, a manual script)
-could not be determined from the application code — no such job was found among the
-Hangfire-registered background jobs at the time of writing.
+The type that survives this is what gets written on the object, and therefore what a
+browser will trust. With `nosniff` and the CSP no longer present (see above), this is
+now the primary defence rather than one of two.
 
 ## Configuration
 
@@ -192,18 +253,52 @@ Hangfire-registered background jobs at the time of writing.
 
 | Key | Default | Purpose |
 |---|---|---|
-| `ProductImages:RelativePath` | `"uploads/products"` | Folder under the web root images are written to. |
+| `ProductImages:RelativePath` | `"uploads/products"` | Still used: identifies pre-migration local paths, and locates them on disk for reading. |
 | `ProductImages:MaxBytes` | `5 * 1024 * 1024` (5 MB) | Per-file size cap, enforced in addition to the request body limit. |
 
-See [../configuration.md](../configuration.md) for the full configuration reference.
+`R2Options` (section `R2`) — **all six required**, and unlike the options above this
+section is registered with `ValidateDataAnnotations().ValidateOnStart()`. The others
+fall back to working local defaults; an unbound `R2` section would instead surface as
+a signature failure on the first upload, so the app refuses to boot instead.
+
+| Key | Purpose |
+|---|---|
+| `R2:AccountId` | Cloudflare account id. |
+| `R2:AccessKeyId` | R2 API token id. **Secret.** |
+| `R2:SecretAccessKey` | R2 API token secret. **Secret.** |
+| `R2:BucketName` | Bucket product images are written to. |
+| `R2:Endpoint` | Authenticated S3 API host, `https://{AccountId}.r2.cloudflarestorage.com`. Never sent to a browser. |
+| `R2:PublicBaseUrl` | Origin objects are publicly readable from, no trailing slash. |
+
+`PublicBaseUrl` is a **different URL from `Endpoint`** and the two are easy to
+confuse. Today it is the bucket's Public Development URL (`https://pub-{hash}.r2.dev`,
+enabled under the bucket's Settings). Cloudflare documents that URL as rate-limited
+and intended for development rather than production traffic; the indirection exists
+so pointing delivery at a custom domain later is a configuration change with no code
+change.
+
+Credentials come from configuration only — User Secrets in development, `R2__…`
+environment variables in a deployment, matching the convention
+`appsettings.Production.json.example` documents. They are never committed, never
+logged, and never reach a response.
+
+## Testing
+
+Nothing in the test suite requires real R2 credentials — the storage adapter is
+tested against a mocked `IAmazonS3`, and integration tests use a fake
+`IProductImageService`. That is deliberate, and it is also a limit worth stating
+plainly: **a passing suite does not prove the bucket works.** Only a live round-trip
+does.
+
+`ProductImageService` had no tests at all before this change.
 
 ## Related documents
 
 - [../products/product-management.md](../products/product-management.md) — how
   `ProductImageRequest`/`ProductImage` fit into product creation and update.
-- [../ai/image-editing.md](../ai/image-editing.md) — the only consumer of
-  `ReadAsync`, and a consumer of the `byte[]`-based `SaveAsync` overload.
+- [../ai/image-editing.md](../ai/image-editing.md) — consumer of `ReadAsync` and of
+  the `byte[]`-based `SaveAsync` overload.
 - [../ai/product-generation.md](../ai/product-generation.md) — uses the `IFormFile`
   `SaveAsync` overload via `AttachImageAsync`.
 - [../error-handling.md](../error-handling.md) — how `InvalidProductImageException`
-  maps to an HTTP response.
+  and `ObjectStorageException` map to HTTP responses.

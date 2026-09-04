@@ -217,6 +217,63 @@ foreach (var path in templatePaths)
 
 Console.WriteLine($"{plan.Count} local image reference(s) found in the database.");
 
+// Preflight, so a permissions problem is named up front rather than inferred from
+// dozens of identical failures. Read and write are checked separately: an R2 API
+// token can be created read-only, and that is the difference between "wrong
+// credentials" and "right credentials, wrong permission".
+if (apply)
+{
+    var canRead = false;
+
+    try
+    {
+        await s3.ListObjectsV2Async(new ListObjectsV2Request { BucketName = bucket, MaxKeys = 1 });
+        canRead = true;
+        Console.WriteLine("bucket read  ok");
+    }
+    catch (AmazonS3Exception ex)
+    {
+        Console.WriteLine($"bucket read  FAILED ({ex.ErrorCode}: {ex.Message})");
+    }
+
+    var probeKey = $"diagnostics/write-check-{Guid.NewGuid()}";
+
+    try
+    {
+        var probe = new PutObjectRequest
+        {
+            BucketName = bucket,
+            Key = probeKey,
+            ContentBody = "write check",
+            DisablePayloadSigning = true,
+            DisableDefaultChecksumValidation = true,
+        };
+
+        await s3.PutObjectAsync(probe);
+        await s3.DeleteObjectAsync(bucket, probeKey);
+
+        Console.WriteLine("bucket write ok");
+        Console.WriteLine();
+    }
+    catch (AmazonS3Exception ex)
+    {
+        Console.WriteLine($"bucket write FAILED ({ex.ErrorCode}: {ex.Message})");
+        Console.WriteLine();
+        Console.WriteLine("Nothing has been uploaded or changed.");
+
+        if (canRead)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Reads work and writes do not, which means the credentials are correct and the");
+            Console.WriteLine("R2 API token is missing write permission. In the Cloudflare dashboard, under");
+            Console.WriteLine("R2 > Manage R2 API Tokens, the token needs Object Read & Write rather than");
+            Console.WriteLine($"Object Read only, and its bucket scope has to cover {bucket}.");
+        }
+
+        return 1;
+    }
+}
+
 // ---- 3. upload, and read each one back before anything is rewritten --------------
 
 var uploaded = new Dictionary<string, string>(StringComparer.Ordinal);

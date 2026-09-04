@@ -57,7 +57,13 @@ namespace MerchForge.api.Services.Storage
             // object. Matching on the path shape rather than on the configured
             // PublicBaseUrl means pointing delivery at a custom domain later does not
             // strand URLs already sitting in an open browser form.
-            if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+            // The leading-slash check comes first deliberately. On Unix, Uri.TryCreate
+            // parses an absolute filesystem path as a file: URI and succeeds, so an
+            // API-relative path would be rejected below as a foreign scheme before it
+            // ever reached the branch meant to accept it. On Windows the same call
+            // returns false, which is why this only shows up off a developer machine.
+            if (!value.StartsWith('/')
+                && Uri.TryCreate(value, UriKind.Absolute, out var uri))
             {
                 if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
                 {

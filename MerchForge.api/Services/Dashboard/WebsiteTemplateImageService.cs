@@ -109,7 +109,13 @@ namespace MerchForge.api.Services.Dashboard
             // An absolute URL is reduced to its path; only the path identifies the
             // object. Matching the shape rather than the configured public origin means
             // a URL issued before a move to a custom domain still resolves afterwards.
-            if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+            // The leading-slash check comes first deliberately. On Unix, Uri.TryCreate
+            // parses an absolute filesystem path as a file: URI and succeeds, so an
+            // API-relative path would be rejected below as a foreign scheme before it
+            // ever reached the branch meant to accept it. On Windows the same call
+            // returns false, which is why this only shows up off a developer machine.
+            if (!value.StartsWith('/')
+                && Uri.TryCreate(value, UriKind.Absolute, out var uri))
             {
                 if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
                 {

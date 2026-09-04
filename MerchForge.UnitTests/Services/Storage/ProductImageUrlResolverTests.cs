@@ -136,10 +136,21 @@ public class ProductImageUrlResolverTests
         _resolver.ToStorageKey(_resolver.ToPublicUrl(key), BusinessId).Should().Be(key);
     }
 
-    [Fact]
-    public void ToStorageKey_keeps_a_pre_migration_local_path_for_this_business()
+    /// <summary>
+    /// Also a regression test, and one that only ever failed off a developer machine.
+    ///
+    /// This used to reach Uri.TryCreate before the local-path check. On Unix that call
+    /// parses an absolute filesystem path as a file: URI and succeeds, so the value was
+    /// rejected as a foreign scheme before reaching the branch meant to accept it. On
+    /// Windows the same call returns false and everything passed. Production runs on
+    /// Linux, where it would have broken every pre-migration image read.
+    /// </summary>
+    [Theory]
+    [InlineData("abc123.jpg")]
+    [InlineData("subfolder/abc123.png")]
+    public void ToStorageKey_keeps_a_pre_migration_local_path_for_this_business(string tail)
     {
-        var legacy = $"/uploads/products/{BusinessId}/abc123.jpg";
+        var legacy = $"/uploads/products/{BusinessId}/{tail}";
 
         _resolver.ToStorageKey(legacy, BusinessId).Should().Be(legacy);
     }

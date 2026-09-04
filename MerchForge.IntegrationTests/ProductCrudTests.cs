@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FluentAssertions;
 using MerchForge.api.DTOs.BusinessDashboard;
 using MerchForge.api.Exceptions.BusinessDashboard;
@@ -62,20 +62,26 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
         var featureCreditService = new FeatureCreditService(featureCreditRepo, subscriptionService, subscriptionRepository);
 
         return new BusinessDashboardService(
-            new BusinessDashboardRepository(db),
+            new BusinessDashboardRepository(db, TestImageUrls.Resolver),
             subscriptionRepository,
             new WebsiteTemplateRequestRepository(db),
-            new OrderRepository(db),
+            new OrderRepository(db, TestImageUrls.Resolver),
             new ProductReviewRepository(db),
             new FakeBackgroundJobClient(),
-            featureCreditService);
+            featureCreditService,
+            TestImageUrls.Resolver);
     }
 
-    private static SaveProductRequest Request(
+    /// <summary>
+    /// Image references are validated against the caller's business now, so fixtures
+    /// have to carry a real object key rather than any old path - which is also why
+    /// this is no longer static.
+    /// </summary>
+    private SaveProductRequest Request(
         Guid categoryId,
         string title = "Test Product",
         decimal price = 10m,
-        string imageUrl = "/uploads/products/test/default.png",
+        string? imageUrl = null,
         Dictionary<string, JsonElement>? metadata = null) => new()
         {
             Title = title,
@@ -85,7 +91,11 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
             // At least one image, exactly one main, is a hard requirement now — the
             // validator enforces it at the controller layer, but these tests call the
             // service directly, so the request itself has to already satisfy it.
-            Images = [new ProductImageRequest { Url = imageUrl, IsMain = true }],
+            Images = [new ProductImageRequest
+            {
+                Url = imageUrl ?? TestImageUrls.ImageKey(_business.Id, "default"),
+                IsMain = true,
+            }],
             Metadata = metadata,
         };
 
@@ -102,13 +112,16 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
 
         var created = await service.CreateProductAsync(
             _business.Id,
-            Request(CatalogDatabaseFixture.ShoesCategoryId, "Runner", 49.99m, "/uploads/products/x/y.png"));
+            Request(CatalogDatabaseFixture.ShoesCategoryId, "Runner", 49.99m,
+                TestImageUrls.ImageKey(_business.Id, "y")));
 
         created.Title.Should().Be("Runner");
         created.Price.Should().Be(49.99m);
         created.CategoryId.Should().Be(CatalogDatabaseFixture.ShoesCategoryId);
         created.CategoryName.Should().Be("Shoes");
-        created.ImageUrl.Should().Be("/uploads/products/x/y.png");
+        created.ImageUrl.Should().Be(
+            TestImageUrls.PublicImageUrl(_business.Id, "y"),
+            "the key is stored, and resolved to a url on the way back out");
         created.Metadata.Should().BeNull("no optional fields were supplied");
     }
 
@@ -329,18 +342,21 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
             CategoryId = CatalogDatabaseFixture.ShoesCategoryId,
             Images =
             [
-                new ProductImageRequest { Url = "/uploads/products/x/main.png", IsMain = true, Width = 800, Height = 600 },
-                new ProductImageRequest { Url = "/uploads/products/x/alt.png", IsMain = false },
+                new ProductImageRequest { Url = TestImageUrls.ImageKey(_business.Id, "main"), IsMain = true, Width = 800, Height = 600 },
+                new ProductImageRequest { Url = TestImageUrls.ImageKey(_business.Id, "alt"), IsMain = false },
             ],
         };
 
         var created = await service.CreateProductAsync(_business.Id, request);
 
-        created.ImageUrl.Should().Be("/uploads/products/x/main.png", "ImageUrl tracks whichever image is IsMain");
+        created.ImageUrl.Should().Be(
+            TestImageUrls.PublicImageUrl(_business.Id, "main"), "ImageUrl tracks whichever image is IsMain");
         created.Images.Should().HaveCount(2);
-        created.Images.Should().ContainSingle(i => i.IsMain).Which.Url.Should().Be("/uploads/products/x/main.png");
+        created.Images.Should().ContainSingle(i => i.IsMain).Which.Url
+            .Should().Be(TestImageUrls.PublicImageUrl(_business.Id, "main"));
         created.Images.First(i => i.IsMain).Width.Should().Be(800);
-        created.Images.Should().ContainSingle(i => !i.IsMain).Which.Url.Should().Be("/uploads/products/x/alt.png");
+        created.Images.Should().ContainSingle(i => !i.IsMain).Which.Url
+            .Should().Be(TestImageUrls.PublicImageUrl(_business.Id, "alt"));
     }
 
     [Fact]
@@ -351,15 +367,18 @@ public class ProductCrudTests : IClassFixture<CatalogDatabaseFixture>, IAsyncLif
 
         var created = await service.CreateProductAsync(
             _business.Id,
-            Request(CatalogDatabaseFixture.ShoesCategoryId, imageUrl: "/uploads/products/x/original.png"));
+            Request(CatalogDatabaseFixture.ShoesCategoryId,
+                imageUrl: TestImageUrls.ImageKey(_business.Id, "original")));
 
         var updated = await service.UpdateProductAsync(
             _business.Id,
             created.Id,
-            Request(CatalogDatabaseFixture.ShoesCategoryId, imageUrl: "/uploads/products/x/replacement.png"));
+            Request(CatalogDatabaseFixture.ShoesCategoryId,
+                imageUrl: TestImageUrls.ImageKey(_business.Id, "replacement")));
 
-        updated.ImageUrl.Should().Be("/uploads/products/x/replacement.png");
-        updated.Images.Should().ContainSingle().Which.Url.Should().Be("/uploads/products/x/replacement.png");
+        updated.ImageUrl.Should().Be(TestImageUrls.PublicImageUrl(_business.Id, "replacement"));
+        updated.Images.Should().ContainSingle().Which.Url
+            .Should().Be(TestImageUrls.PublicImageUrl(_business.Id, "replacement"));
     }
 
     [Fact]

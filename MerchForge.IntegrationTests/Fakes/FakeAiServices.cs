@@ -84,7 +84,12 @@ public class FakeAiTranscriptionService : IAiTranscriptionService
 /// </summary>
 public class FakeProductImageService : IProductImageService
 {
-    public string SavedUrl { get; set; } = "/uploads/products/uploaded.png";
+    /// <summary>
+    /// Overrides what SaveAsync returns. Left null so the default is a real object key
+    /// for the business and product it was called with - the shape the rest of the
+    /// pipeline now validates, which a fixed placeholder path would fail.
+    /// </summary>
+    public string? SavedUrl { get; set; }
 
     /// <summary>
     /// The product ids images were stored against, so a test can assert the draft flow
@@ -99,7 +104,7 @@ public class FakeProductImageService : IProductImageService
         CancellationToken cancellationToken = default)
     {
         SavedProductIds.Add(productId);
-        return Task.FromResult(SavedUrl);
+        return Task.FromResult(SavedUrl ?? TestImageUrls.ImageKey(businessId, productId, "uploaded"));
     }
 
     public Task<string> SaveAsync(
@@ -110,7 +115,7 @@ public class FakeProductImageService : IProductImageService
         CancellationToken cancellationToken = default)
     {
         SavedProductIds.Add(productId);
-        return Task.FromResult(SavedUrl);
+        return Task.FromResult(SavedUrl ?? TestImageUrls.ImageKey(businessId, productId, "uploaded"));
     }
 
     public byte[] ReadBytes { get; set; } = [1, 2, 3, 4];

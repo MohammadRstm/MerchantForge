@@ -15,6 +15,7 @@ using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Common;
 using MerchForge.api.Services.Subscription.interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 
 namespace MerchForge.api.Services.BusinessDashboard
 {
@@ -29,6 +30,7 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly IProductReviewRepository _productReviewRepository;
         private readonly IBackgroundJobClient _backgroundJobClient;
         private readonly IFeatureCreditService _featureCreditService;
+        private readonly IProductImageUrlResolver _productImageUrlResolver;
 
         /// <summary>
         /// Pending -> Confirmed | Cancelled; Confirmed -> Shipped | Cancelled;
@@ -52,8 +54,10 @@ namespace MerchForge.api.Services.BusinessDashboard
             IOrderRepository orderRepository,
             IProductReviewRepository productReviewRepository,
             IBackgroundJobClient backgroundJobClient,
-            IFeatureCreditService featureCreditService)
+            IFeatureCreditService featureCreditService,
+            IProductImageUrlResolver productImageUrlResolver)
         {
+            _productImageUrlResolver = productImageUrlResolver;
             _businessDashboardRepository = businessDashboardRepository;
             _subscriptionRepository = subscriptionRepository;
             _websiteTemplateRequestRepository = websiteTemplateRequestRepository;
@@ -323,7 +327,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             await EnsureCategoryIsUsableAsync(businessId, request.CategoryId, cancellationToken);
 
             var now = DateTime.UtcNow;
-            var images = BuildProductImages(request.Images);
+            var images = BuildProductImages(businessId, request.Images);
 
             var product = new Models.Product
             {
@@ -371,7 +375,7 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             await EnsureCategoryIsUsableAsync(businessId, request.CategoryId, cancellationToken);
 
-            var images = BuildProductImages(request.Images);
+            var images = BuildProductImages(businessId, request.Images);
 
             product.Title = request.Title.Trim();
             product.Description = NormalizeDescription(request.Description);
@@ -581,7 +585,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                     Category = product.Category.Name,
                     Price = product.Price,
                     CompareAtPrice = product.CompareAtPrice,
-                    ImageUrl = product.ImageUrl,
+                    ImageUrl = _productImageUrlResolver.ToPublicUrl(product.ImageUrl),
                     StockQuantity = product.StockQuantity,
                     Sku = product.Sku,
                     AverageRating = reviewSummary.AverageRating,
@@ -788,7 +792,15 @@ namespace MerchForge.api.Services.BusinessDashboard
         /// DisplayOrder is just submission order: the merchant controls gallery order
         /// by however they arrange images in the form, not by a separate field.
         /// </summary>
-        private static List<Models.ProductImage> BuildProductImages(List<ProductImageRequest> images)
+        /// <summary>
+        /// The client sends back the URLs a prior upload returned; what gets stored is
+        /// the object key behind each one.
+        ///
+        /// ToStorageKey is the ownership check, and it is new. Inbound image references
+        /// were previously taken on trust after a trim, which let a business attach
+        /// another business's image to its own product simply by sending that URL.
+        /// </summary>
+        private List<Models.ProductImage> BuildProductImages(Guid businessId, List<ProductImageRequest> images)
         {
             var now = DateTime.UtcNow;
 
@@ -796,7 +808,7 @@ namespace MerchForge.api.Services.BusinessDashboard
                 .Select((image, index) => new Models.ProductImage
                 {
                     Id = Guid.NewGuid(),
-                    Url = image.Url.Trim(),
+                    Url = _productImageUrlResolver.ToStorageKey(image.Url, businessId),
                     IsMain = image.IsMain,
                     Width = image.Width,
                     Height = image.Height,

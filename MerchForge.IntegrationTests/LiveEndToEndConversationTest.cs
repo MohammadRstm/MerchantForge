@@ -62,7 +62,7 @@ public class LiveEndToEndConversationTest
     private (ProductAiService Service, FakeAiTranscriptionService Transcription, IDisposable Scope) CreateService()
     {
         var context = _db.CreateContext();
-        var repo = new BusinessDashboardRepository(context);
+        var repo = new BusinessDashboardRepository(context, TestImageUrls.Resolver);
 
         var featureCreditRepo = new FeatureCreditRepository(context);
         var subscriptionRepository = new SubscriptionRepository(context);
@@ -73,10 +73,11 @@ public class LiveEndToEndConversationTest
             repo,
             subscriptionRepository,
             new WebsiteTemplateRequestRepository(context),
-            new OrderRepository(context),
+            new OrderRepository(context, TestImageUrls.Resolver),
             new ProductReviewRepository(context),
             new FakeBackgroundJobClient(),
-            featureCreditService);
+            featureCreditService,
+            TestImageUrls.Resolver);
 
         var transcription = new FakeAiTranscriptionService();
 
@@ -92,7 +93,8 @@ public class LiveEndToEndConversationTest
             transcription,
             new FakeProductImageService(),
             new RecordingAiInteractionLogger(),
-            featureCreditService);
+            featureCreditService,
+            TestImageUrls.Resolver);
 
         return (service, transcription, context);
     }

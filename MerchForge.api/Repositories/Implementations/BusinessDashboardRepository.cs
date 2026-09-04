@@ -5,6 +5,7 @@ using MerchForge.api.DTOs.Common;
 using MerchForge.api.Enums;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace MerchForge.api.Repositories.Implementations
@@ -12,10 +13,30 @@ namespace MerchForge.api.Repositories.Implementations
     public class BusinessDashboardRepository : IBusinessDashboardRepository
     {
         private readonly MerchForgeDbContext _db;
+        private readonly IProductImageUrlResolver _productImageUrlResolver;
 
-        public BusinessDashboardRepository(MerchForgeDbContext db)
+        public BusinessDashboardRepository(
+            MerchForgeDbContext db,
+            IProductImageUrlResolver productImageUrlResolver)
         {
             _db = db;
+            _productImageUrlResolver = productImageUrlResolver;
+        }
+
+        /// <summary>
+        /// Product images are persisted as object keys, not URLs, so every projection
+        /// that hands one to a client has to turn it back into something loadable.
+        ///
+        /// Applied after materialization rather than inside the Select: EF cannot
+        /// translate the resolver into SQL. Resolution is idempotent, so a value that
+        /// somehow passes through twice still comes out right.
+        /// </summary>
+        private void ResolveProductImageUrls(IEnumerable<BusinessProductResponse> products)
+        {
+            foreach (var product in products)
+            {
+                product.ImageUrl = _productImageUrlResolver.ToPublicUrl(product.ImageUrl);
+            }
         }
 
         public async Task<(string Name, DateTime CreatedAt, string? WebsiteUrl)?> GetBusinessSummaryAsync(
@@ -85,7 +106,7 @@ namespace MerchForge.api.Repositories.Implementations
             int take,
             CancellationToken cancellationToken = default)
         {
-            return await _db.Products
+            var products = await _db.Products
                 .Where(p => p.BusinessId == businessId)
                 .OrderByDescending(p => p.CreatedAt)
                 .Take(take)
@@ -111,6 +132,10 @@ namespace MerchForge.api.Repositories.Implementations
                     UpdatedAt = p.UpdatedAt,
                 })
                 .ToListAsync(cancellationToken);
+
+            ResolveProductImageUrls(products);
+
+            return products;
         }
 
         public async Task<List<KeyCountResponse>> GetProductDraftsByStatusAsync(
@@ -252,6 +277,8 @@ namespace MerchForge.api.Repositories.Implementations
                 .Take(query.PageSize)
                 .ToListAsync(cancellationToken);
 
+            ResolveProductImageUrls(items);
+
             return (items, totalCount);
         }
 
@@ -315,7 +342,7 @@ namespace MerchForge.api.Repositories.Implementations
         {
             // Both predicates: matching on productId alone would let one business read
             // another's product.
-            return await _db.Products
+            var product = await _db.Products
                 .AsNoTracking()
                 .Where(p => p.Id == productId && p.BusinessId == businessId)
                 .Select(p => new BusinessProductDetailResponse
@@ -356,6 +383,18 @@ namespace MerchForge.api.Repositories.Implementations
                     UpdatedAt = p.UpdatedAt,
                 })
                 .FirstOrDefaultAsync(cancellationToken);
+
+            if (product is not null)
+            {
+                product.ImageUrl = _productImageUrlResolver.ToPublicUrl(product.ImageUrl);
+
+                foreach (var image in product.Images)
+                {
+                    image.Url = _productImageUrlResolver.ToPublicUrl(image.Url);
+                }
+            }
+
+            return product;
         }
 
         public async Task<(JsonDocument? MetadataShape, List<ProductFormCategoryResponse> Categories)?> GetProductFormDataAsync(
@@ -523,7 +562,7 @@ namespace MerchForge.api.Repositories.Implementations
                     {
                         ProductId = p.Id,
                         Title = p.Title,
-                        ImageUrl = p.ImageUrl,
+                        ImageUrl = _productImageUrlResolver.ToPublicUrl(p.ImageUrl),
                         CategoryName = p.CategoryName,
                         Price = p.Price,
                         UnitsSold = current.UnitsSold,
@@ -982,7 +1021,7 @@ namespace MerchForge.api.Repositories.Implementations
                     {
                         ProductId = p.Id,
                         Title = p.Title,
-                        ImageUrl = p.ImageUrl,
+                        ImageUrl = _productImageUrlResolver.ToPublicUrl(p.ImageUrl),
                         CategoryName = p.CategoryName,
                         StockQuantity = p.StockQuantity,
                         UnitsSold = sale.UnitsSold,

@@ -1,10 +1,11 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using MerchForge.api.DTOs.Storefront;
 using MerchForge.api.Enums;
 using MerchForge.api.Exceptions.Storefront;
 using MerchForge.api.Models;
 using MerchForge.api.Repositories.Implementations;
 using MerchForge.api.Services.ProductReviews;
+using MerchForge.IntegrationTests.Fakes;
 
 namespace MerchForge.IntegrationTests;
 
@@ -365,7 +366,7 @@ public class ProductReviewServiceTests : IClassFixture<CatalogDatabaseFixture>, 
 
         return new ProductReviewService(
             new ProductReviewRepository(scope.Db),
-            new StorefrontRepository(scope.Db));
+            new StorefrontRepository(scope.Db, TestImageUrls.Resolver));
     }
 
     private static CreateProductReviewRequest Request(int rating, string? comment) =>

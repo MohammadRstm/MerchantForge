@@ -13,6 +13,7 @@ using MerchForge.api.Services.BusinessDashboard;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.ProductAi.Interfaces;
 using MerchForge.api.Services.Subscription.interfaces;
+using MerchForge.api.Services.Storage.interfaces;
 
 namespace MerchForge.api.Services.ProductAi
 {
@@ -35,6 +36,7 @@ namespace MerchForge.api.Services.ProductAi
         private readonly IProductImageService _imageService;
         private readonly IAiInteractionLogger _aiLogger;
         private readonly IFeatureCreditService _featureCreditService;
+        private readonly IProductImageUrlResolver _productImageUrlResolver;
 
         public ProductAiService(
             IProductDraftRepository draftRepository,
@@ -44,8 +46,10 @@ namespace MerchForge.api.Services.ProductAi
             IAiTranscriptionService transcription,
             IProductImageService imageService,
             IAiInteractionLogger aiLogger,
-            IFeatureCreditService featureCreditService)
+            IFeatureCreditService featureCreditService,
+            IProductImageUrlResolver productImageUrlResolver)
         {
+            _productImageUrlResolver = productImageUrlResolver;
             _draftRepository = draftRepository;
             _dashboardRepository = dashboardRepository;
             _dashboardService = dashboardService;
@@ -782,8 +786,9 @@ namespace MerchForge.api.Services.ProductAi
                 // had overlooked, so a client could not rely on either the naming or
                 // the completeness. The agent's opinion is still visible in its message.
                 MissingFields = backendMissing,
-                OriginalImageUrl = draft.OriginalImageUrl,
-                ProcessedImageUrl = draft.ProcessedImageUrl,
+                // Stored as object keys, like every other product image.
+                OriginalImageUrl = _productImageUrlResolver.ToPublicUrl(draft.OriginalImageUrl),
+                ProcessedImageUrl = _productImageUrlResolver.ToPublicUrl(draft.ProcessedImageUrl),
                 ImageModificationPrompt = draft.ImageModificationPrompt,
                 CanConfirm = backendMissing.Count == 0
                     && draft.Status is not (ProductDraftStatus.Completed

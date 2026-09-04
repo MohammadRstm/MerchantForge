@@ -36,6 +36,8 @@ using MerchForge.api.Services.ImageEditing.Interfaces;
 using MerchForge.api.Services.ImageSuggestion;
 using MerchForge.api.Services.ImageSuggestion.Interfaces;
 using MerchForge.api.Services.Invitation;
+using MerchForge.api.Services.Images;
+using MerchForge.api.Services.Images.interfaces;
 using MerchForge.api.Services.Storage;
 using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.Extensions.Options;
@@ -508,6 +510,13 @@ builder.Services.AddSingleton<IAmazonS3>(provider =>
 builder.Services.AddScoped<IObjectStorage, CloudflareR2ObjectStorage>();
 builder.Services.AddScoped<IStoredImageUrlResolver, StoredImageUrlResolver>();
 builder.Services.AddScoped<IProductImageUrlResolver, ProductImageUrlResolver>();
+
+// Shrinks uploads before they are stored. Stateless, so a singleton.
+builder.Services.AddSingleton<IImageOptimizer, SkiaImageOptimizer>();
+
+builder.Services
+    .AddOptions<ImageOptimizationOptions>()
+    .Bind(builder.Configuration.GetSection(ImageOptimizationOptions.SectionName));
 
 // Public Storefront Services
 builder.Services.AddScoped<IStorefrontService, StorefrontService>();

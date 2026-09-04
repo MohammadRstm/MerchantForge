@@ -1,6 +1,7 @@
 using MerchForge.api.Configurations;
 using MerchForge.api.Exceptions.Dashboard;
 using MerchForge.api.Services.Dashboard.interfaces;
+using MerchForge.api.Services.Images.interfaces;
 using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.Extensions.Options;
 
@@ -35,15 +36,18 @@ namespace MerchForge.api.Services.Dashboard
         private readonly WebsiteTemplateImageOptions _options;
         private readonly IObjectStorage _objectStorage;
         private readonly IStoredImageUrlResolver _urlResolver;
+        private readonly IImageOptimizer _imageOptimizer;
 
         public WebsiteTemplateImageService(
             IOptions<WebsiteTemplateImageOptions> options,
             IObjectStorage objectStorage,
-            IStoredImageUrlResolver urlResolver)
+            IStoredImageUrlResolver urlResolver,
+            IImageOptimizer imageOptimizer)
         {
             _options = options.Value;
             _objectStorage = objectStorage;
             _urlResolver = urlResolver;
+            _imageOptimizer = imageOptimizer;
         }
 
         public async Task<string> SaveAsync(
@@ -63,15 +67,27 @@ namespace MerchForge.api.Services.Dashboard
 
             var verified = await ResolveVerifiedTypeAsync(file, cancellationToken);
 
+            using var buffer = new MemoryStream();
+
+            await using (var source = file.OpenReadStream())
+            {
+                await source.CopyToAsync(buffer, cancellationToken);
+            }
+
+            // Only after the signature check, since this hands the bytes to a decoder.
+            // The extension can change here - a JPEG comes back as WebP - so the key is
+            // built from what was actually produced.
+            var optimized = _imageOptimizer.Optimize(buffer.ToArray(), verified.ContentType, verified.Extension);
+
             // The image id is generated here and never derived from client input, which
             // would otherwise allow overwriting another template's preview.
-            var key = $"{KeyPrefix}/{Guid.NewGuid()}{verified.Extension}";
+            var key = $"{KeyPrefix}/{Guid.NewGuid()}{optimized.Extension}";
 
-            await using var source = file.OpenReadStream();
+            using var content = new MemoryStream(optimized.Bytes, writable: false);
 
             // The verified content type, never the client's claim: a public bucket sends
             // no nosniff header, so this is what a browser will trust.
-            await _objectStorage.PutAsync(key, source, verified.ContentType, cancellationToken);
+            await _objectStorage.PutAsync(key, content, optimized.ContentType, cancellationToken);
 
             return key;
         }

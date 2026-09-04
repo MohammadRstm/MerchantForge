@@ -1,6 +1,7 @@
 using MerchForge.api.Configurations;
 using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Exceptions.Storage;
+using MerchForge.api.Services.Images.interfaces;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard.interfaces;
 using MerchForge.api.Services.Storage.interfaces;
@@ -41,6 +42,7 @@ namespace MerchForge.api.Services.BusinessDashboard
         private readonly IObjectStorage _objectStorage;
         private readonly IProductImageUrlResolver _urlResolver;
         private readonly IBusinessDashboardRepository _businessDashboardRepository;
+        private readonly IImageOptimizer _imageOptimizer;
         private readonly ILogger<ProductImageService> _logger;
 
         public ProductImageService(
@@ -49,6 +51,7 @@ namespace MerchForge.api.Services.BusinessDashboard
             IObjectStorage objectStorage,
             IProductImageUrlResolver urlResolver,
             IBusinessDashboardRepository businessDashboardRepository,
+            IImageOptimizer imageOptimizer,
             ILogger<ProductImageService> logger)
         {
             _options = options.Value;
@@ -56,10 +59,11 @@ namespace MerchForge.api.Services.BusinessDashboard
             _objectStorage = objectStorage;
             _urlResolver = urlResolver;
             _businessDashboardRepository = businessDashboardRepository;
+            _imageOptimizer = imageOptimizer;
             _logger = logger;
         }
 
-        public async Task<string> SaveAsync(
+        public async Task<StoredImage> SaveAsync(
             Guid businessId,
             Guid productId,
             IFormFile file,
@@ -80,12 +84,20 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             await EnsureProductIsAvailableToBusinessAsync(businessId, productId, cancellationToken);
 
-            await using var stream = file.OpenReadStream();
+            // Buffered rather than streamed straight through: the optimizer has to
+            // decode the whole image to resize it, and the size cap above already
+            // bounds how much this can be.
+            using var buffer = new MemoryStream();
 
-            return await WriteAsync(businessId, productId, stream, verified, cancellationToken);
+            await using (var source = file.OpenReadStream())
+            {
+                await source.CopyToAsync(buffer, cancellationToken);
+            }
+
+            return await WriteAsync(businessId, productId, buffer.ToArray(), verified, cancellationToken);
         }
 
-        public async Task<string> SaveAsync(
+        public async Task<StoredImage> SaveAsync(
             Guid businessId,
             Guid productId,
             byte[] bytes,
@@ -107,9 +119,7 @@ namespace MerchForge.api.Services.BusinessDashboard
 
             await EnsureProductIsAvailableToBusinessAsync(businessId, productId, cancellationToken);
 
-            using var stream = new MemoryStream(bytes, writable: false);
-
-            return await WriteAsync(businessId, productId, stream, verified, cancellationToken);
+            return await WriteAsync(businessId, productId, bytes, verified, cancellationToken);
         }
 
         public async Task<(byte[] Bytes, string ContentType)> ReadAsync(
@@ -193,20 +203,28 @@ namespace MerchForge.api.Services.BusinessDashboard
             }
         }
 
-        private async Task<string> WriteAsync(
+        private async Task<StoredImage> WriteAsync(
             Guid businessId,
             Guid productId,
-            Stream content,
+            byte[] bytes,
             (string ContentType, string Extension) verified,
             CancellationToken cancellationToken)
         {
+            // Only after the signature check: this hands the bytes to a decoder, and
+            // only a file already proved to be an image should get that far. The type
+            // and extension can change here - a JPEG comes back as WebP - so the key is
+            // built from what the optimizer actually produced, not from the upload.
+            var optimized = _imageOptimizer.Optimize(bytes, verified.ContentType, verified.Extension);
+
             // The image id inside the key is generated here and never derived from
             // client input, which would otherwise allow overwriting another image.
-            var key = _urlResolver.BuildKey(businessId, productId, verified.Extension);
+            var key = _urlResolver.BuildKey(businessId, productId, optimized.Extension);
 
-            await _objectStorage.PutAsync(key, content, verified.ContentType, cancellationToken);
+            using var content = new MemoryStream(optimized.Bytes, writable: false);
 
-            return key;
+            await _objectStorage.PutAsync(key, content, optimized.ContentType, cancellationToken);
+
+            return new StoredImage(key, optimized.Width, optimized.Height);
         }
 
         /// <summary>

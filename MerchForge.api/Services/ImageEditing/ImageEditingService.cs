@@ -100,8 +100,8 @@ public class ImageEditingService : IImageEditingService
             throw new ImageEditingException("The image editing provider is unavailable right now. Please try again.", ex);
         }
 
-        var outputUrl = await _imageService.SaveAsync(
-            businessId, productId, result.ImageBytes, result.MimeType, cancellationToken);
+        var outputUrl = (await _imageService.SaveAsync(
+            businessId, productId, result.ImageBytes, result.MimeType, cancellationToken)).Key;
 
         // Charged after a successful call, never before - the same reasoning as AI
         // product generation: a failed provider call already returned above without

@@ -97,17 +97,17 @@ public class FakeProductImageService : IProductImageService
     /// </summary>
     public List<Guid> SavedProductIds { get; } = [];
 
-    public Task<string> SaveAsync(
+    public Task<StoredImage> SaveAsync(
         Guid businessId,
         Guid productId,
         IFormFile file,
         CancellationToken cancellationToken = default)
     {
         SavedProductIds.Add(productId);
-        return Task.FromResult(SavedUrl ?? TestImageUrls.ImageKey(businessId, productId, "uploaded"));
+        return Task.FromResult(Stored(businessId, productId));
     }
 
-    public Task<string> SaveAsync(
+    public Task<StoredImage> SaveAsync(
         Guid businessId,
         Guid productId,
         byte[] bytes,
@@ -115,8 +115,11 @@ public class FakeProductImageService : IProductImageService
         CancellationToken cancellationToken = default)
     {
         SavedProductIds.Add(productId);
-        return Task.FromResult(SavedUrl ?? TestImageUrls.ImageKey(businessId, productId, "uploaded"));
+        return Task.FromResult(Stored(businessId, productId));
     }
+
+    private StoredImage Stored(Guid businessId, Guid productId) =>
+        new(SavedUrl ?? TestImageUrls.ImageKey(businessId, productId, "uploaded"), 800, 600);
 
     public byte[] ReadBytes { get; set; } = [1, 2, 3, 4];
 

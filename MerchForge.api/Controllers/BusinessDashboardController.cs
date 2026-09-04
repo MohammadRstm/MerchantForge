@@ -293,14 +293,19 @@ namespace MerchForge.api.Controllers
             IFormFile file,
             CancellationToken cancellationToken)
         {
-            var key = await _productImageService.SaveAsync(businessId, productId, file, cancellationToken);
+            var stored = await _productImageService.SaveAsync(businessId, productId, file, cancellationToken);
 
             // The database holds the key; the URL is built here, at the boundary, so
             // the delivery origin never gets baked into stored data. The client sends
             // this value straight back on save, where it is turned into a key again.
+            //
+            // Dimensions come from the stored image rather than the uploaded one, which
+            // are not the same thing once an oversized photo has been scaled down.
             return Ok(new ProductImageUploadResponse
             {
-                ImageUrl = _productImageUrlResolver.ToPublicUrl(key),
+                ImageUrl = _productImageUrlResolver.ToPublicUrl(stored.Key),
+                Width = stored.Width,
+                Height = stored.Height,
             });
         }
 

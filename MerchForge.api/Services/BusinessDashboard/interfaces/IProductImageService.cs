@@ -1,6 +1,15 @@
 namespace MerchForge.api.Services.BusinessDashboard.interfaces
 {
     /// <summary>
+    /// Where an image ended up, and how big it actually is once stored.
+    ///
+    /// Dimensions come back from here because the stored image is not always the file
+    /// that was uploaded - an oversized photo is scaled down first - so measuring it
+    /// in the browser would describe the wrong image.
+    /// </summary>
+    public record StoredImage(string Key, int? Width, int? Height);
+
+    /// <summary>
     /// Product image storage.
     ///
     /// Every method returns and accepts the value that goes in the database, which is
@@ -11,8 +20,8 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
     public interface IProductImageService
     {
         /// <summary>
-        /// Validates and stores an uploaded product image, returning the object key to
-        /// save on the product. Throws InvalidProductImageException when the file is
+        /// Validates, shrinks and stores an uploaded product image, returning the object
+        /// key to save on the product. Throws InvalidProductImageException when the file is
         /// empty, too large, or not genuinely an image of an allowed type.
         ///
         /// productId places the image inside its product within the business, and does
@@ -22,7 +31,7 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
         /// businessId always comes from the authorized route, never from the client, so
         /// a cross-tenant write is impossible whatever productId is passed.
         /// </summary>
-        Task<string> SaveAsync(
+        Task<StoredImage> SaveAsync(
             Guid businessId,
             Guid productId,
             IFormFile file,
@@ -34,7 +43,7 @@ namespace MerchForge.api.Services.BusinessDashboard.interfaces
         /// here rather than re-derived, since the caller already knows what it asked
         /// the provider to return; the byte-signature check still applies.
         /// </summary>
-        Task<string> SaveAsync(
+        Task<StoredImage> SaveAsync(
             Guid businessId,
             Guid productId,
             byte[] bytes,

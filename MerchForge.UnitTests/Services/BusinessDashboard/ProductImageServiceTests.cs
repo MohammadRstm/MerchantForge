@@ -5,6 +5,7 @@ using MerchForge.api.Exceptions.BusinessDashboard;
 using MerchForge.api.Exceptions.Storage;
 using MerchForge.api.Repositories.Interfaces;
 using MerchForge.api.Services.BusinessDashboard;
+using MerchForge.api.Services.Images.interfaces;
 using MerchForge.api.Services.Storage;
 using MerchForge.api.Services.Storage.interfaces;
 using Microsoft.AspNetCore.Hosting;
@@ -45,6 +46,7 @@ public class ProductImageServiceTests
         [0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0xFF];
 
     private readonly Mock<IObjectStorage> _objectStorage = new();
+    private readonly Mock<IImageOptimizer> _optimizer = new();
     private readonly Mock<IBusinessDashboardRepository> _repository = new();
     private readonly ProductImageUrlResolver _resolver;
     private readonly ProductImageService _service;
@@ -71,6 +73,14 @@ public class ProductImageServiceTests
             .Setup(r => r.GetProductOwnerBusinessIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Guid?)null);
 
+        // Pass-through, so these tests stay about the service's own rules - validation,
+        // key shape, ownership. Real resizing and re-encoding is covered separately by
+        // SkiaImageOptimizerTests.
+        _optimizer
+            .Setup(o => o.Optimize(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((byte[] bytes, string contentType, string extension) =>
+                new OptimizedImage(bytes, contentType, extension, 800, 600));
+
         var environment = new Mock<IWebHostEnvironment>();
         environment.SetupGet(e => e.WebRootPath).Returns(Path.Combine(Path.GetTempPath(), "merchforge-tests"));
         environment.SetupGet(e => e.ContentRootPath).Returns(Path.GetTempPath());
@@ -81,6 +91,7 @@ public class ProductImageServiceTests
             _objectStorage.Object,
             _resolver,
             _repository.Object,
+            _optimizer.Object,
             NullLogger<ProductImageService>.Instance);
     }
 
@@ -89,7 +100,7 @@ public class ProductImageServiceTests
     [Fact]
     public async Task SaveAsync_stores_the_image_under_its_business_and_product()
     {
-        var key = await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"));
+        var key = (await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"))).Key;
 
         key.Should().StartWith($"businesses/{BusinessId}/products/{ProductId}/images/");
         key.Should().EndWith(".png");
@@ -119,7 +130,7 @@ public class ProductImageServiceTests
     [Fact]
     public async Task SaveAsync_returns_a_key_and_never_a_url()
     {
-        var key = await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"));
+        var key = (await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"))).Key;
 
         key.Should().NotStartWith("http");
         key.Should().NotStartWith("/");
@@ -128,8 +139,8 @@ public class ProductImageServiceTests
     [Fact]
     public async Task SaveAsync_gives_two_uploads_of_the_same_file_distinct_keys()
     {
-        var first = await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"));
-        var second = await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"));
+        var first = (await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"))).Key;
+        var second = (await _service.SaveAsync(BusinessId, ProductId, FileFrom(PngBytes, "image/png"))).Key;
 
         first.Should().NotBe(second);
     }
@@ -149,7 +160,7 @@ public class ProductImageServiceTests
             _ => WebpBytes,
         };
 
-        var key = await _service.SaveAsync(BusinessId, ProductId, FileFrom(bytes, contentType));
+        var key = (await _service.SaveAsync(BusinessId, ProductId, FileFrom(bytes, contentType))).Key;
 
         key.Should().EndWith(expectedExtension);
     }
@@ -217,7 +228,7 @@ public class ProductImageServiceTests
     [Fact]
     public async Task SaveAsync_from_bytes_uses_the_same_key_shape_and_validation()
     {
-        var key = await _service.SaveAsync(BusinessId, ProductId, WebpBytes, "image/webp");
+        var key = (await _service.SaveAsync(BusinessId, ProductId, WebpBytes, "image/webp")).Key;
 
         key.Should().StartWith($"businesses/{BusinessId}/products/{ProductId}/images/");
         key.Should().EndWith(".webp");

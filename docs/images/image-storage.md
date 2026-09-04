@@ -124,6 +124,41 @@ R2 implements neither the streaming SigV4 signing nor the trailing checksums
 every upload against a real bucket while every mocked test keeps passing, so
 `CloudflareR2ObjectStorageTests` asserts both flags explicitly.
 
+## Optimization before storage
+
+Uploads are shrunk before they reach the bucket, by `IImageOptimizer` /
+`SkiaImageOptimizer` (`Services/Images/`).
+
+Almost all of the saving comes from **dimensions**, not encoder quality: a phone
+photo arrives several thousand pixels wide and no template renders it at more
+than a fraction of that. The longest edge is capped, the image is re-encoded to
+WebP, and a photo-like 4000×2000 JPEG measured at **2001 KB → 25 KB**.
+
+Rules worth knowing, each of which exists for a reason:
+
+- **Runs after the byte-signature check, never before.** It hands bytes to a
+  decoder, and only a file already proved to be an image should get that far.
+- **It can change the stored type.** A JPEG comes back as WebP, so the object key
+  is built from what the optimizer produced, not from what was uploaded.
+- **Animated GIFs pass through untouched.** A still re-encode would silently
+  discard every frame but the first.
+- **A result larger than the original is discarded.** Small or already-efficient
+  images can grow through a re-encode; growing a file in the name of shrinking it
+  would be absurd.
+- **It never fails an upload.** An undecodable file, or a decoder fault, stores
+  the original bytes and logs a warning. Optimization is an improvement, not a
+  requirement.
+- **Dimensions come from here**, which is why `SaveAsync` returns `StoredImage`
+  rather than a bare key and why the upload endpoint reports width and height.
+  The browser only ever sees the file the user picked, which is not what gets
+  stored.
+
+`SkiaSharp` was chosen over `SixLabors.ImageSharp` deliberately: ImageSharp's
+split licence requires a paid commercial licence above a revenue threshold, and
+MerchForge is a commercial platform. SkiaSharp is MIT with no such condition. It
+does pull a native binary per platform, hence the `SkiaSharp.NativeAssets.Linux`
+reference for deployment.
+
 ## Method documentation — `IProductImageService`
 
 Every method takes and returns the value stored in the database — an **object key**,
@@ -254,7 +289,15 @@ now the primary defence rather than one of two.
 | Key | Default | Purpose |
 |---|---|---|
 | `ProductImages:RelativePath` | `"uploads/products"` | Still used: identifies pre-migration local paths, and locates them on disk for reading. |
-| `ProductImages:MaxBytes` | `5 * 1024 * 1024` (5 MB) | Per-file size cap, enforced in addition to the request body limit. |
+| `ProductImages:MaxBytes` | `5 * 1024 * 1024` (5 MB) | Per-file size cap, enforced in addition to the request body limit. Applies to the **uploaded** file, before optimization. |
+
+`ImageOptimizationOptions` (section `ImageOptimization`):
+
+| Key | Default | Purpose |
+|---|---|---|
+| `ImageOptimization:Enabled` | `true` | Off stores images exactly as uploaded. A switch because re-encoding is lossy and irreversible once the original is gone. |
+| `ImageOptimization:MaxDimension` | `2048` | Longest edge in pixels. Images at or under this are re-encoded but not resized. |
+| `ImageOptimization:WebpQuality` | `80` | WebP encoder quality, 1-100. |
 
 `R2Options` (section `R2`) — **all six required**, and unlike the options above this
 section is registered with `ValidateDataAnnotations().ValidateOnStart()`. The others

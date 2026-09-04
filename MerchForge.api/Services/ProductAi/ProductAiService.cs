@@ -152,7 +152,7 @@ namespace MerchForge.api.Services.ProductAi
             // ConfirmAsync creates the product with that same id, so the key names the
             // product it really belongs to. A draft becomes exactly one product, which
             // is what makes reusing the id honest rather than convenient.
-            var imageUrl = await _imageService.SaveAsync(businessId, draft.Id, image, cancellationToken);
+            var imageUrl = (await _imageService.SaveAsync(businessId, draft.Id, image, cancellationToken)).Key;
 
             draft.OriginalImageUrl = imageUrl;
 

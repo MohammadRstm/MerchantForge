@@ -62,11 +62,31 @@ jobs:
           # whatever happens to answer on that address. Falls back to trusting the
           # first response, loudly, so a missing secret degrades rather than blocks.
           if [ -n "${DEPLOY_HOST_KEY:-}" ]; then
-            printf '%s\n' "$DEPLOY_HOST_KEY" >> ~/.ssh/known_hosts
+            # known_hosts keys a non-default port as [host]:port. The secret is
+            # written for the plain host, because that is the form ssh-keyscan and
+            # the server's own .pub file produce - so the bracket form is derived
+            # here rather than being something a person has to remember.
+            if [ "$DEPLOY_PORT" = "22" ]; then
+              printf '%s\n' "$DEPLOY_HOST_KEY" >> ~/.ssh/known_hosts
+            else
+              printf '%s\n' "$DEPLOY_HOST_KEY" \
+                | sed "s|^[^ ]*|[$DEPLOY_HOST]:$DEPLOY_PORT|" >> ~/.ssh/known_hosts
+            fi
           else
             echo "::warning title=Host key not pinned::Set the DEPLOY_HOST_KEY secret so the runner verifies which server it is talking to."
             ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
           fi
+
+          # "Host key verification failed" says nothing about which key was wrong.
+          # Host keys are public, so both sides can simply be printed and compared -
+          # a mismatch here is immediately obvious, and a trailing banner line or a
+          # half-pasted secret shows up as "nothing parsed".
+          echo "::group::Host key check"
+          echo "Pinned in known_hosts:"
+          ssh-keygen -lf ~/.ssh/known_hosts 2>/dev/null | sed 's/^/  /' || echo "  (nothing parsed - the secret is not a valid known_hosts line)"
+          echo "Offered by $DEPLOY_HOST:$DEPLOY_PORT (shown for comparison, not trusted):"
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" 2>/dev/null | ssh-keygen -lf - 2>/dev/null | sed 's/^/  /' || echo "  (no response)"
+          echo "::endgroup::"
 
           # IdentitiesOnly stops ssh offering any other key the runner might have.
           SSH_OPTS="-i $HOME/.ssh/id_deploy -o IdentitiesOnly=yes"

@@ -168,6 +168,12 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      # dotnet ef builds the project to read its model, and a build needs the
+      # assets file restore produces. Every other job here restores first; this one
+      # did not, and failed with NETSDK1004.
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION }}
+
       - name: Install the EF tools
         run: dotnet tool install --global dotnet-ef
 

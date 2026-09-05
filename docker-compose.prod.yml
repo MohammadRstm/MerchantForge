@@ -13,9 +13,14 @@
 #
 # Copy .env.production.example to .env.production, fill in real values (never
 # commit that file), then:
-#   docker build -t merchforge-api:latest ./MerchForge.api
-#   docker build -t merchforge-frontend:latest ../MerchForgeClient
+#   docker compose -f docker-compose.prod.yml --env-file .env.production pull
 #   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# The images come from ghcr, published by each repository's own CI on a merge to
+# main, so a deployment pulls a build rather than making one - a host running other
+# people's production containers is a bad place to compile. Both are overridable:
+# set API_IMAGE or FRONTEND_IMAGE to pin a specific :sha tag for a rollback, or to
+# a locally built tag to run something that was never pushed.
 #
 # name: below pins this to its own Compose project ("merchforge-prod") regardless
 # of which directory it's run from. Without it, Compose derives the project name
@@ -52,7 +57,7 @@ services:
       start_period: 30s
 
   api:
-    image: merchforge-api:latest
+    image: ${API_IMAGE:-ghcr.io/mohammadrstm/merchforge-api:latest}
     container_name: merchforge-api-prod
     restart: unless-stopped
     depends_on:
@@ -88,7 +93,7 @@ services:
       - merchforge_api_wwwroot:/app/wwwroot
 
   frontend:
-    image: merchforge-frontend:latest
+    image: ${FRONTEND_IMAGE:-ghcr.io/mohammadrstm/merchforge-frontend:latest}
     container_name: merchforge-frontend-prod
     restart: unless-stopped
     depends_on:

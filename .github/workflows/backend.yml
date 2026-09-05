@@ -160,6 +160,27 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
+    # Generating a script reads the model and never touches a database - but
+    # Program.cs registers the context with ServerVersion.AutoDetect, which opens a
+    # connection while the options are being built. So a server has to be reachable
+    # for the context to be discovered at all. Same image and settings as the
+    # integration-tests job above, which needs one for the honest reason.
+    services:
+      mariadb:
+        image: mariadb:10.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+          # Named here because the connection string below carries a database and
+          # AutoDetect fails on an unknown one. Nothing is ever written to it.
+          MARIADB_DATABASE: merchforge
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -169,20 +190,24 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       # dotnet ef builds the project to read its model, and a build needs the
-      # assets file restore produces. Every other job here restores first; this one
-      # did not, and failed with NETSDK1004.
+      # assets file restore produces.
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION }}
 
       - name: Install the EF tools
         run: dotnet tool install --global dotnet-ef
 
+      - name: Wait for MariaDB
+        run: |
+          for i in $(seq 1 30); do
+            mysqladmin ping -h 127.0.0.1 -P 3306 -u root --silent && break
+            echo "Waiting for MariaDB..."
+            sleep 2
+          done
+
       - name: Generate the idempotent script
-        # Script generation never opens a connection - it reads the model - but the
-        # DbContext still has to be constructible, so a syntactically valid string
-        # has to be present. It is deliberately not a real one.
         env:
-          ConnectionStrings__DefaultConnection: "Server=localhost;Port=3306;Database=merchforge;User=root;Password=not-a-real-password;"
+          ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=merchforge;User=root;Password=;"
         run: dotnet ef migrations script --idempotent --project MerchForge.api --startup-project MerchForge.api -o migrate-prod.sql
 
       - uses: actions/upload-artifact@v4

@@ -149,69 +149,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Program.cs deliberately never calls Database.Migrate(), so schema changes are
-  # applied by hand against production. This keeps the script that does it always
-  # available and always current, instead of someone having to reproduce a local
-  # toolchain at the moment they need it. Idempotent: every statement is guarded on
-  # __EFMigrationsHistory, so applying it twice is a no-op.
+  # Program.cs deliberately never calls Database.Migrate() - migrating at app
+  # startup would run on every container start, with no backup, and a failure would
+  # leave the API crash-looping. Deploy applies the script as its own step instead,
+  # after taking a dump. This job exists so the pending change is reviewable here,
+  # before anyone decides to deploy it.
   migration-script:
     name: Migration script
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    # Generating a script reads the model and never touches a database - but
-    # Program.cs registers the context with ServerVersion.AutoDetect, which opens a
-    # connection while the options are being built. So a server has to be reachable
-    # for the context to be discovered at all. Same image and settings as the
-    # integration-tests job above, which needs one for the honest reason.
-    services:
-      mariadb:
-        image: mariadb:10.4
-        env:
-          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
-          # Named here because the connection string below carries a database and
-          # AutoDetect fails on an unknown one. Nothing is ever written to it.
-          MARIADB_DATABASE: merchforge
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      # dotnet ef builds the project to read its model, and a build needs the
-      # assets file restore produces.
-      - name: Restore
-        run: dotnet restore ${{ env.SOLUTION }}
-
-      - name: Install the EF tools
-        run: dotnet tool install --global dotnet-ef
-
-      - name: Wait for MariaDB
-        run: |
-          for i in $(seq 1 30); do
-            mysqladmin ping -h 127.0.0.1 -P 3306 -u root --silent && break
-            echo "Waiting for MariaDB..."
-            sleep 2
-          done
-
-      - name: Generate the idempotent script
-        env:
-          ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=merchforge;User=root;Password=;"
-        run: dotnet ef migrations script --idempotent --project MerchForge.api --startup-project MerchForge.api -o migrate-prod.sql
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: migrate-prod-sql
-          path: migrate-prod.sql
-          retention-days: 90
+    uses: ./.github/workflows/migration-script.yml

@@ -2,8 +2,7 @@ name: Deploy to production
 
 # Manual only, deliberately. Production holds live data on a host shared with about
 # twenty unrelated applications, so putting a build on it is a decision somebody
-# makes rather than a side effect of merging. Backend CI and Frontend CI publish
-# images automatically; this is the step that moves the server onto them.
+# makes rather than a side effect of merging.
 #
 # There is no push trigger and no pull_request trigger here, which is also what
 # guarantees no fork's pull request can ever reach the deployment credentials.
@@ -15,16 +14,24 @@ on:
         required: true
         type: string
 
-# Never two at once, and never cancelled halfway: a partially replaced stack is
-# worse than a queued run finishing.
+# Never two at once, and never cancelled halfway: a partially replaced stack, or a
+# migration interrupted mid-run, is worse than a queued run finishing.
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Pull and restart
+  # Generated from the commit being deployed, in this run, rather than fetched from
+  # an earlier one - so the schema change applied can never belong to a different
+  # build than the image that follows it.
+  script:
+    name: Migration script
     if: inputs.confirm == 'deploy'
+    uses: ./.github/workflows/migration-script.yml
+
+  deploy:
+    name: Migrate and restart
+    needs: script
     runs-on: ubuntu-latest
 
     # Add required reviewers to this environment in repository settings to put an
@@ -32,6 +39,10 @@ jobs:
     environment: production
 
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: migrate-prod-sql
+
       - name: Deploy over SSH
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -58,8 +69,14 @@ jobs:
           fi
 
           # IdentitiesOnly stops ssh offering any other key the runner might have.
-          ssh -i ~/.ssh/id_deploy -p "$DEPLOY_PORT" -o IdentitiesOnly=yes \
-              "$DEPLOY_USER@$DEPLOY_HOST" \
+          SSH_OPTS="-i $HOME/.ssh/id_deploy -o IdentitiesOnly=yes"
+
+          # Sent ahead rather than piped, because the remote script itself arrives on
+          # stdin.
+          scp $SSH_OPTS -P "$DEPLOY_PORT" migrate-prod.sql \
+              "$DEPLOY_USER@$DEPLOY_HOST:/tmp/migrate-prod.sql"
+
+          ssh $SSH_OPTS -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
               "DEPLOY_PATH='$DEPLOY_PATH' bash -s" <<'REMOTE'
           set -euo pipefail
           cd "$DEPLOY_PATH"
@@ -76,6 +93,33 @@ jobs:
           # starting: compose fails naming the missing one and replaces nothing.
           COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"
 
+          # ---- back up before touching the schema ----
+          #
+          # scripts/backup-db.sh is the mechanism docs/backup-and-recovery.md already
+          # describes, and DB_CONTAINER is what lets it reach a database publishing no
+          # port to its host. Calling it rather than repeating a mysqldump here keeps
+          # one way of taking a backup - which matters mostly because it is the shape
+          # scripts/restore-db.sh knows how to read back. The script refuses to report
+          # success on an empty dump, so a deploy cannot proceed on a worthless one.
+          DB_CONTAINER=merchforge-db-prod scripts/backup-db.sh backups
+
+          # Retention is policy, and that script says of itself that it is the
+          # mechanism and not the schedule. Ten is enough to reach back past a bad
+          # deploy without the directory growing without limit.
+          ls -1t backups/merchforge-*.sql | tail -n +11 | xargs -r rm --
+
+          # ---- apply the schema change ----
+          #
+          # Before the new image, because the new code is what expects the new
+          # schema. The script is idempotent, so a deploy with nothing pending
+          # applies nothing. set -e means a failure here stops the run with the old
+          # stack still serving and a fresh backup on disk.
+          docker exec -i merchforge-db-prod sh -c \
+            'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mysql -uroot merchforge' < /tmp/migrate-prod.sql
+          rm -f /tmp/migrate-prod.sql
+          echo "Migrations applied."
+
+          # ---- and only then the new build ----
           $COMPOSE pull
           $COMPOSE up -d
           $COMPOSE ps

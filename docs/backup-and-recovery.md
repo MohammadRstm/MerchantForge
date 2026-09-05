@@ -16,6 +16,18 @@ currently there).
 Both scripts target any directly reachable MySQL/MariaDB instance via the
 `mysqldump`/`mysql` CLI clients, connecting over `DB_HOST`/`DB_PORT` (default
 `127.0.0.1:3306`, overridable via the environment or a local `.env` file).
+
+Setting `DB_CONTAINER` instead runs the client **inside** that Docker container.
+That is how production is reached: `docker-compose.prod.yml` publishes only
+nginx, so the database has no host port to connect to at all, and without this
+neither script could run there. It also means the password is read from the
+container's own environment rather than passed in, so it never appears in the
+host's process listing:
+
+```bash
+DB_CONTAINER=merchforge-db-prod scripts/backup-db.sh backups
+DB_CONTAINER=merchforge-db-prod scripts/restore-db.sh backups/merchforge-<timestamp>.sql
+```
 Whichever hosting provider is eventually chosen may also offer its own managed
 backup/point-in-time-recovery feature - if so, prefer that for production and
 keep these scripts as the documented, tested fallback / what local development
@@ -30,11 +42,21 @@ pending a hosting decision). Once one exists, this should run:
 - **Daily**, at minimum, via whatever the hosting environment's job scheduler
   is (a cron container, a scheduled CI job, or the provider's managed backup
   feature if used instead of this script).
-- **Immediately before every migration** (`scripts/deploy-migrate.sh`) - a
-  schema change is exactly the kind of event a backup should exist on both
-  sides of.
+- **Immediately before every migration.** This one is done: the *Deploy to
+  production* workflow calls `scripts/backup-db.sh` and then applies the
+  migration script, in that order, and `set -e` means a failed backup stops the
+  deploy with the old stack still serving. A schema change is exactly the kind
+  of event a backup should exist on both sides of.
+
+  (An earlier version of this document named a `scripts/deploy-migrate.sh` that
+  was never written. The deploy workflow is where that lives now.)
 
 ## Retention
+
+The deploy workflow keeps the ten most recent dumps on the host and deletes the
+rest - enough to reach back past a bad deploy, and bounded so the directory
+cannot grow without limit. That is a deploy-time safety net, not a retention
+policy; the policy below is still undecided.
 
 Not yet decided pending the hosting choice, since retention cost/policy is
 usually tied to whatever object storage or managed-backup feature that
@@ -45,9 +67,10 @@ overwhelmingly common case.
 
 ## Storage location
 
-Not yet decided - `scripts/backup-db.sh` writes to a local `backups/`
-directory (gitignored) by default, which is enough to develop and test the
-mechanism but is not a real backup location (a backup that lives on the same
+Still unresolved, and now it matters: these dumps contain real customer data.
+`scripts/backup-db.sh` writes to a local `backups/` directory (gitignored) by
+default, which is enough to develop and test the mechanism but is not a real
+backup location (a backup that lives on the same
 disk as the database it's backing up doesn't protect against the failure
 modes backups exist for). Once a hosting provider is chosen, `backups/`
 should be replaced with genuinely off-host, durable storage (object storage

@@ -45,3 +45,8 @@ backups/
 
 # Local Claude Code project instructions - not shared via the repo.
 CLAUDE.md
+
+# Database dumps. On the production host this directory lives inside the
+# checkout, so without this every backup would sit in the repository as an
+# untracked file full of customer data.
+backups/

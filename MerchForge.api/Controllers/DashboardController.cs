@@ -10,12 +10,14 @@ using MerchForge.api.Enums;
 using MerchForge.api.Services.Dashboard.interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MerchForge.api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     [Authorize(Policy = AuthorizationPolicies.SystemSuperAdmin)]
+    [EnableRateLimiting("admin")]
     public class DashboardController : ControllerBase
     {
         private readonly IDashboardService _dashboardService;

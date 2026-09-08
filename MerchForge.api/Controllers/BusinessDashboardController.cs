@@ -12,12 +12,14 @@ using MerchForge.api.DTOs.Dashboard;
 using MerchForge.api.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace MerchForge.api.Controllers
 {
     [Route("api/businesses/{businessId:guid}/dashboard")]
     [ApiController]
     [Authorize(Policy = AuthorizationPolicies.BusinessOwner)]
+    [EnableRateLimiting("dashboard")]
     public class BusinessDashboardController : ControllerBase
     {
         private readonly IBusinessDashboardService _businessDashboardService;

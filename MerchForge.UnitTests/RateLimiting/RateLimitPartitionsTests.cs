@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Net;
 using FluentAssertions;
 using MerchForge.api.RateLimiting;
@@ -112,5 +113,48 @@ public class RateLimitPartitionsTests
         var context = new DefaultHttpContext();
 
         RateLimitPartitions.GetStorefrontBusinessPartitionKey(context).Should().Be("unknown");
+    }
+
+    [Fact]
+    public void GetUserPartitionKey_reads_the_authenticated_user_id_claim()
+    {
+        var userId = Guid.NewGuid();
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(
+                new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString())], "test")),
+        };
+
+        RateLimitPartitions.GetUserPartitionKey(context).Should().Be(userId.ToString());
+    }
+
+    /// <summary>
+    /// The SuperAdmin dashboard reads across every business, so there is no tenant
+    /// boundary available - two admins must still land in separate buckets, or one
+    /// of them can throttle the other.
+    /// </summary>
+    [Fact]
+    public void GetUserPartitionKey_distinguishes_different_admins()
+    {
+        static DefaultHttpContext ContextFor(Guid id) => new()
+        {
+            User = new ClaimsPrincipal(
+                new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "test")),
+        };
+
+        RateLimitPartitions.GetUserPartitionKey(ContextFor(Guid.NewGuid()))
+            .Should().NotBe(RateLimitPartitions.GetUserPartitionKey(ContextFor(Guid.NewGuid())));
+    }
+
+    /// <summary>
+    /// Every endpoint using this policy sits behind an authorization policy, so an
+    /// anonymous context should not arise - but the fallback must still be a real
+    /// key rather than null, which would throw inside the limiter. Lumping unknown
+    /// callers together is the safe direction: shared bucket, not no bucket.
+    /// </summary>
+    [Fact]
+    public void GetUserPartitionKey_falls_back_to_unknown_for_an_unauthenticated_context()
+    {
+        RateLimitPartitions.GetUserPartitionKey(new DefaultHttpContext()).Should().Be("unknown");
     }
 }

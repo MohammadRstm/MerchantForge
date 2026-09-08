@@ -290,6 +290,40 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));
+
+    // The owner dashboard's analytics reads - by some distance the most expensive
+    // queries in the application, and until now the only major surface with no
+    // limit at all. Partitioned per business for the same reason as "ai": one
+    // business's runaway client must not be able to spend the database capacity
+    // every other business on this deployment shares.
+    //
+    // 180/minute is deliberately well clear of legitimate use rather than tuned
+    // close to it: the overview page alone issues twelve concurrent queries on
+    // load, so this still allows roughly fifteen full page loads a minute per
+    // business. It is a bound on a runaway loop or a leaked token - which would
+    // produce thousands - not a quota anyone should ever notice.
+    options.AddPolicy("dashboard", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetBusinessPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 180,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    // The SuperAdmin dashboard reads across every business, so there is no tenant
+    // boundary to partition on - the authenticated admin is the boundary instead.
+    // Same reasoning and same ceiling as "dashboard" above.
+    options.AddPolicy("admin", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetUserPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 180,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 });
 
 builder.Services.AddEndpointsApiExplorer();

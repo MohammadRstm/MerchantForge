@@ -139,15 +139,32 @@ var hangfireConnectionString = new MySqlConnector.MySqlConnectionStringBuilder(c
     AllowUserVariables = true,
 }.ConnectionString;
 
+// Both of these ran on framework defaults until the September incident review
+// measured what that costs on this host. AddHangfireServer() defaults WorkerCount
+// to Environment.ProcessorCount * 5 - ten polling workers on a 2-core box - and
+// each one queries MySQL on its own schedule. With the only recurring job running
+// hourly and everything else being fire-and-forget email, that produced roughly
+// 500 MB of database writes per hour with no users on the system at all, and made
+// the db container the busiest thing in the stack at idle.
+//
+// Two workers is still concurrency (one slow email cannot block the next), and a
+// 30-second poll interval is well inside what an invitation email needs. Neither
+// touches the hourly job, which is scheduled rather than polled.
 builder.Services.AddHangfire(configuration =>
 {
     configuration.UseStorage(
         new MySqlStorage(
             hangfireConnectionString,
-            new MySqlStorageOptions()));
+            new MySqlStorageOptions
+            {
+                QueuePollInterval = TimeSpan.FromSeconds(30),
+            }));
 });
 
-builder.Services.AddHangfireServer();
+builder.Services.AddHangfireServer(options =>
+{
+    options.WorkerCount = 2;
+});
 
 // Add cors policy
 var corsAllowedOrigins = builder.Configuration
@@ -287,6 +304,40 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    // The owner dashboard's analytics reads - by some distance the most expensive
+    // queries in the application, and until now the only major surface with no
+    // limit at all. Partitioned per business for the same reason as "ai": one
+    // business's runaway client must not be able to spend the database capacity
+    // every other business on this deployment shares.
+    //
+    // 180/minute is deliberately well clear of legitimate use rather than tuned
+    // close to it: the overview page alone issues twelve concurrent queries on
+    // load, so this still allows roughly fifteen full page loads a minute per
+    // business. It is a bound on a runaway loop or a leaked token - which would
+    // produce thousands - not a quota anyone should ever notice.
+    options.AddPolicy("dashboard", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetBusinessPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 180,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    // The SuperAdmin dashboard reads across every business, so there is no tenant
+    // boundary to partition on - the authenticated admin is the boundary instead.
+    // Same reasoning and same ceiling as "dashboard" above.
+    options.AddPolicy("admin", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetUserPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 180,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));

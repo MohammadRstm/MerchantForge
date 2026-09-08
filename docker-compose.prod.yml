@@ -55,6 +55,29 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    # Deliberately conservative, and deliberately present at all.
+    #
+    # This host is shared: 26 containers across a dozen unrelated applications on
+    # two cores. Most of the other tenants are already capped (200-600 MiB); this
+    # stack shipped with no limits, which made it the one thing on the box that
+    # *could* have taken the whole machine - and that is exactly what it was
+    # accused of during the September outage, on a CPU figure that turned out to
+    # be hypervisor steal. Limits make that accusation impossible to level again,
+    # because the ceiling is enforced rather than argued.
+    #
+    # The three caps below total 1.5 of the 2 available cores, so the stack cannot
+    # starve its neighbours even if every container saturates at once. They are set
+    # against measured idle usage (db 96 MiB / 0.35%, api 202 MiB / 1%, frontend
+    # 3.7 MiB / 0%) with real headroom on top, not against guesses. Raise them once
+    # the host's steal problem is settled - see docs, and check `docker stats`
+    # after a deploy: the LIMIT column should show these values, not the host total.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          memory: 192M
 
   api:
     image: ${API_IMAGE:-ghcr.io/mohammadrstm/merchforge-api:latest}
@@ -91,6 +114,17 @@ services:
       R2__PublicBaseUrl: ${R2_PUBLIC_BASE_URL:?R2_PUBLIC_BASE_URL is required}
     volumes:
       - merchforge_api_wwwroot:/app/wwwroot
+    # See the note on the db service. 768M rather than the db's 512M because the
+    # .NET GC sizes its heap against what it believes is available - measured
+    # steady state was 202 MiB, so this is roughly 3.5x headroom rather than a
+    # ceiling the app is expected to run near.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 768M
+        reservations:
+          memory: 256M
 
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/mohammadrstm/merchforge-frontend:latest}
@@ -98,8 +132,29 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    # Bound to loopback, not every interface. "8080:80" published this container on
+    # the host's public address too, so http://<server-ip>:8080 reached the app
+    # directly - bypassing Cloudflare (and therefore Bot Fight Mode and the DDoS
+    # edge), bypassing TLS, and bypassing the host vhost that terminates it. Docker
+    # writes its own iptables rules ahead of UFW, so a host firewall does not
+    # necessarily close that door either.
+    #
+    # The host's nginx proxies to http://localhost:8080, so loopback is all it has
+    # ever needed. This changes nothing about how the site is served and removes the
+    # only route into the stack that skipped every protection in front of it.
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
+    # nginx serving static files and proxying /api/. Measured at 3.7 MiB and a flat
+    # 0.00% CPU in every sample taken during the outage window, so this is a large
+    # multiple of anything it has ever used - it exists to bound the worst case
+    # (a request flood arriving at the edge), not to constrain normal operation.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          memory: 32M
 
 volumes:
   merchforge_mysql_prod_data:

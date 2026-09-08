@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 namespace MerchForge.api.RateLimiting;
 
 /// <summary>
@@ -41,4 +43,16 @@ public static class RateLimitPartitions
         httpContext.Request.Query.TryGetValue("businessId", out var value) && value.Count > 0
             ? value[0] ?? "unknown"
             : "unknown";
+
+    /// <summary>
+    /// The SuperAdmin dashboard is not routed per business - it reads across all
+    /// of them - so there is no tenant boundary to partition on and the
+    /// authenticated user is the correct one instead. Every endpoint using this
+    /// sits behind the SystemSuperAdmin policy, so the claim is always present by
+    /// the time this runs; the "unknown" fallback exists only so a partition key
+    /// is never null, and would lump anonymous callers together rather than
+    /// letting them through unbounded.
+    /// </summary>
+    public static string GetUserPartitionKey(HttpContext httpContext) =>
+        httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
 }

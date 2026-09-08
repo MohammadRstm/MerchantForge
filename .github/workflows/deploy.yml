@@ -113,6 +113,27 @@ jobs:
           # starting: compose fails naming the missing one and replaces nothing.
           COMPOSE="docker compose -f docker-compose.prod.yml --env-file .env.production"
 
+          # ---- make sure the database is actually up ----
+          #
+          # Both the backup and the migration below reach the database with
+          # `docker exec merchforge-db-prod`, which assumes that container exists.
+          # That held for as long as the stack was only ever updated in place - and
+          # stopped holding the moment the containers were removed from the host
+          # during the September incident, which left this workflow unable to
+          # redeploy the very stack it exists to deploy: `docker exec` on a missing
+          # container fails, and `set -e` aborted the run before anything was
+          # restored.
+          #
+          # Pulling and starting *only* the db first fixes that in both directions:
+          # on a normal deploy it is a no-op against an already-healthy container,
+          # and on a recovery it recreates one against the surviving named volume,
+          # so the data comes back with it. --wait blocks on the healthcheck the db
+          # service already declares, so the exec below cannot race a database that
+          # is still initialising. The api and frontend deliberately stay down until
+          # the schema has been migrated.
+          $COMPOSE pull
+          $COMPOSE up -d --wait db
+
           # ---- back up before touching the schema ----
           #
           # scripts/backup-db.sh is the mechanism docs/backup-and-recovery.md already
@@ -140,7 +161,9 @@ jobs:
           echo "Migrations applied."
 
           # ---- and only then the new build ----
-          $COMPOSE pull
+          #
+          # Already pulled above, before the database was started, so this is just
+          # the rest of the stack coming up against the migrated schema.
           $COMPOSE up -d
           $COMPOSE ps
           REMOTE

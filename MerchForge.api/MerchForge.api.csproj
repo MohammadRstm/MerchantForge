@@ -7,6 +7,40 @@
     <UserSecretsId>39a38a8b-28a1-492c-ae2e-0532de580ff9</UserSecretsId>
   </PropertyGroup>
 
+  <!--
+    Security pins, not features. Neither package is referenced by any code in this
+    project - both arrive transitively through Hangfire.MySqlStorage 2.0.3, which
+    was last published in 2018 and cannot be relied on to move:
+
+      Hangfire.MySqlStorage 2.0.3
+      +- Newtonsoft.Json 11.0.2            GHSA-5crp-9r3c-p9vr   (High)
+      +- Dapper 1.50.5
+         +- System.Data.SqlClient 4.4.0    GHSA-98g6-xh36-x2p7   (High)
+                                           GHSA-8g2p-5pqh-5jmc   (Moderate)
+
+    A direct PackageReference outranks a transitive one, so naming them here is
+    what lifts the resolved versions without touching Hangfire itself.
+
+    Neither advisory is reachable from the internet in this deployment - request
+    bodies are deserialized by System.Text.Json, so untrusted JSON never reaches
+    Newtonsoft (Hangfire only uses it for job payloads this codebase writes), and
+    System.Data.SqlClient is a SQL Server driver that no code path here loads at
+    all against MariaDB. They are pinned because "unreachable today" is a property
+    of the current call graph rather than a guarantee, and because leaving known
+    advisories in the image makes every future scan report noise instead of signal.
+
+    One behaviour change worth knowing: Newtonsoft 13 defaults MaxDepth to 64,
+    which is what fixes the DoS. Hangfire job arguments here are flat (GUIDs,
+    email addresses), so nothing approaches that.
+
+    The real fix is to stop depending on an abandoned storage package - see the
+    incident review. This holds the line until then.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" Version="4.0.102.4" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />

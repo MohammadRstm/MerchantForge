@@ -139,15 +139,32 @@ var hangfireConnectionString = new MySqlConnector.MySqlConnectionStringBuilder(c
     AllowUserVariables = true,
 }.ConnectionString;
 
+// Both of these ran on framework defaults until the September incident review
+// measured what that costs on this host. AddHangfireServer() defaults WorkerCount
+// to Environment.ProcessorCount * 5 - ten polling workers on a 2-core box - and
+// each one queries MySQL on its own schedule. With the only recurring job running
+// hourly and everything else being fire-and-forget email, that produced roughly
+// 500 MB of database writes per hour with no users on the system at all, and made
+// the db container the busiest thing in the stack at idle.
+//
+// Two workers is still concurrency (one slow email cannot block the next), and a
+// 30-second poll interval is well inside what an invitation email needs. Neither
+// touches the hourly job, which is scheduled rather than polled.
 builder.Services.AddHangfire(configuration =>
 {
     configuration.UseStorage(
         new MySqlStorage(
             hangfireConnectionString,
-            new MySqlStorageOptions()));
+            new MySqlStorageOptions
+            {
+                QueuePollInterval = TimeSpan.FromSeconds(30),
+            }));
 });
 
-builder.Services.AddHangfireServer();
+builder.Services.AddHangfireServer(options =>
+{
+    options.WorkerCount = 2;
+});
 
 // Add cors policy
 var corsAllowedOrigins = builder.Configuration

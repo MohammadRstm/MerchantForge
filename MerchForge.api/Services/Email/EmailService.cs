@@ -1,4 +1,5 @@
-﻿using MailKit.Net.Smtp;
+﻿using System.Net;
+using MailKit.Net.Smtp;
 using MailKit.Security;
 using MerchForge.api.Configurations;
 using MerchForge.api.Exceptions.Email;
@@ -415,6 +416,85 @@ public class EmailService : IEmailService
         }
     }
 
+    public async Task SendContactEnquiryNotificationAsync(
+        string adminEmail,
+        string senderName,
+        string senderEmail,
+        string subject,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var mail = new MimeMessage();
+
+            // From stays ours. The sender's address goes in Reply-To instead:
+            // putting it in From would be sending mail as them through our relay,
+            // which fails SPF and DKIM and gets the message rejected or spam-filed.
+            mail.From.Add(
+                new MailboxAddress(
+                    _options.FromName,
+                    _options.FromEmail));
+
+            mail.To.Add(
+                MailboxAddress.Parse(adminEmail));
+
+            // Parsed rather than interpolated, so a name containing a comma or an
+            // angle bracket cannot inject a second recipient into the header.
+            mail.ReplyTo.Add(
+                new MailboxAddress(senderName, senderEmail));
+
+            // The subject is stranger-supplied, so it is prefixed rather than used
+            // as-is - an admin should never have to guess whether a subject line
+            // in their inbox came from MerchForge or from someone writing to it.
+            // MimeKit encodes header values, so a newline here cannot split headers.
+            mail.Subject = $"[Contact form] {subject}";
+
+            mail.Body = new BodyBuilder
+            {
+                HtmlBody = BuildContactEnquiryEmail(senderName, senderEmail, subject, message),
+                // A plain-text alternative, and not only for old clients: it is
+                // the copy that cannot render anything a sender put in the body.
+                TextBody = $"From: {senderName} <{senderEmail}>\nSubject: {subject}\n\n{message}",
+            }.ToMessageBody();
+
+            using var smtpClient = new SmtpClient();
+
+            await smtpClient.ConnectAsync(
+                _options.Host,
+                _options.Port,
+                SecureSocketOptions.StartTls,
+                cancellationToken);
+
+            await smtpClient.AuthenticateAsync(
+                _options.Username,
+                _options.Password,
+                cancellationToken);
+
+            await smtpClient.SendAsync(
+                mail,
+                cancellationToken);
+
+            await smtpClient.DisconnectAsync(
+                true,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to forward a contact enquiry to {Email}. SMTP Host: {Host}, Port: {Port}",
+                adminEmail,
+                _options.Host,
+                _options.Port);
+            throw new EmailDeliveryException();
+        }
+    }
+
     private static string BuildWebsiteTemplateRequestSubmittedEmail(
         string businessName,
         string ownerFullName,
@@ -537,6 +617,54 @@ public class EmailService : IEmailService
 
                 <p>
                     — MerchForge
+                </p>
+            </body>
+            </html>
+            """;
+    }
+
+    /// <summary>
+    /// The one email body built entirely from anonymous input, and the only one
+    /// here that escapes what it interpolates.
+    ///
+    /// Every other builder in this file drops its values straight into the
+    /// markup, which is defensible where they come from an authenticated owner -
+    /// a business name, a template label. This one is a public form, so
+    /// unescaped text would let a stranger put working markup and links into a
+    /// message that arrives from our own address and looks like we sent it.
+    /// Newlines become &lt;br&gt; after escaping, never before, so the escaping
+    /// cannot be walked back.
+    /// </summary>
+    private static string BuildContactEnquiryEmail(
+        string senderName,
+        string senderEmail,
+        string subject,
+        string message)
+    {
+        var name = WebUtility.HtmlEncode(senderName);
+        var email = WebUtility.HtmlEncode(senderEmail);
+        var safeSubject = WebUtility.HtmlEncode(subject);
+        var body = WebUtility.HtmlEncode(message).Replace("\n", "<br>");
+
+        return $"""
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <h2>New enquiry from the contact form</h2>
+
+                <p>
+                    <strong>From:</strong> {name} &lt;{email}&gt;<br>
+                    <strong>Subject:</strong> {safeSubject}
+                </p>
+
+                <hr>
+
+                <p>{body}</p>
+
+                <hr>
+
+                <p>
+                    Reply to this email to answer {name} directly.
                 </p>
             </body>
             </html>

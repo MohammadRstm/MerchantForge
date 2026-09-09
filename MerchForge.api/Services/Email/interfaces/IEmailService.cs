@@ -42,4 +42,20 @@ public interface IEmailService
         string businessName,
         string websiteUrl,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Forwards a public contact-form enquiry to an administrator.
+    ///
+    /// senderEmail becomes the message's Reply-To, never its From. Putting a
+    /// stranger's address in From would be sending mail as them from our relay,
+    /// which fails SPF and DKIM and gets the message rejected or filed as spam -
+    /// Reply-To gets the same "just hit reply" behaviour with none of that.
+    /// </summary>
+    Task SendContactEnquiryNotificationAsync(
+        string adminEmail,
+        string senderName,
+        string senderEmail,
+        string subject,
+        string message,
+        CancellationToken cancellationToken = default);
 }

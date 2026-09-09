@@ -329,6 +329,25 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
             }));
 
+    // The public contact form. Partitioned per IP because there is no identity
+    // to use, and far tighter than anything else here for a specific reason:
+    // it is the only anonymous endpoint that causes an email to be sent, so an
+    // unbounded one is a way to fill an administrator's inbox from a script.
+    //
+    // Five an hour is deliberately mean. A person with something to say sends
+    // one, occasionally two if they realise they left something out; nobody
+    // legitimately sends six. A window of an hour rather than a minute is the
+    // part that matters - a per-minute limit would still allow hundreds a day.
+    options.AddPolicy("contact", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            RateLimitPartitions.GetClientIpPartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0,
+            }));
+
     // The SuperAdmin dashboard reads across every business, so there is no tenant
     // boundary to partition on - the authenticated admin is the boundary instead.
     // Same reasoning and same ceiling as "dashboard" above.

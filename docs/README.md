@@ -108,6 +108,8 @@ the background-job system: [architecture.md](architecture.md).
 | [images/image-storage.md](images/image-storage.md) | Upload validation, storage layout, signature verification, serving |
 | [api/endpoints.md](api/endpoints.md) | Every controller's routes, auth requirements, request/response shapes, and status codes |
 | [backup-and-recovery.md](backup-and-recovery.md) | Backup mechanism, frequency, retention, and the restore drill |
+| [production-health-checks.md](production-health-checks.md) | Read-only commands for checking container health, resource use, and host CPU on production |
+| [deploying-a-new-template.md](deploying-a-new-template.md) | Taking a website template from a working dev setup to a live production demo |
 
 ## Basic setup (as determinable from the codebase)
 

@@ -106,16 +106,33 @@ namespace MerchForge.api.Services.Dashboard
                 throw NotAPreviewImage();
             }
 
+            // Anything still on local disk is kept verbatim. That covers previews
+            // uploaded before the move, and the seeded /images/templates/coming-soon.jpg
+            // placeholder, which is a bundled asset rather than an upload. Checked on
+            // the value as submitted, before the URL-to-path reduction below - not
+            // after. Uri.AbsolutePath always carries a leading slash, so a genuine
+            // https://.../website-templates/{id}.ext URL (exactly what the upload
+            // endpoint hands back to the form) reduces to a slash-prefixed path too;
+            // re-checking IsLegacyLocalPath on that reduced value made every real
+            // upload look like a legacy path and returned it un-trimmed, which is why
+            // production templates ended up with a PreviewImageUrl of
+            // "/website-templates/{id}.webp" - never resolved against the R2 public
+            // base URL - instead of the bare key "website-templates/{id}.webp".
+            if (_urlResolver.IsLegacyLocalPath(value))
+            {
+                return value;
+            }
+
             // An absolute URL is reduced to its path; only the path identifies the
             // object. Matching the shape rather than the configured public origin means
             // a URL issued before a move to a custom domain still resolves afterwards.
-            // The leading-slash check comes first deliberately. On Unix, Uri.TryCreate
-            // parses an absolute filesystem path as a file: URI and succeeds, so an
-            // API-relative path would be rejected below as a foreign scheme before it
-            // ever reached the branch meant to accept it. On Windows the same call
-            // returns false, which is why this only shows up off a developer machine.
-            if (!value.StartsWith('/')
-                && Uri.TryCreate(value, UriKind.Absolute, out var uri))
+            // The leading-slash check above runs first deliberately, on the original
+            // value: on Unix, Uri.TryCreate parses an absolute filesystem path as a
+            // file: URI and succeeds, so an API-relative path would be rejected below
+            // as a foreign scheme before it ever reached the branch meant to accept it.
+            // On Windows the same call returns false, which is why this only shows up
+            // off a developer machine.
+            if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
             {
                 if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
                 {
@@ -123,14 +140,6 @@ namespace MerchForge.api.Services.Dashboard
                 }
 
                 value = Uri.UnescapeDataString(uri.AbsolutePath);
-            }
-
-            // Anything still on local disk is kept verbatim. That covers previews
-            // uploaded before the move, and the seeded /images/templates/coming-soon.jpg
-            // placeholder, which is a bundled asset rather than an upload.
-            if (_urlResolver.IsLegacyLocalPath(value))
-            {
-                return value;
             }
 
             var key = value.TrimStart('/');
